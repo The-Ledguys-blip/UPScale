@@ -32,6 +32,14 @@ jobs:
       run: |
         dotnet tool install --global wix --version 5.*
         "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Verify Windows build environment
+      shell: pwsh
+      run: |
+        python --version
+        python -c "import sys, importlib.util; print(sys.executable); print(sys.platform); print(importlib.util.find_spec('PyInstaller')); print(importlib.util.find_spec('PySide6'))"
+        Get-ChildItem app.py, app.ico, led-pixelmap-tool_121.html | Format-Table Name,Length
+        where.exe wix
     
     - name: Build Windows installer
       run: python build_app_windows.py --version 1.0.${{ github.run_number }}

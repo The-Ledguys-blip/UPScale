@@ -17,6 +17,7 @@ Default output:
 """
 
 import argparse
+import importlib.util
 import os
 import shutil
 import subprocess
@@ -76,12 +77,14 @@ def ensure_build_prerequisites():
         print(f"❌ Python 3.9+ required, found {sys.version_info.major}.{sys.version_info.minor}")
         return False
 
-    try:
-        import PyInstaller  # noqa: F401
-        import PySide6  # noqa: F401
-        import PIL  # noqa: F401
-    except ImportError as error:
-        print(f"❌ Missing required package: {error}")
+    print(f"   Python executable: {sys.executable}")
+    print(f"   Python version: {sys.version.split()[0]}")
+    print(f"   Platform: {sys.platform}")
+
+    required_modules = ["PyInstaller", "PySide6"]
+    missing_modules = [name for name in required_modules if importlib.util.find_spec(name) is None]
+    if missing_modules:
+        print(f"❌ Missing required package(s): {', '.join(missing_modules)}")
         print()
         print("Install with:")
         print("  pip install PyInstaller PySide6 Pillow")
@@ -101,6 +104,9 @@ def ensure_runtime_assets():
     if not html_path.exists():
         print(f"❌ Runtime asset not found: {html_path}")
         return None, None
+
+    print(f"   Using icon: {icon_path}")
+    print(f"   Using HTML: {html_path}")
 
     return icon_path, html_path
 

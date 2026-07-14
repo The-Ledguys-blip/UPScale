@@ -1,0 +1,26 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Build output
+build/
+dist/
+
+# Temporary packaging folders
+tmp_*.dmg
+tmp_*.scpt
+tmp_*/
+tmp_iconset_full.iconset/
+
+# Local generated icon folders
+clean_extracted.iconset/
+current_iconset.iconset/
+dist_extracted.iconset/
+icon_clean.iconset/
+icon_expanded.iconset/
+icon_filled.iconset/
+icon_filled2.iconset/
+test_iconset.iconset/
+tmp_icns/
+tmp_icns.iconset/
+verify_dist.iconset/
