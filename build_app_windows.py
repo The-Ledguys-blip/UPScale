@@ -61,7 +61,7 @@ def run_command(command, *, cwd=ROOT):
 def validate_version(version):
     parts = version.split(".")
     if len(parts) != 3 or any(not part.isdigit() for part in parts):
-        print(f"❌ Invalid version '{version}'")
+        print(f"ERROR: Invalid version '{version}'")
         print("   Use Windows MSI format: major.minor.patch, for example 1.0.0")
         return False
     return True
@@ -69,12 +69,12 @@ def validate_version(version):
 
 def ensure_build_prerequisites():
     if sys.platform != "win32":
-        print("❌ Windows packaging must be run on Windows.")
+        print("ERROR: Windows packaging must be run on Windows.")
         print("   Use a Windows machine or the GitHub Actions Windows workflow.")
         return False
 
     if sys.version_info < (3, 9):
-        print(f"❌ Python 3.9+ required, found {sys.version_info.major}.{sys.version_info.minor}")
+        print(f"ERROR: Python 3.9+ required, found {sys.version_info.major}.{sys.version_info.minor}")
         return False
 
     print(f"   Python executable: {sys.executable}")
@@ -84,7 +84,7 @@ def ensure_build_prerequisites():
     required_modules = ["PyInstaller", "PySide6"]
     missing_modules = [name for name in required_modules if importlib.util.find_spec(name) is None]
     if missing_modules:
-        print(f"❌ Missing required package(s): {', '.join(missing_modules)}")
+        print(f"ERROR: Missing required package(s): {', '.join(missing_modules)}")
         print()
         print("Install with:")
         print("  pip install PyInstaller PySide6 Pillow")
@@ -98,11 +98,11 @@ def ensure_runtime_assets():
     html_path = ROOT / "led-pixelmap-tool_121.html"
 
     if not icon_path.exists():
-        print(f"❌ Icon not found: {icon_path}")
+        print(f"ERROR: Icon not found: {icon_path}")
         return None, None
 
     if not html_path.exists():
-        print(f"❌ Runtime asset not found: {html_path}")
+        print(f"ERROR: Runtime asset not found: {html_path}")
         return None, None
 
     print(f"   Using icon: {icon_path}")
@@ -136,25 +136,25 @@ def build_windows_bundle():
         str(ROOT / "app.py"),
     ]
 
-    print("🔨 Building Windows app bundle...")
+    print("Building Windows app bundle...")
     result = run_command(pyinstaller_args)
 
     bundle_dir = ROOT / "dist" / APP_NAME
     exe_path = bundle_dir / f"{APP_NAME}.exe"
 
     if result.returncode != 0:
-        print("❌ PyInstaller build failed")
+        print("ERROR: PyInstaller build failed")
         return None
 
     if not exe_path.exists():
-        print(f"❌ Expected app executable not found: {exe_path}")
+        print(f"ERROR: Expected app executable not found: {exe_path}")
         return None
 
     size_mb = sum(path.stat().st_size for path in bundle_dir.rglob("*") if path.is_file()) / (1024 * 1024)
     print()
-    print("✅ Windows app bundle built successfully!")
-    print(f"   📦 Location: {bundle_dir}")
-    print(f"   📊 Size: {size_mb:.1f} MB")
+    print("Windows app bundle built successfully.")
+    print(f"   Location: {bundle_dir}")
+    print(f"   Size: {size_mb:.1f} MB")
     return bundle_dir
 
 
@@ -206,21 +206,21 @@ def write_wix_source(bundle_dir, version):
 def build_windows_msi(bundle_dir, version):
     wix_executable = find_wix_executable()
     if not wix_executable:
-        print("❌ WiX Toolset not found on PATH.")
+        print("ERROR: WiX Toolset not found on PATH.")
         print("   Install WiX 4/5 and ensure the 'wix' command is available.")
         print("   GitHub Actions can do this automatically on Windows.")
         return False
 
     exe_path = bundle_dir / f"{APP_NAME}.exe"
     if not exe_path.exists():
-        print(f"❌ Expected app executable not found: {exe_path}")
+        print(f"ERROR: Expected app executable not found: {exe_path}")
         return False
 
     wix_source = write_wix_source(bundle_dir, version)
     msi_path = ROOT / "dist" / f"{APP_NAME}.msi"
 
     print()
-    print("📦 Building MSI installer...")
+    print("Building MSI installer...")
     result = run_command(
         [
             wix_executable,
@@ -236,17 +236,17 @@ def build_windows_msi(bundle_dir, version):
     )
 
     if result.returncode != 0:
-        print("❌ WiX build failed")
+        print("ERROR: WiX build failed")
         return False
 
     if not msi_path.exists():
-        print(f"❌ MSI file not found after build: {msi_path}")
+        print(f"ERROR: MSI file not found after build: {msi_path}")
         return False
 
     size_mb = msi_path.stat().st_size / (1024 * 1024)
-    print("✅ MSI installer built successfully!")
-    print(f"   📦 Location: {msi_path}")
-    print(f"   📊 Size: {size_mb:.1f} MB")
+    print("MSI installer built successfully.")
+    print(f"   Location: {msi_path}")
+    print(f"   Size: {size_mb:.1f} MB")
     return True
 
 
@@ -270,7 +270,7 @@ def main():
         if not bundle_dir:
             return False
     elif not (bundle_dir / f"{APP_NAME}.exe").exists():
-        print(f"❌ Existing app bundle not found: {bundle_dir}")
+        print(f"ERROR: Existing app bundle not found: {bundle_dir}")
         print("   Run a full build first or omit --msi-only.")
         return False
 
@@ -280,7 +280,7 @@ def main():
     
     print()
     print("=" * 70)
-    print("✅ Build complete!")
+    print("Build complete.")
     print()
     print("Next steps:")
     print(f"  1. Test: dist/{APP_NAME}/{APP_NAME}.exe")
