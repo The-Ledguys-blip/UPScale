@@ -1,0 +1,66 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    UPScale - Windows Build Instructions                    ║
+║                           START HERE!                                      ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+Welcome! Follow these steps to build the Windows installer:
+
+STEP 1: Install Python
+────────────────────────
+1. Download Python 3.11 from: https://www.python.org/downloads/
+2. Run the installer
+3. ✅ CHECK "Add Python to PATH" 
+4. Click "Install Now"
+5. Verify: Open Command Prompt and type:
+   python --version
+
+STEP 2: Install Dependencies
+──────────────────────────────
+1. Open Command Prompt in THIS FOLDER
+2. Run this command:
+   
+   pip install PyInstaller PySide6 Pillow
+
+   (This will take 2-5 minutes)
+
+STEP 3: Install WiX Toolset
+────────────────────────────
+1. Install WiX Toolset 4 or 5
+2. Open a new Command Prompt
+3. Verify:
+
+   wix --version
+
+STEP 4: Build the installer
+──────────────────────
+1. Still in Command Prompt, run:
+
+   python build_app_windows.py
+
+   (Building takes 3-5 minutes)
+
+STEP 5: Test
+────────────
+1. Double-click: dist\UPScale.msi
+2. Install UPScale
+3. Launch from Start menu or desktop shortcut
+4. Test: Create a project, save it, export an image
+5. Check: Files should appear in Downloads\UPScale-export-*
+
+STEP 6: Share!
+───────────────
+The file dist\UPScale.msi is ready to share!
+Users can install it with a normal Windows installer flow.
+
+TROUBLESHOOTING
+────────────────
+See WINDOWS_BUILD.md for detailed help.
+
+QUESTIONS?
+───────────
+If something doesn't work, try running the build command again:
+  python build_app_windows.py
+
+Check the error message and see WINDOWS_BUILD.md for solutions.
+
+Happy building! 🚀
