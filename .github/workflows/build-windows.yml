@@ -42,7 +42,7 @@ jobs:
         where.exe wix
     
     - name: Build Windows installer
-      run: python build_app_windows.py --version 1.0.${{ github.run_number }}
+      run: python build_app_windows.py --version "1.0.${{ github.run_number }}"
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
