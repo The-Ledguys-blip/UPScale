@@ -171,7 +171,6 @@ def write_wix_source(bundle_dir, version):
     wix_dir.mkdir(parents=True, exist_ok=True)
 
     wix_source = wix_dir / f"{APP_NAME}.wxs"
-    bundle_glob = str(bundle_dir / "**").replace("/", "\\")
     start_menu_guid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{APP_NAME}-start-menu"))
     desktop_guid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{APP_NAME}-desktop"))
 
@@ -207,8 +206,8 @@ def write_wix_source(bundle_dir, version):
               </Package>
 
               <Fragment>
-                <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
-                  <Files Include="{bundle_glob}" />
+                                <ComponentGroup Id="AppFiles">
+                                    <Files Directory="INSTALLFOLDER" Include="!(bindpath.appfiles)\\**" />
                 </ComponentGroup>
               </Fragment>
 
@@ -275,6 +274,8 @@ def build_windows_msi(bundle_dir, version):
             wix_executable,
             "build",
             str(wix_source),
+            "-bindpath",
+            f"appfiles={bundle_dir}",
             "-arch",
             "x64",
             "-o",
