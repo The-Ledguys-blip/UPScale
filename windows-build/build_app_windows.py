@@ -171,8 +171,6 @@ def write_wix_source(bundle_dir, version):
     wix_dir.mkdir(parents=True, exist_ok=True)
 
     wix_source = wix_dir / f"{APP_NAME}.wxs"
-    start_menu_guid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{APP_NAME}-start-menu"))
-    desktop_guid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{APP_NAME}-desktop"))
 
     wix_source.write_text(
         textwrap.dedent(
@@ -186,63 +184,17 @@ def write_wix_source(bundle_dir, version):
                   UpgradeCode="{UPGRADE_CODE}"
                   Language="1033"
                   Scope="perMachine">
-                <SummaryInformation Description="{APP_NAME} installer" Manufacturer="{MANUFACTURER}" />
                 <MajorUpgrade DowngradeErrorMessage="A newer version of {APP_NAME} is already installed." />
                 <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
                 <StandardDirectory Id="ProgramFiles64Folder">
                   <Directory Id="INSTALLFOLDER" Name="{APP_NAME}" />
                 </StandardDirectory>
-                <StandardDirectory Id="ProgramMenuFolder">
-                  <Directory Id="ProgramMenuDir" Name="{APP_NAME}" />
-                </StandardDirectory>
-                <StandardDirectory Id="DesktopFolder" />
 
                 <Feature Id="MainFeature" Title="{APP_NAME}" Level="1">
-                  <ComponentGroupRef Id="AppFiles" />
-                  <ComponentRef Id="ProgramMenuShortcut" />
-                  <ComponentRef Id="DesktopShortcut" />
+                                    <Files Directory="INSTALLFOLDER" Include="!(bindpath.appfiles)\\**" />
                 </Feature>
               </Package>
-
-              <Fragment>
-                                <ComponentGroup Id="AppFiles">
-                                    <Files Directory="INSTALLFOLDER" Include="!(bindpath.appfiles)\\**" />
-                </ComponentGroup>
-              </Fragment>
-
-              <Fragment>
-                <Component Id="ProgramMenuShortcut" Directory="ProgramMenuDir" Guid="{start_menu_guid}">
-                  <Shortcut
-                      Id="StartMenuShortcut"
-                      Name="{APP_NAME}"
-                      Target="[INSTALLFOLDER]{APP_NAME}.exe"
-                      WorkingDirectory="INSTALLFOLDER" />
-                  <RemoveFolder Id="RemoveProgramMenuDir" On="uninstall" />
-                  <RegistryValue
-                      Root="HKCU"
-                      Key="Software\\{MANUFACTURER}\\{APP_NAME}"
-                      Name="StartMenuShortcut"
-                      Type="integer"
-                      Value="1"
-                      KeyPath="yes" />
-                </Component>
-
-                <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="{desktop_guid}">
-                  <Shortcut
-                      Id="DesktopShortcut"
-                      Name="{APP_NAME}"
-                      Target="[INSTALLFOLDER]{APP_NAME}.exe"
-                      WorkingDirectory="INSTALLFOLDER" />
-                  <RegistryValue
-                      Root="HKCU"
-                      Key="Software\\{MANUFACTURER}\\{APP_NAME}"
-                      Name="DesktopShortcut"
-                      Type="integer"
-                      Value="1"
-                      KeyPath="yes" />
-                </Component>
-              </Fragment>
             </Wix>
             """
         ),
