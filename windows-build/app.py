@@ -2,8 +2,10 @@ from pathlib import Path
 import sys
 import re
 import os
+import logging
+from logging.handlers import RotatingFileHandler
 
-from PySide6.QtCore import QUrl, Qt
+from PySide6.QtCore import QUrl, Qt, QTimer
 from PySide6.QtWebEngineCore import QWebEngineSettings
 # QWebEngineDownloadItem may be missing in some PySide6 builds; import flexibly
 try:
@@ -20,6 +22,34 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QMenuBar
 import threading
 import time
 import datetime
+
+
+LOGGER = logging.getLogger("upscale")
+
+
+def _log_file_path() -> Path:
+    if sys.platform.startswith("win"):
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        return base / "UPScale" / "logs" / "upscale.log"
+    return Path.home() / "Library" / "Logs" / "UPScale" / "upscale.log"
+
+
+def setup_logging() -> Path:
+    log_path = _log_file_path()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not LOGGER.handlers:
+        LOGGER.setLevel(logging.INFO)
+        handler = RotatingFileHandler(log_path, maxBytes=512 * 1024, backupCount=3, encoding="utf-8")
+        formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+        handler.setFormatter(formatter)
+        LOGGER.addHandler(handler)
+
+    def _handle_uncaught(exc_type, exc_value, exc_tb):
+        LOGGER.exception("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
+
+    sys.excepthook = _handle_uncaught
+    return log_path
 
 
 def resource_path(*parts: str) -> Path:
@@ -72,23 +102,23 @@ class MainWindow(QMainWindow):
             channel = QWebChannel(self.web_view.page())
             channel.registerObject('py', self._bridge)
             self.web_view.page().setWebChannel(channel)
-            print("[UPScale] QWebChannel registered successfully with Bridge object")
+            LOGGER.info("QWebChannel registered")
         except Exception as e:
-            print(f"[UPScale] QWebChannel setup failed: {e}")
-            import traceback
-            traceback.print_exc()
+            LOGGER.exception("QWebChannel setup failed: %s", e)
             self._bridge = None
         
-        # Poll JavaScript for title updates every 500ms
+        # Polling title less often avoids UI hitches on lower-end systems.
         self._title_update_timer = None
         self._setup_title_polling()
 
-        # start background grouping thread that moves timestamp-prefixed exports
-        try:
-            t = threading.Thread(target=self._group_exported_files, daemon=True)
-            t.start()
-        except Exception:
-            pass
+        # Keep the legacy group thread optional; it can contend with active downloads.
+        if os.environ.get("UPSCALE_ENABLE_BACKGROUND_GROUPER") == "1":
+            try:
+                t = threading.Thread(target=self._group_exported_files, daemon=True)
+                t.start()
+                LOGGER.info("Background export grouper enabled")
+            except Exception:
+                LOGGER.exception("Failed to start background export grouper")
 
     def on_download_requested(self, download: QWebEngineDownloadItem) -> None:
         downloads_dir = Path.home() / 'Downloads'
@@ -205,11 +235,10 @@ class MainWindow(QMainWindow):
             pass
 
     def _setup_title_polling(self) -> None:
-        """Poll JavaScript every 500ms to check if the project name has changed."""
-        from PySide6.QtCore import QTimer
+        """Poll JavaScript every 2s to check if the project name has changed."""
         self._title_update_timer = QTimer(self)
         self._title_update_timer.timeout.connect(self._poll_title_from_js)
-        self._title_update_timer.start(500)  # Poll every 500ms
+        self._title_update_timer.start(2000)
 
     def _poll_title_from_js(self) -> None:
         """Query JavaScript for the current project name and update window title if changed."""
@@ -237,7 +266,6 @@ class MainWindow(QMainWindow):
             new_title = f"UPScale — {clean_name}"
             if self.windowTitle() != new_title:
                 self.setWindowTitle(new_title)
-                print(f"[Poll] Window title updated to: {new_title}")
         except Exception:
             pass
 
@@ -279,25 +307,19 @@ class MainWindow(QMainWindow):
             @Slot(str, result=str)
             def set_session_name(self, name: str) -> str:
                 """Update the app window title with the session name."""
-                print(f"[Python] set_session_name called with: '{name}'")
                 try:
                     clean_name = name.replace('.json', '').replace('.JSON', '').strip() if name else None
-                    print(f"[Python] clean_name: '{clean_name}'")
                     main_window.session_name = clean_name
                     # Always update title if we have a name (even default names like "Untitled Project")
                     if clean_name:
                         new_title = f"UPScale — {clean_name}"
                         main_window.setWindowTitle(new_title)
-                        print(f"[Python] Window title updated to: {new_title}")
                         return "ok"
                     else:
                         main_window.setWindowTitle("UPScale")
-                        print("[Python] Window title reset to: UPScale")
                         return "ok"
                 except Exception as e:
-                    print(f"[Python] set_session_name error: {e}")
-                    import traceback
-                    traceback.print_exc()
+                    LOGGER.exception("set_session_name error: %s", e)
                     return "error"
 
             @Slot(str, str, result=bool)
@@ -311,10 +333,10 @@ class MainWindow(QMainWindow):
                     folder_name = f"UPScale-export-{clean_project}-{timestamp}"
                     target_dir = downloads_dir / folder_name
                     target_dir.mkdir(parents=True, exist_ok=True)
-                    print(f"[UPScale] prepare_export: created {target_dir}")
+                    LOGGER.info("prepare_export created %s", target_dir)
                     return True
                 except Exception as e:
-                    print("[UPScale] prepare_export failed:", e)
+                    LOGGER.exception("prepare_export failed: %s", e)
                     return False
 
             @Slot(str, str, result=bool)
@@ -339,16 +361,15 @@ class MainWindow(QMainWindow):
                             target_dir = downloads_dir / folder_name
                             target_dir.mkdir(parents=True, exist_ok=True)
                             target = target_dir / filename
-                            print(f"[UPScale] save_file folder: {folder_name}")
+                            LOGGER.info("save_file target folder %s", folder_name)
                     
-                    print(f"[UPScale] save_file -> writing {target}")
+                    LOGGER.info("save_file writing %s", target)
                     with open(target, 'wb') as f:
                         f.write(data)
-                    print(f"[UPScale] save_file -> wrote {target}")
+                    LOGGER.info("save_file wrote %s", target)
                     return True
                 except Exception:
-                    import traceback
-                    traceback.print_exc()
+                    LOGGER.exception("save_file failed")
                     return False
 
         return Bridge()
@@ -386,6 +407,8 @@ class MainWindow(QMainWindow):
 
 
 def main() -> int:
+    log_path = setup_logging()
+    LOGGER.info("Starting UPScale")
     app = QApplication(sys.argv)
     app.setApplicationName("UPScale")
     # Set application icon to a large square PNG if available to avoid
@@ -417,6 +440,7 @@ def main() -> int:
                         continue
     except Exception:
         pass
+    LOGGER.info("Application log file: %s", log_path)
 
     window = MainWindow()
     window.show()
