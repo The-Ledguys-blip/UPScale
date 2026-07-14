@@ -171,6 +171,8 @@ def write_wix_source(bundle_dir, version):
     wix_dir.mkdir(parents=True, exist_ok=True)
 
     wix_source = wix_dir / f"{APP_NAME}.wxs"
+    start_menu_guid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{APP_NAME}-start-menu-shortcut"))
+    desktop_guid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{APP_NAME}-desktop-shortcut"))
 
     wix_source.write_text(
         textwrap.dedent(
@@ -190,10 +192,49 @@ def write_wix_source(bundle_dir, version):
                 <StandardDirectory Id="ProgramFiles64Folder">
                   <Directory Id="INSTALLFOLDER" Name="{APP_NAME}" />
                 </StandardDirectory>
+                                <StandardDirectory Id="ProgramMenuFolder">
+                                    <Directory Id="ProgramMenuDir" Name="{APP_NAME}" />
+                                </StandardDirectory>
+                                <StandardDirectory Id="DesktopFolder" />
 
                 <Feature Id="MainFeature" Title="{APP_NAME}" Level="1">
-                                    <Files Directory="INSTALLFOLDER" Include="!(bindpath.appfiles)\\**" />
+                                    <Files Directory="INSTALLFOLDER" Include="!(bindpath.appfiles)\**" />
+                                    <ComponentRef Id="StartMenuShortcutComponent" />
+                                    <ComponentRef Id="DesktopShortcutComponent" />
                 </Feature>
+
+                                <Component Id="StartMenuShortcutComponent" Directory="ProgramMenuDir" Guid="{start_menu_guid}">
+                                    <Shortcut
+                                            Id="StartMenuShortcut"
+                                            Name="{APP_NAME}"
+                                            Description="Launch {APP_NAME}"
+                                            Target="[INSTALLFOLDER]{APP_NAME}.exe"
+                                            WorkingDirectory="INSTALLFOLDER" />
+                                    <RemoveFolder Id="RemoveProgramMenuDir" On="uninstall" />
+                                    <RegistryValue
+                                            Root="HKCU"
+                                            Key="Software\{MANUFACTURER}\{APP_NAME}"
+                                            Name="StartMenuShortcut"
+                                            Type="integer"
+                                            Value="1"
+                                            KeyPath="yes" />
+                                </Component>
+
+                                <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="{desktop_guid}">
+                                    <Shortcut
+                                            Id="DesktopShortcut"
+                                            Name="{APP_NAME}"
+                                            Description="Launch {APP_NAME}"
+                                            Target="[INSTALLFOLDER]{APP_NAME}.exe"
+                                            WorkingDirectory="INSTALLFOLDER" />
+                                    <RegistryValue
+                                            Root="HKCU"
+                                            Key="Software\{MANUFACTURER}\{APP_NAME}"
+                                            Name="DesktopShortcut"
+                                            Type="integer"
+                                            Value="1"
+                                            KeyPath="yes" />
+                                </Component>
               </Package>
             </Wix>
             """
