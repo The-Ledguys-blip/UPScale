@@ -3,7 +3,11 @@ name: Build Windows Installer
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -42,10 +46,24 @@ jobs:
         where.exe wix
     
     - name: Build Windows installer
-      run: python build_app_windows.py --version "1.0.${{ github.run_number }}"
+      shell: pwsh
+      run: |
+        if ("${{ github.ref_type }}" -eq "tag") {
+          $version = "${{ github.ref_name }}".TrimStart("v")
+        } else {
+          $version = "1.0.${{ github.run_number }}"
+        }
+        python build_app_windows.py --version "$version"
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: UPScale-Windows-Installer
         path: dist/UPScale.msi
+
+    - name: Upload MSI to GitHub Release
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: dist/UPScale.msi
+        fail_on_unmatched_files: true
