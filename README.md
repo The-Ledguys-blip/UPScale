@@ -1,5 +1,8 @@
 # UPScale Desktop App
 
+[![Build Windows Installer](https://github.com/The-Ledguys-blip/UPScale/actions/workflows/build-windows.yml/badge.svg)](https://github.com/The-Ledguys-blip/UPScale/actions/workflows/build-windows.yml)
+[![Build macOS App](https://github.com/The-Ledguys-blip/UPScale/actions/workflows/build-macos.yml/badge.svg)](https://github.com/The-Ledguys-blip/UPScale/actions/workflows/build-macos.yml)
+
 UPScale is een desktoptool voor het schalen en exporteren van pixel-art assets, gebouwd met Python en PySide6.
 De repository bevat de volledige broncode en build-scripts voor zowel macOS als Windows.
 
@@ -86,6 +89,19 @@ Artifacts:
 - UPScale-Windows-Installer met UPScale.msi
 - UPScale-macOS-Installer met UPScale.dmg en UPScale.app
 
+### Releasebeleid
+
+- Gebruik semantic versioning: MAJOR.MINOR.PATCH.
+- Maak een release-tag als vX.Y.Z (bijvoorbeeld v1.2.0).
+- Voeg bij elke release release notes toe met:
+	- Wijzigingen voor gebruikers
+	- Fixes en bekende beperkingen
+	- Platformstatus (Windows, macOS)
+- Publiceer per release minimaal deze bestanden:
+	- Windows: UPScale.msi
+	- macOS: UPScale.dmg
+- Gebruik GitHub Releases als centrale downloadpagina voor eindgebruikers.
+
 ## CI/CD (GitHub Actions)
 
 - Push naar main of master start automatische builds.
@@ -109,3 +125,7 @@ Configuratie en gebruik:
 
 - macOS: dist/UPScale.app en dist/UPScale.dmg
 - Windows: dist/UPScale/ en dist/UPScale.msi
+
+## Bijdragen
+
+Bijdragen zijn welkom. Zie [CONTRIBUTING.md](CONTRIBUTING.md) voor de werkwijze voor branches, pull requests en quality checks.
