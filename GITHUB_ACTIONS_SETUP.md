@@ -1,6 +1,6 @@
-# GitHub Actions - Automatic Windows Build
+# GitHub Actions - Automatic Windows MSI Build
 
-Dit workflow bouwt automatisch `UPScale.exe` in de cloud!
+Dit workflow bouwt automatisch `UPScale.msi` in de cloud.
 
 ## Setup (1 keer)
 
@@ -30,9 +30,9 @@ git push -u origin main
 - Click **Settings** → **Actions** → **General**
 - Make sure "Allow all actions and reusable workflows" is enabled
 
-## Build EXE (Automatic)
+## Build MSI (Automatic)
 
-EXE wordt automatisch gebouwd wanneer je code pusht!
+De Windows installer wordt automatisch gebouwd wanneer je code pusht.
 
 ### Optie A: Auto-build op push
 
@@ -44,36 +44,25 @@ git push
 ### Optie B: Manual trigger
 
 - Go to GitHub → Your repository
-- Click **Actions** → **Build Windows EXE**
+- Click **Actions** → **Build Windows Installer**
 - Click **Run workflow**
 
-## Download EXE
+## Download MSI
 
 ### Method 1: From Artifacts (Builds)
 
 1. Go to GitHub → Your repository
 2. Click **Actions**
-3. Click latest **Build Windows EXE**
+3. Click latest **Build Windows Installer**
 4. Scroll down → **Artifacts**
-5. Download **UPScale-Windows**
-6. Extract → Get `UPScale.exe`
-
-### Method 2: From Releases (Final Versions)
-
-1. Go to GitHub → Your repository
-2. Click **Releases** (right sidebar)
-3. Latest release contains `UPScale.exe`
-4. Download directly
+5. Download **UPScale-Windows-Installer**
+6. Extract → Get `UPScale.msi`
 
 ## Share
 
-Just share the download link!
+Share the downloaded MSI with users.
 
-```
-https://github.com/YOUR-USERNAME/upscale-desktop-app/releases/latest
-```
-
-Users can download `UPScale.exe` → extract → run!
+Users can run `UPScale.msi` with the normal Windows installer flow.
 
 ## Troubleshooting
 
@@ -93,8 +82,7 @@ Users can download `UPScale.exe` → extract → run!
 - ✅ Builds on cloud (no local build needed)
 - ✅ Automatic on every push
 - ✅ Artifacts available for 90 days
-- ✅ Releases permanent
-- ✅ 100% reliable (cloud Windows)
+- ✅ Produces a real MSI installer
 
 ## Example Flow
 
@@ -102,9 +90,9 @@ Users can download `UPScale.exe` → extract → run!
 1. You fix bug on Mac
 2. git push origin main
 3. GitHub Actions auto-builds on Windows
-4. You download UPScale.exe from Actions
+4. You download UPScale.msi from Actions
 5. Share link to users
-6. Users download and run
+6. Users install and run
 ```
 
-No manual build steps needed! 🚀
+No manual Windows build machine needed.

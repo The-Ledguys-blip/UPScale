@@ -61,7 +61,7 @@ This takes 2-5 minutes depending on your system.
 
 1. Double-click `dist\UPScale.msi`
 2. Complete the installer
-3. Launch UPScale from the Start menu or desktop shortcut
+3. Launch UPScale from `C:\Program Files\UPScale\UPScale.exe`
 
 Verify:
 - ✅ App launches
@@ -76,6 +76,16 @@ Once tested, you can share:
 - **Portable folder**: `dist/UPScale/`
 
 Users can now install UPScale with a standard one-click Windows installer.
+
+## GitHub Actions Build
+
+If you do not have a Windows machine available:
+
+1. Push your changes to `main`
+2. Open GitHub → **Actions** → **Build Windows Installer**
+3. Open the latest successful run
+4. Download the `UPScale-Windows-Installer` artifact
+5. Extract the ZIP and use `UPScale.msi`
 
 ## Troubleshooting
 
@@ -106,7 +116,6 @@ Users can now install UPScale with a standard one-click Windows installer.
 ## Notes
 
 - **MSI installer** - Installs to `Program Files\UPScale`
-- **Shortcuts** - Creates Start menu and desktop shortcuts
 - **Portable fallback** - `dist/UPScale/` can still be copied manually
 - **Same UI** as macOS version
 - **Same export structure** - `UPScale-export-{projectname}/`

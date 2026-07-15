@@ -2,6 +2,22 @@
 
 Deze map bevat een eenvoudige Python desktopversie van de HTML-app.
 
+## Project downloaden (volledige broncode)
+
+Met Git:
+
+```bash
+git clone https://github.com/The-Ledguys-blip/UPScale.git
+cd UPScale
+```
+
+Zonder Git:
+
+1. Open de repository op GitHub.
+2. Klik op **Code**.
+3. Klik op **Download ZIP**.
+4. Pak het ZIP-bestand uit.
+
 ## Aan de slag
 
 1. Installeer de afhankelijkheden:
@@ -34,6 +50,11 @@ python build_app_windows.py
 
 Dat maakt `dist/UPScale.msi` plus een portable app-map in `dist/UPScale/`.
 Voor details, zie [WINDOWS_BUILD.md](/Users/kevinveen/Downloads/upscale-desktop-app/WINDOWS_BUILD.md).
+
+## GitHub Actions artifacts (zonder lokaal bouwen)
+
+- Windows: workflow **Build Windows Installer** levert artifact `UPScale-Windows-Installer` met `UPScale.msi`.
+- macOS: workflow **Build macOS App** levert artifact `UPScale-macOS-Installer` met `UPScale.dmg` en `UPScale.app`.
 
 ## Wat er gebeurt
 

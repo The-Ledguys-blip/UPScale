@@ -11,7 +11,7 @@ python3 build_app.py
 
 Output: `dist/UPScale.dmg`
 
-See [macOS README](README_MACOS.md) for details.
+See [README](README.md) for details.
 
 ## 🪟 Windows Build
 
@@ -63,3 +63,7 @@ Share: `UPScale-installer.zip` or `dist/UPScale.dmg`
 Share: `dist/UPScale.msi`
 
 Windows also keeps a portable build in `dist/UPScale/` if you need it.
+
+### Windows via GitHub Actions
+Push to `main` to build the installer in GitHub Actions.
+Download the `UPScale-Windows-Installer` artifact from the latest successful `Build Windows Installer` run.
