@@ -5,11 +5,13 @@
 
 ## Direct downloaden
 
-- [Download Windows Installer (MSI)](https://github.com/The-Ledguys-blip/UPScale/releases/latest/download/UPScale.msi)
-- [Download macOS Installer (DMG)](https://github.com/The-Ledguys-blip/UPScale/releases/latest/download/UPScale.dmg)
-- [Bekijk alle releases](https://github.com/The-Ledguys-blip/UPScale/releases)
+- [Windows installer (laatste release)](https://github.com/The-Ledguys-blip/UPScale/releases/latest)
+- [macOS installer (laatste release)](https://github.com/The-Ledguys-blip/UPScale/releases/latest)
+- [Alle releases](https://github.com/The-Ledguys-blip/UPScale/releases)
+- [Windows build artifacts (Actions)](https://github.com/The-Ledguys-blip/UPScale/actions/workflows/build-windows.yml)
+- [macOS build artifacts (Actions)](https://github.com/The-Ledguys-blip/UPScale/actions/workflows/build-macos.yml)
 
-Als een directe link nog niet werkt, open dan de laatste release en download het bestand handmatig.
+Op dit moment bevat de laatste release nog geen gekoppelde installer-assets met vaste bestandsnamen. Daarom kunnen directe bestand-URLs tijdelijk 404 geven.
 
 UPScale is een desktoptool voor het schalen en exporteren van pixel-art assets, gebouwd met Python en PySide6.
 De repository bevat de volledige broncode en build-scripts voor zowel macOS als Windows.
