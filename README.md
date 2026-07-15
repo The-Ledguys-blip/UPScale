@@ -101,6 +101,7 @@ Artifacts:
 	- Windows: UPScale.msi
 	- macOS: UPScale.dmg
 - Gebruik GitHub Releases als centrale downloadpagina voor eindgebruikers.
+- Gebruik [.github/release-template.md](.github/release-template.md) als vaste structuur voor release notes.
 
 ## CI/CD (GitHub Actions)
 
