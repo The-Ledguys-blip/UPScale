@@ -6,7 +6,7 @@ import json
 import logging
 from logging.handlers import RotatingFileHandler
 
-from PySide6.QtCore import QCoreApplication, QUrl, Qt, QTimer
+from PySide6.QtCore import QCoreApplication, QUrl, Qt, QTimer, QStandardPaths
 from PySide6.QtWebEngineCore import QWebEngineSettings
 # QWebEngineDownloadItem may be missing in some PySide6 builds; import flexibly
 try:
@@ -29,6 +29,25 @@ LOGGER = logging.getLogger("upscale")
 
 
 RENDER_MODES = ("stable", "gpu", "software")
+
+
+def get_downloads_dir() -> Path:
+    """Resolve a writable Downloads path across macOS/Windows/Linux."""
+    locations = QStandardPaths.standardLocations(QStandardPaths.DownloadLocation)
+    if locations:
+        candidate = Path(locations[0])
+        if candidate.exists():
+            return candidate
+    fallback = Path.home() / "Downloads"
+    return fallback if fallback.exists() else Path.home()
+
+
+def sanitize_path_component(value: str, fallback: str = "export") -> str:
+    """Normalize folder/file name parts so they are valid on Windows too."""
+    cleaned = (value or "").strip()
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", cleaned)
+    cleaned = cleaned.strip(". ")
+    return cleaned or fallback
 
 
 def _config_file_path() -> Path:
@@ -184,17 +203,18 @@ def resource_path(*parts: str) -> Path:
 
 
 def find_html_file() -> Path:
+    downloads_html = get_downloads_dir() / "led-pixelmap-tool_121.html"
     candidates = [
         resource_path("led-pixelmap-tool_121.html"),
         Path(__file__).resolve().parent / "led-pixelmap-tool_121.html",
         Path(__file__).resolve().parent.parent / "led-pixelmap-tool_121.html",
-        Path("/Users/kevinveen/Downloads/led-pixelmap-tool_121.html"),
+        downloads_html,
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
     raise FileNotFoundError(
-        "Kon led-pixelmap-tool_121.html niet vinden. Plaats het naast deze map of in Downloads."
+        "Kon led-pixelmap-tool_121.html niet vinden. Plaats het naast deze map of in je Downloads-map."
     )
 
 
@@ -249,9 +269,7 @@ class MainWindow(QMainWindow):
                 LOGGER.exception("Failed to start background export grouper")
 
     def on_download_requested(self, download: QWebEngineDownloadItem) -> None:
-        downloads_dir = Path.home() / 'Downloads'
-        if not downloads_dir.exists():
-            downloads_dir = Path.home()
+        downloads_dir = get_downloads_dir()
 
         suggested = download.suggestedFileName()
 
@@ -261,13 +279,13 @@ class MainWindow(QMainWindow):
             if suggested and '-' in suggested:
                 # Check if this is an export file (ends with -1-1.png or -scaled-output.png)
                 if suggested.endswith('-1-1.png'):
-                    project_name = suggested[:-8]  # Remove '-1-1.png'
+                    project_name = sanitize_path_component(suggested[:-8])  # Remove '-1-1.png'
                     folder_name = f"UPScale-export-{project_name}"
                     target_dir = downloads_dir / folder_name
                     target_dir.mkdir(parents=True, exist_ok=True)
                     target = target_dir / suggested
                 elif suggested.endswith('-scaled-output.png'):
-                    project_name = suggested[:-18]  # Remove '-scaled-output.png'
+                    project_name = sanitize_path_component(suggested[:-18])  # Remove '-scaled-output.png'
                     folder_name = f"UPScale-export-{project_name}"
                     target_dir = downloads_dir / folder_name
                     target_dir.mkdir(parents=True, exist_ok=True)
@@ -352,9 +370,9 @@ class MainWindow(QMainWindow):
             # Extract project name from filename
             project_val = None
             if target.name.endswith('-1-1.png'):
-                project_val = target.name[:-8]  # Remove '-1-1.png'
+                project_val = sanitize_path_component(target.name[:-8])  # Remove '-1-1.png'
             elif target.name.endswith('-scaled-output.png'):
-                project_val = target.name[:-18]  # Remove '-scaled-output.png'
+                project_val = sanitize_path_component(target.name[:-18])  # Remove '-scaled-output.png'
 
             t = threading.Thread(target=mover, args=(downloads_dir.as_posix(), target.name, target, project_val))
             t.daemon = True
@@ -463,7 +481,7 @@ class MainWindow(QMainWindow):
                 pass
 
     def _make_bridge(self):
-        downloads_dir = Path.home() / 'Downloads'
+        downloads_dir = get_downloads_dir()
         main_window = self
 
         class Bridge(QObject):
@@ -493,6 +511,7 @@ class MainWindow(QMainWindow):
                         return False
                     # Clean project name for folder
                     clean_project = project_name.replace('.json', '').replace('.JSON', '').strip() if project_name else 'export'
+                    clean_project = sanitize_path_component(clean_project, fallback='export')
                     folder_name = f"UPScale-export-{clean_project}-{timestamp}"
                     target_dir = downloads_dir / folder_name
                     target_dir.mkdir(parents=True, exist_ok=True)
@@ -513,11 +532,11 @@ class MainWindow(QMainWindow):
                     if '-' in filename:
                         # Check if filename ends with -1-1.png or -scaled-output.png
                         if filename.endswith('-1-1.png'):
-                            project_name = filename[:-8]  # Remove '-1-1.png'
+                            project_name = sanitize_path_component(filename[:-8])  # Remove '-1-1.png'
                         elif filename.endswith('-scaled-output.png'):
-                            project_name = filename[:-18]  # Remove '-scaled-output.png'
+                            project_name = sanitize_path_component(filename[:-18])  # Remove '-scaled-output.png'
                         else:
-                            project_name = filename.rsplit('.', 1)[0]  # Fallback: remove extension
+                            project_name = sanitize_path_component(filename.rsplit('.', 1)[0])  # Fallback: remove extension
                         
                         if project_name:
                             folder_name = f"UPScale-export-{project_name}"
@@ -538,7 +557,7 @@ class MainWindow(QMainWindow):
         return Bridge()
 
     def _group_exported_files(self):
-        downloads_dir = Path.home() / 'Downloads'
+        downloads_dir = get_downloads_dir()
         # Match: projectname-1-1.png or projectname-scaled-output.png
         pattern = re.compile(r'^(.+?)-(1-1|scaled-output)\.(png|jpg|jpeg)$', re.IGNORECASE)
         while True:
@@ -550,6 +569,7 @@ class MainWindow(QMainWindow):
                         m = pattern.match(p.name)
                         if m:
                             project_name = m.group(1)
+                            project_name = sanitize_path_component(project_name)
                             groups.setdefault(project_name, []).append((p, project_name))
                     
                     for project_name, items in groups.items():

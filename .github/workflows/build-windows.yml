@@ -54,16 +54,27 @@ jobs:
           $version = "1.0.${{ github.run_number }}"
         }
         python build_app_windows.py --version "$version"
+
+    - name: Package portable ZIP
+      shell: pwsh
+      run: |
+        if (Test-Path "dist/UPScale") {
+          Compress-Archive -Path "dist/UPScale/*" -DestinationPath "dist/UPScale-portable.zip" -Force
+        }
     
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
         name: UPScale-Windows-Installer
-        path: dist/UPScale.msi
+        path: |
+          dist/UPScale.msi
+          dist/UPScale-portable.zip
 
     - name: Upload MSI to GitHub Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
-        files: dist/UPScale.msi
+        files: |
+          dist/UPScale.msi
+          dist/UPScale-portable.zip
         fail_on_unmatched_files: true

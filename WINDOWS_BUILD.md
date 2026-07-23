@@ -1,7 +1,7 @@
 # UPScale Windows MSI Build Instructions
 
 ## System Requirements
-- **Windows 10 or later** (64-bit recommended)
+- **Windows 11** (64-bit)
 - **Python 3.9 or higher** (from python.org)
 - **pip** (comes with Python)
 - **WiX Toolset 4 or 5** for creating the MSI installer
@@ -54,6 +54,7 @@ The script will:
 - Build the app folder with PyInstaller
 - Create `dist/UPScale/UPScale.exe`
 - Create `dist/UPScale.msi`
+- Optional for sharing: zip `dist/UPScale/` into a portable package
 
 This takes 2-5 minutes depending on your system.
 
@@ -74,6 +75,7 @@ Verify:
 Once tested, you can share:
 - **Installer**: `dist/UPScale.msi`
 - **Portable folder**: `dist/UPScale/`
+- **Portable ZIP**: `dist/UPScale-portable.zip`
 
 Users can now install UPScale with a standard one-click Windows installer.
 
@@ -85,7 +87,9 @@ If you do not have a Windows machine available:
 2. Open GitHub → **Actions** → **Build Windows Installer**
 3. Open the latest successful run
 4. Download the `UPScale-Windows-Installer` artifact
-5. Extract the ZIP and use `UPScale.msi`
+5. Extract the artifact ZIP and use either:
+  - `UPScale.msi` for full install
+  - `UPScale-portable.zip` for portable usage
 
 ## Troubleshooting
 
