@@ -1,66 +1,34 @@
-╔════════════════════════════════════════════════════════════════════════════╗
-║                    UPScale - Windows Build Instructions                    ║
-║                           START HERE!                                      ║
-╚════════════════════════════════════════════════════════════════════════════╝
+========================================
+  UPScale - Windows 11 build (START HERE)
+========================================
 
-Welcome! Follow these steps to build the Windows installer:
+Versie wordt automatisch uit led-pixelmap-tool_121.html gelezen.
 
-STEP 1: Install Python
-────────────────────────
-1. Download Python 3.11 from: https://www.python.org/downloads/
-2. Run the installer
-3. ✅ CHECK "Add Python to PATH" 
-4. Click "Install Now"
-5. Verify: Open Command Prompt and type:
-   python --version
+STAP 1 - Python
+  Download Python 3.11 van https://www.python.org/downloads/
+  VINK "Add Python to PATH" aan, klik Install Now.
+  Controle:  py --version
 
-STEP 2: Install Dependencies
-──────────────────────────────
-1. Open Command Prompt in THIS FOLDER
-2. Run this command:
-   
-   pip install PyInstaller PySide6 Pillow
+STAP 2 - Dependencies
+  Open Command Prompt in DEZE map en run:
+      py -m pip install -r requirements.txt
+  (staat requirements.txt er niet? dan: py -m pip install PyInstaller PySide6)
 
-   (This will take 2-5 minutes)
+STAP 3 - Bouwen
+      py build_app_windows.py            (alleen dist\UPScale\UPScale.exe)
+      py build_app_windows.py zip        (+ draagbare zip)
+      py build_app_windows.py installer  (+ Inno Setup installer)
 
-STEP 3: Install WiX Toolset
-────────────────────────────
-1. Install WiX Toolset 4 or 5
-2. Open a new Command Prompt
-3. Verify:
+  Voor de installer: installeer Inno Setup 6
+  https://jrsoftware.org/isdl.php
 
-   wix --version
+STAP 4 - Testen
+  Start dist\UPScale\UPScale.exe
+  Maak een project, sla op, exporteer een afbeelding.
+  Export komt in Downloads\UPScale-export-*
 
-STEP 4: Build the installer
-──────────────────────
-1. Still in Command Prompt, run:
+STAP 5 - Delen
+  Installer : installer_output\UPScale-Setup-<versie>.exe
+  Draagbaar : dist\UPScale-<versie>-win64.zip
 
-   python build_app_windows.py
-
-   (Building takes 3-5 minutes)
-
-STEP 5: Test
-────────────
-1. Double-click: dist\UPScale.msi
-2. Install UPScale
-3. Launch from Start menu or desktop shortcut
-4. Test: Create a project, save it, export an image
-5. Check: Files should appear in Downloads\UPScale-export-*
-
-STEP 6: Share!
-───────────────
-The file dist\UPScale.msi is ready to share!
-Users can install it with a normal Windows installer flow.
-
-TROUBLESHOOTING
-────────────────
-See WINDOWS_BUILD.md for detailed help.
-
-QUESTIONS?
-───────────
-If something doesn't work, try running the build command again:
-  python build_app_windows.py
-
-Check the error message and see WINDOWS_BUILD.md for solutions.
-
-Happy building! 🚀
+Zie WINDOWS_BUILD.md voor uitgebreide uitleg en probleemoplossing.

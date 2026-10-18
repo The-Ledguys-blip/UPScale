@@ -1,133 +1,83 @@
-# UPScale Windows MSI Build Instructions
+# UPScale — Windows 11 build
 
-## System Requirements
+De Windows-build maakt met PyInstaller een `UPScale.exe` en optioneel een
+Inno Setup-installer of een draagbare ZIP. Het build-script leest het
+versienummer automatisch uit `led-pixelmap-tool_121.html` (`APP_VERSION`),
+dus je hoeft nergens anders een versie aan te passen.
+
+## Vereisten
 - **Windows 11** (64-bit)
-- **Python 3.9 or higher** (from python.org)
-- **pip** (comes with Python)
-- **WiX Toolset 4 or 5** for creating the MSI installer
+- **Python 3.9+** van [python.org](https://www.python.org/downloads/) — vink **"Add Python to PATH"** aan
+- Optioneel voor de installer: [Inno Setup 6](https://jrsoftware.org/isdl.php) (ISCC.exe)
 
-If you are currently on macOS, use a Windows machine or the GitHub Actions Windows workflow to create the installer.
+## Stap 1 — Dependencies
+Open Command Prompt in de projectmap en run:
 
-## Step 1: Install Python
-1. Download Python 3.11 from [python.org](https://www.python.org/downloads/)
-2. Run the installer
-3. **IMPORTANT**: Check "Add Python to PATH" during installation
-4. Click "Install Now"
-
-## Step 2: Verify Python Installation
-Open Command Prompt and run:
-```bash
-python --version
-pip --version
+```bat
+py -m pip install -r requirements.txt
 ```
 
-Both should show their versions without errors.
+## Stap 2 — Bouwen
 
-## Step 3: Install Dependencies
-Open Command Prompt in the project folder and run:
-```bash
-pip install PyInstaller PySide6 Pillow
+```bat
+py build_app_windows.py            :: alleen dist\UPScale\UPScale.exe
+py build_app_windows.py zip        :: + dist\UPScale-<versie>-win64.zip
+py build_app_windows.py installer  :: + installer_output\UPScale-Setup-<versie>.exe (Inno Setup 6)
+py build_app_windows.py clean      :: verwijder build\ en dist\
 ```
 
-This may take a few minutes to download and install.
+Resultaat van de standaard-build:
+- `dist\UPScale\UPScale.exe` — start het programma (de hele map `dist\UPScale\` is de draagbare app)
 
-## Step 4: Install WiX Toolset
-Install WiX so the build script can create a real Windows installer:
+## Stap 3 — Installer (optioneel)
 
-1. Download WiX Toolset 4 or 5
-2. Make sure the `wix` command is available in Command Prompt
-3. Verify with:
+`build_app_windows.py installer` zoekt `ISCC.exe` automatisch op deze plekken:
+- `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`
+- `C:\Program Files\Inno Setup 6\ISCC.exe`
+- of `ISCC` in `PATH`
 
-```bash
-wix --version
-```
+Het script geeft de versie mee via `/DMyAppVersion=<versie>`, dus de
+installer-naam en versie-info blijven in sync met de HTML.
 
-## Step 5: Build the Installer
+## Stap 4 — Testen
 
-Run the Windows build script:
-```bash
-python build_app_windows.py
-```
+1. Start `dist\UPScale\UPScale.exe` (of installeer de Setup-EXE)
+2. Open/opslaan van een project, exporteren van een afbeelding
+3. Export-bestanden komen in `%USERPROFILE%\Downloads\UPScale-export-*`
 
-The script will:
-- Check dependencies
-- Build the app folder with PyInstaller
-- Create `dist/UPScale/UPScale.exe`
-- Create `dist/UPScale.msi`
-- Optional for sharing: zip `dist/UPScale/` into a portable package
+## Delen
+- **Installer**: `installer_output\UPScale-Setup-<versie>.exe`
+- **Draagbare map**: `dist\UPScale\`
+- **Draagbare ZIP**: `dist\UPScale-<versie>-win64.zip`
 
-This takes 2-5 minutes depending on your system.
+## GitHub Actions
+Geen Windows-machine? De workflow "Build Windows Installer" in `.github/workflows`
+bouwt de installer op GitHub. Push naar `main`, open **Actions**, kies de
+laatste geslaagde run en download het artifact.
 
-## Step 6: Test the Installer
-
-1. Double-click `dist\UPScale.msi`
-2. Complete the installer
-3. Launch UPScale from `C:\Program Files\UPScale\UPScale.exe`
-
-Verify:
-- ✅ App launches
-- ✅ Can open/save projects
-- ✅ Can export images
-- ✅ Files save to `%USERPROFILE%\Downloads\UPScale-export-*`
-
-## Step 7: Share
-
-Once tested, you can share:
-- **Installer**: `dist/UPScale.msi`
-- **Portable folder**: `dist/UPScale/`
-- **Portable ZIP**: `dist/UPScale-portable.zip`
-
-Users can now install UPScale with a standard one-click Windows installer.
-
-## GitHub Actions Build
-
-If you do not have a Windows machine available:
-
-1. Push your changes to `main`
-2. Open GitHub → **Actions** → **Build Windows Installer**
-3. Open the latest successful run
-4. Download the `UPScale-Windows-Installer` artifact
-5. Extract the artifact ZIP and use either:
-  - `UPScale.msi` for full install
-  - `UPScale-portable.zip` for portable usage
-
-## Troubleshooting
+## Problemen oplossen
 
 ### "Python not found"
-- Reinstall Python with "Add Python to PATH" checked
-- Restart Command Prompt after reinstalling
+- Herinstalleer Python met "Add Python to PATH" en heropen Command Prompt.
 
-### "Module not found" errors
-- Run: `pip install --upgrade pip`
-- Run: `pip install PyInstaller PySide6 Pillow` again
+### "Module not found"
+```bat
+py -m pip install --upgrade pip
+py -m pip install -r requirements.txt
+```
 
-### "wix" is not recognized
-- Reinstall WiX Toolset
-- Open a new Command Prompt after installation
-- Run `wix --version` to confirm it is on PATH
+### "ISCC.exe niet gevonden"
+- Installeer Inno Setup 6 en heropen Command Prompt, of voeg het installatiepad aan `PATH` toe.
 
-### App doesn't launch after install
-- Try running from Command Prompt to see error messages:
-  ```bash
+### App start niet na installatie
+- Start vanuit Command Prompt om de foutmelding te zien:
+  ```bat
   "C:\Program Files\UPScale\UPScale.exe"
   ```
 
-### Security warning from Windows
-- Windows may warn about unsigned executables
-- Click "More info" → "Run anyway"
-- This is normal for unsigned apps and installers
+### SmartScreen-waarschuwing
+- De app is niet ondertekend; klik "Meer informatie" → "Toch uitvoeren".
 
-## Notes
-
-- **MSI installer** - Installs to `Program Files\UPScale`
-- **Portable fallback** - `dist/UPScale/` can still be copied manually
-- **Same UI** as macOS version
-- **Same export structure** - `UPScale-export-{projectname}/`
-
-## Support
-
-If you have issues:
-1. Check the troubleshooting section above
-2. Verify Python is installed correctly
-3. Try running from Command Prompt to see error messages
-4. Contact support with the error message
+## Notities
+- Zelfde UI en exportstructuur als de macOS-versie.
+- Op macOS bouw je met `python3 build_app.py` (DMG + install naar /Applications).

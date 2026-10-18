@@ -12,30 +12,25 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Set up .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install PyInstaller PySide6 Pillow
+        pip install -r requirements.txt
 
-    - name: Install WiX Toolset
+    - name: Install Inno Setup 6
       shell: pwsh
       run: |
-        dotnet tool install --global wix --version 5.*
-        "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        choco install innosetup -y --no-progress
+        "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
     - name: Verify Windows build environment
       shell: pwsh
@@ -43,38 +38,25 @@ jobs:
         python --version
         python -c "import sys, importlib.util; print(sys.executable); print(sys.platform); print(importlib.util.find_spec('PyInstaller')); print(importlib.util.find_spec('PySide6'))"
         Get-ChildItem app.py, app.ico, led-pixelmap-tool_121.html | Format-Table Name,Length
-        where.exe wix
-    
-    - name: Build Windows installer
-      shell: pwsh
-      run: |
-        if ("${{ github.ref_type }}" -eq "tag") {
-          $version = "${{ github.ref_name }}".TrimStart("v")
-        } else {
-          $version = "1.0.${{ github.run_number }}"
-        }
-        python build_app_windows.py --version "$version"
+        if (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe") { "ISCC.exe gevonden" } else { "ISCC.exe ONTBREEKT" }
 
-    - name: Package portable ZIP
+    - name: Build exe, portable zip and installer
       shell: pwsh
-      run: |
-        if (Test-Path "dist/UPScale") {
-          Compress-Archive -Path "dist/UPScale/*" -DestinationPath "dist/UPScale-portable.zip" -Force
-        }
-    
+      run: python build_app_windows.py zip installer
+
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: UPScale-Windows-Installer
+        name: UPScale-Windows
         path: |
-          dist/UPScale.msi
-          dist/UPScale-portable.zip
+          dist/UPScale-*-win64.zip
+          installer_output/UPScale-Setup-*.exe
 
-    - name: Upload MSI to GitHub Release
+    - name: Upload to GitHub Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          dist/UPScale.msi
-          dist/UPScale-portable.zip
+          dist/UPScale-*-win64.zip
+          installer_output/UPScale-Setup-*.exe
         fail_on_unmatched_files: true

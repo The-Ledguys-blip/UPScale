@@ -1,9 +1,41 @@
 from pathlib import Path
+import plistlib
+import re
 import shutil
 import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
+
+
+def read_app_version() -> str:
+    """Read the app version from the HTML so the bundle stays in sync."""
+    try:
+        text = (ROOT / "led-pixelmap-tool_121.html").read_text(encoding="utf-8", errors="ignore")
+        match = re.search(r"const APP_VERSION\s*=\s*'v?([0-9]+\.[0-9]+\.[0-9]+)'", text)
+        if match:
+            return match.group(1)
+    except Exception:
+        pass
+    return "0.0.0"
+
+
+def stamp_app_version(app_path: Path) -> None:
+    """Write CFBundleShortVersionString/CFBundleVersion into the built .app."""
+    plist_path = app_path / "Contents" / "Info.plist"
+    if not plist_path.exists():
+        return
+    version = read_app_version()
+    try:
+        with open(plist_path, "rb") as handle:
+            data = plistlib.load(handle)
+        data["CFBundleShortVersionString"] = version
+        data["CFBundleVersion"] = version
+        with open(plist_path, "wb") as handle:
+            plistlib.dump(data, handle)
+        print(f"Versie in app bundle gezet: {version}")
+    except Exception as exc:
+        print(f"Kon app versie niet zetten: {exc}")
 
 
 def _copy_if_exists(source: Path, dest: Path) -> bool:
@@ -254,6 +286,7 @@ def main() -> None:
     dist = ROOT / "dist" / "UPScale.app"
     if dist.exists():
         print(f"Build klaar: {dist}")
+        stamp_app_version(dist)
         build_dmg()
     else:
         print("Build voltooid, maar het app-pakket is niet gevonden in dist/.")

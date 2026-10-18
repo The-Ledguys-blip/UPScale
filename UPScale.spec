@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['C:\\Users\\The-L\\Downloads\\UPScale-main\\app.py'],
+    ['app.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\The-L\\Downloads\\UPScale-main\\led-pixelmap-tool_121.html', '.')],
-    hiddenimports=['PySide6.QtWebEngineCore', 'PySide6.QtCore', 'PySide6.QtGui', 'PySide6.QtWebEngineWidgets'],
+    datas=[('led-pixelmap-tool_121.html', '.'), ('app.icns', '.'), ('icon.iconset', 'icon.iconset'), ('icon_fullbleed.iconset', 'icon_fullbleed.iconset')],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -32,7 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['C:\\Users\\The-L\\Downloads\\UPScale-main\\app.ico'],
+    icon=['app.icns'],
 )
 coll = COLLECT(
     exe,
@@ -42,4 +42,10 @@ coll = COLLECT(
     upx=True,
     upx_exclude=[],
     name='UPScale',
+)
+app = BUNDLE(
+    coll,
+    name='UPScale.app',
+    icon='app.icns',
+    bundle_identifier=None,
 )
