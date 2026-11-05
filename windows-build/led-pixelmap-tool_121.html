@@ -4753,8 +4753,11 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
           panelIdCounter++;
           if(s.showPanelIds && cellW>14 && cellH>10){
             const idScale = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct)||100)/100));
-            const idFontSize = Math.max(4.5, Math.min(8.25, Math.min(cellW,cellH)*0.24)) * idScale;
-            cells += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${idFontSize}" fill="#ffffff" opacity="0.45" style="pointer-events:none">${panelIdCounter}</text>`;
+            /* Proportioneel t.o.v. het paneel i.p.v. een vaste piepkleine cap:
+               anders zijn de ID's op een 1:1 LED-output (en in exports op ware
+               grootte) niet leesbaar. De slider schaalt hier omheen. */
+            const idFontSize = Math.max(5, Math.min(96, Math.min(cellW,cellH)*0.2)) * idScale;
+            cells += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${idFontSize.toFixed(2)}" fill="#ffffff" opacity="0.65" style="pointer-events:none">${panelIdCounter}</text>`;
           }
         }
       }
