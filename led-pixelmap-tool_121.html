@@ -1318,7 +1318,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <div class="live-preview-wrap">
             <div id="livePreviewHost"></div>
           </div>
-          <div class="note" id="liveNote">Open de live output om de ingestelde canvasmaat 1:1 op 0,0 op een tweede monitor te tonen — bruikbaar als signaal naar een LED-processor. Zet dat scherm op dezelfde resolutie als de canvas.</div>
+          <div class="note" id="liveNote">Open de live output om de ingestelde canvasmaat <b>1:1 vanaf 0,0</b> op een tweede monitor te tonen — bruikbaar als signaal naar een LED-processor. De uitvoer wordt niet geschaald of gecentreerd: is de canvas groter dan het scherm, dan vallen de buitenste pixels buiten beeld.</div>
         </div>
       </div>
     </div>
@@ -7174,16 +7174,18 @@ if(typeof renderOverviewPanels === 'function') renderOverviewPanels();
 .live-btn-primary:hover{filter:brightness(1.1);}
 .live-btn-row{display:flex;gap:6px;}
 .live-btn-row .stage-btn{flex:1;}
-#liveOverlay{position:fixed;inset:0;z-index:9000;background:#000;display:none;}
-#liveOverlay #liveOverlaySvg{position:absolute;inset:0;}
-#liveOverlay #liveOverlaySvg svg{display:block;width:100%;height:100%;}
+#liveOverlay{position:fixed;inset:0;z-index:9000;background:#000;display:none;overflow:hidden;}
+#liveOverlay #liveOverlaySvg{position:absolute;inset:0;overflow:hidden;}
+#liveOverlay #liveOverlaySvg svg{display:block;width:auto;height:auto;max-width:none;max-height:none;}
 #liveOverlayBar{position:absolute;top:10px;right:10px;display:flex;gap:6px;}
 #liveOverlayBar button{appearance:none;background:rgba(18,22,26,.8);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:var(--font-sans);font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;}
 #liveOverlayBar button:hover{background:rgba(38,46,52,.9);}
-.live-only #liveOnlyRoot{position:fixed;inset:0;z-index:99999;background:#000;}
+.live-only, .live-only body{background:#000;overflow:hidden;}
+.live-only #liveOnlyRoot{position:fixed;inset:0;z-index:99999;background:#000;overflow:hidden;}
 .live-only body>*{display:none!important;}
 .live-only #liveOnlyRoot{display:block!important;}
-#liveOnlyRoot svg{display:block;width:100%;height:100%;}
+#liveOnlyRoot #liveOnlySvg{position:absolute;left:0;top:0;}
+#liveOnlyRoot svg{display:block;width:auto;height:auto;max-width:none;max-height:none;}
 </style>
 
 <script id="live-output">
@@ -7519,13 +7521,33 @@ function buildLiveNativeSVG(comp){
       });
     }
   });
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" width="100%" height="100%">${out}</svg>`;
+  /* Intrinsieke maat = canvasmaat: 1 SVG-eenheid = 1 schermpixel. Geen
+     CSS-schaling, dus altijd 1:1 vanaf 0,0; wat buiten het scherm valt wordt
+     afgeknipt i.p.v. verkleind of gecentreerd. */
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" width="${W}" height="${H}">${out}</svg>`;
 }
 
 function liveSvgMarkup(){
   if(!liveScaledSvg) return '';
   const t = 'lx'+(++liveSvgSeq)+'-';
   return liveScaledSvg.replace(/id="/g, 'id="'+t).replace(/url\(#/g, 'url(#'+t);
+}
+
+/* Schaal de SVG met 1/devicePixelRatio, zodat één canvaspixel op precies één
+   fysieke schermpixel valt (Retina-schermen hebben bv. DPR 2). De SVG zelf
+   houdt zijn intrinsieke canvasmaat en wordt niet uitgerekt. */
+function liveApplyPixelScale(host){
+  if(!host) return;
+  const svg = host.querySelector('svg');
+  if(!svg) return;
+  let dpr = 1;
+  try{
+    const win = host.ownerDocument && host.ownerDocument.defaultView;
+    dpr = (win && win.devicePixelRatio) || 1;
+  }catch(e){}
+  if(!(dpr > 0)) dpr = 1;
+  svg.style.transformOrigin = '0 0';
+  svg.style.transform = Math.abs(dpr - 1) < 0.0001 ? 'none' : 'scale('+(1/dpr)+')';
 }
 
 function broadcastLive(){
@@ -7546,11 +7568,11 @@ function broadcastLive(){
 function pushLiveSvg(){
   const markup = liveSvgMarkup();
   const ov = el('liveOverlaySvg');
-  if(ov) ov.innerHTML = markup;
+  if(ov){ ov.innerHTML = markup; liveApplyPixelScale(ov); }
   if(liveWindow && !liveWindow.closed){
     try{
       const host = liveWindow.document.getElementById('liveSvgHost');
-      if(host) host.innerHTML = markup;
+      if(host){ host.innerHTML = markup; liveApplyPixelScale(host); }
     }catch(e){}
   }
 }
@@ -7636,7 +7658,7 @@ function renderLiveControls(){
         </div>
       </div>
     </div>
-    <div class="note">De uitvoer toont de ingestelde <b>canvasmaat 1:1 op positie 0,0</b> — geen schaling, centrering of artboard-marge. Zet het uitvoerscherm op dezelfde resolutie als de canvas (bv. 1920×1080) voor een pixel-exacte weergave. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
+    <div class="note">De uitvoer toont de ingestelde <b>canvasmaat 1:1 vanaf 0,0</b> — geen schaling, centrering of artboard-marge. Is de canvas groter dan het uitvoerscherm, dan worden de pixels daarbuiten afgeknipt (ze vallen buiten beeld) in plaats van verkleind. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
   `;
 }
 
@@ -7681,8 +7703,8 @@ function liveWritePopupDoc(w){
   w.document.open();
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>UPScale Live Output</title>'+
     '<style>html,body{margin:0;padding:0;background:#000;overflow:hidden;height:100%;cursor:none}'+
-    '#liveSvgHost{position:absolute;inset:0}'+
-    '#liveSvgHost svg{display:block;width:100%;height:100%}'+
+    '#liveSvgHost{position:absolute;inset:0;overflow:hidden}'+
+    '#liveSvgHost svg{display:block;width:auto;height:auto;max-width:none;max-height:none}'+
     '#fsBtn{position:absolute;top:12px;right:12px;appearance:none;background:rgba(18,22,26,.8);border:1px solid rgba(255,255,255,.2);color:#fff;font:12px sans-serif;padding:8px 13px;border-radius:6px;cursor:pointer;z-index:2}'+
     '<\/style><\/head><body><div id="liveSvgHost"><\/div>'+
     '<button id="fsBtn" type="button">Volscherm<\/button>'+
@@ -7701,7 +7723,7 @@ function liveWindowFrame(){
   }
   try{
     const host = liveWindow.document.getElementById('liveSvgHost');
-    if(host) host.innerHTML = liveSvgMarkup();
+    if(host){ host.innerHTML = liveSvgMarkup(); liveApplyPixelScale(host); }
   }catch(e){}
 }
 
@@ -7814,7 +7836,7 @@ function liveOnlyApply(payload){
     const t = 'ly'+Date.now()+'-';
     const markup = svg.replace(/id="/g, 'id="'+t).replace(/url\(#/g, 'url(#'+t);
     const host = document.getElementById('liveOnlySvg');
-    if(host) host.innerHTML = markup;
+    if(host){ host.innerHTML = markup; liveApplyPixelScale(host); }
   }catch(e){}
 }
 
