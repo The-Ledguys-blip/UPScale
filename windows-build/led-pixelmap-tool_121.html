@@ -1318,7 +1318,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <div class="live-preview-wrap">
             <div id="livePreviewHost"></div>
           </div>
-          <div class="note" id="liveNote">Open de live output om de compositie schermvullend op een tweede monitor te tonen — bruikbaar als signaal naar een LED-processor.</div>
+          <div class="note" id="liveNote">Open de live output om de ingestelde canvasmaat 1:1 op 0,0 op een tweede monitor te tonen — bruikbaar als signaal naar een LED-processor. Zet dat scherm op dezelfde resolutie als de canvas.</div>
         </div>
       </div>
     </div>
@@ -2976,7 +2976,7 @@ document.addEventListener('keyup', (e)=>{
 });
 
 // ---- bestandsmenu: nieuw / opslaan / laden ----
-const APP_VERSION = 'v2.2.0';
+const APP_VERSION = 'v2.2.1';
 let activeTab = 'real';
 let lastSavedFilename = null;
 const DEFAULT_APP_TITLE = 'Untitled Project';
@@ -7484,6 +7484,44 @@ function buildLiveScaledSVG(comp){
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 640" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">${out}</svg>`;
 }
 
+/* Echte 1:1 uitvoer: viewBox = ingestelde canvasmaat, anker linksboven (0,0),
+   geen artboard-marge/centrering. Bij een outputscherm met dezelfde resolutie
+   valt elk canvaspixel exact op het schermpixel. */
+function buildLiveNativeSVG(comp){
+  if(!comp || !comp.comps) return '';
+  const canvas = getCanvasSize();
+  const W = Math.max(1, Math.round(canvas.w));
+  const H = Math.max(1, Math.round(canvas.h));
+  liveTargetW = W; liveTargetH = H;
+  const labelScale = Math.max(1, Math.min(W/1300, H/640));
+  let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#000000"/>`;
+  comp.comps.forEach((c, idx)=>{
+    const s = c.slice;
+    const x = s.posX, y = s.posY, w = c.resX, h = c.resY;
+    out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1);
+    if(w > 60 && h > 28){
+      const bb = occupiedPixelBox(s, x, y, w, h);
+      const fs = (9.5 * labelScale).toFixed(2);
+      if(s.showPosition !== false){
+        out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + 15*labelScale}" font-size="${fs}" fill="#ffffff" opacity="0.85">${fmt(Math.round(x))},${fmt(Math.round(y))}</text>`;
+      }
+      const namePos = titleNamePos(s, bb);
+      if(s.showTitle !== false){
+        const ts = ((Number(s.titleSize) || 12) * labelScale).toFixed(2);
+        out += applyTitleSqueeze(s, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${ts}" font-weight="600" fill="#ffffff">${s.name}</text>`);
+      }
+      const lines = [];
+      if(s.showResolution !== false) lines.push(fmt(Math.round(w)) + '×' + fmt(Math.round(h)) + ' px');
+      if(s.type==='slice' && s.mode==='panels' && s.showPanelCount !== false) lines.push(s.panelsX + '×' + s.panelsY + ' panelen');
+      lines.forEach((line, li)=>{
+        const yOff = (lines.length - li - 1) * 12 * labelScale + 7 * labelScale;
+        out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + bb.h - yOff}" font-size="${fs}" fill="#ffffff" opacity="0.85">${line}</text>`;
+      });
+    }
+  });
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMin meet" width="100%" height="100%">${out}</svg>`;
+}
+
 function liveSvgMarkup(){
   if(!liveScaledSvg) return '';
   const t = 'lx'+(++liveSvgSeq)+'-';
@@ -7535,7 +7573,7 @@ function updateLiveSnapshot(comp){
   if(liveOnly) return;
   if(!liveIsOpen() && activeTab !== 'live') return;
   try{
-    liveScaledSvg = buildLiveScaledSVG(comp);
+    liveScaledSvg = buildLiveNativeSVG(comp);
     broadcastLive();
     pushLiveSvg();
     if(activeTab === 'live'){ renderLiveControls(); scheduleLivePreviewDraw(); }
@@ -7545,7 +7583,7 @@ function updateLiveSnapshot(comp){
 }
 
 function renderLiveOutput(comp){
-  try{ liveScaledSvg = buildLiveScaledSVG(comp); }catch(e){ console.warn('[LIVE] build error', e); }
+  try{ liveScaledSvg = buildLiveNativeSVG(comp); }catch(e){ console.warn('[LIVE] build error', e); }
   renderLiveControls();
   scheduleLivePreviewDraw();
   renderLiveStats();
@@ -7557,8 +7595,8 @@ function renderLiveStats(){
   const targetRes = liveTargetW ? (fmt(Math.round(liveTargetW))+' × '+fmt(Math.round(liveTargetH))) : '—';
   const status = liveNativeOpen ? 'native venster open' : (liveWindow ? 'venster open' : (liveOverlayActive ? 'overlay open' : 'niet actief'));
   const cards = [
-    ['Uitvoer', 'Scaled output · 1:1', '', 'accent-scaled'],
-    ['Doelresolutie', targetRes, 'px', 'accent-scaled'],
+    ['Uitvoer', '1:1 canvas · 0,0', '', 'accent-scaled'],
+    ['Canvas', targetRes, 'px', 'accent-scaled'],
     ['Status', status, '', liveIsOpen() ? 'accent-real' : '']
   ];
   host.innerHTML = cards.map(([label,val,unit,cls])=>`
@@ -7598,7 +7636,7 @@ function renderLiveControls(){
         </div>
       </div>
     </div>
-    <div class="note">De uitvoer toont <b>exact</b> de Scaled output. Kies het uitvoerscherm en open het venster — dit opent meteen volscherm op het gekozen scherm. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
+    <div class="note">De uitvoer toont de ingestelde <b>canvasmaat 1:1 op positie 0,0</b> — geen schaling, centrering of artboard-marge. Zet het uitvoerscherm op dezelfde resolutie als de canvas (bv. 1920×1080) voor een pixel-exacte weergave. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
   `;
 }
 
@@ -7686,7 +7724,7 @@ function openLiveOverlay(){
 function openLiveOutput(){
   if(liveOnly) return;
   queueCompositionRender();
-  try{ if(!liveScaledSvg) liveScaledSvg = buildLiveScaledSVG(getComposition()); }catch(e){}
+  try{ if(!liveScaledSvg) liveScaledSvg = buildLiveNativeSVG(getComposition()); }catch(e){}
   // 1) native bridge (desktop-app venster — betrouwbaar tweede scherm)
   if(window.py && typeof window.py.open_live_window === 'function'){
     try{

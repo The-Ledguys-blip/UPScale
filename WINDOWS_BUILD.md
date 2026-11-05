@@ -39,6 +39,28 @@ Resultaat van de standaard-build:
 Het script geeft de versie mee via `/DMyAppVersion=<versie>`, dus de
 installer-naam en versie-info blijven in sync met de HTML.
 
+## Stap 3b — MSI maken (WiX Toolset v5)
+
+Wil je een `.msi` in plaats van (of naast) de Inno Setup-EXE:
+
+```bat
+py -m pip install -r requirements.txt
+py build_app_windows.py            :: eerst de app bouwen (dist\UPScale\)
+py build_msi_windows.py            :: maakt installer_output\UPScale-<versie>-x64.msi
+```
+
+Eenmalige voorbereiding:
+
+```bat
+winget install Microsoft.DotNet.SDK.8
+dotnet tool install --global wix
+```
+
+`build_msi_windows.py` loopt automatisch door `dist\UPScale\` heen, genereert een
+WiX-bronbestand en compileert de MSI. De MSI installeert in
+`C:\Program Files\UPScale`, maakt Start-menu- en bureaubladsnelkoppelingen en
+vervangt eerdere versies bij een upgrade (vaste `UpgradeCode`).
+
 ## Stap 4 — Testen
 
 1. Start `dist\UPScale\UPScale.exe` (of installeer de Setup-EXE)
@@ -46,7 +68,8 @@ installer-naam en versie-info blijven in sync met de HTML.
 3. Export-bestanden komen in `%USERPROFILE%\Downloads\UPScale-export-*`
 
 ## Delen
-- **Installer**: `installer_output\UPScale-Setup-<versie>.exe`
+- **MSI**: `installer_output\UPScale-<versie>-x64.msi`
+- **Installer (EXE)**: `installer_output\UPScale-Setup-<versie>.exe`
 - **Draagbare map**: `dist\UPScale\`
 - **Draagbare ZIP**: `dist\UPScale-<versie>-win64.zip`
 
