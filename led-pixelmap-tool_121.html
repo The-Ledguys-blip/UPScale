@@ -1318,7 +1318,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <div class="live-preview-wrap">
             <div id="livePreviewHost"></div>
           </div>
-          <div class="note" id="liveNote">Open de live output om de ingestelde canvasmaat <b>1:1 vanaf 0,0</b> op een tweede monitor te tonen — bruikbaar als signaal naar een LED-processor. De uitvoer wordt niet geschaald of gecentreerd: is de canvas groter dan het scherm, dan vallen de buitenste pixels buiten beeld.</div>
+          <div class="note" id="liveNote">Open de live output om de ingestelde canvasmaat <b>1:1 vanaf 0,0</b> op een tweede monitor te tonen — bruikbaar als signaal naar een LED-processor. De uitvoer gebruikt de resolutie die het systeem voor dat scherm rapporteert (bv. 1920×1080): is de canvas groter, dan vallen de buitenste pixels buiten beeld; is hij kleiner, dan blijft de rest van het scherm zwart.</div>
         </div>
       </div>
     </div>
@@ -7533,23 +7533,6 @@ function liveSvgMarkup(){
   return liveScaledSvg.replace(/id="/g, 'id="'+t).replace(/url\(#/g, 'url(#'+t);
 }
 
-/* Schaal de SVG met 1/devicePixelRatio, zodat één canvaspixel op precies één
-   fysieke schermpixel valt (Retina-schermen hebben bv. DPR 2). De SVG zelf
-   houdt zijn intrinsieke canvasmaat en wordt niet uitgerekt. */
-function liveApplyPixelScale(host){
-  if(!host) return;
-  const svg = host.querySelector('svg');
-  if(!svg) return;
-  let dpr = 1;
-  try{
-    const win = host.ownerDocument && host.ownerDocument.defaultView;
-    dpr = (win && win.devicePixelRatio) || 1;
-  }catch(e){}
-  if(!(dpr > 0)) dpr = 1;
-  svg.style.transformOrigin = '0 0';
-  svg.style.transform = Math.abs(dpr - 1) < 0.0001 ? 'none' : 'scale('+(1/dpr)+')';
-}
-
 function broadcastLive(){
   const payload = JSON.stringify({svg: liveScaledSvg});
   try{
@@ -7568,11 +7551,11 @@ function broadcastLive(){
 function pushLiveSvg(){
   const markup = liveSvgMarkup();
   const ov = el('liveOverlaySvg');
-  if(ov){ ov.innerHTML = markup; liveApplyPixelScale(ov); }
+  if(ov) ov.innerHTML = markup;
   if(liveWindow && !liveWindow.closed){
     try{
       const host = liveWindow.document.getElementById('liveSvgHost');
-      if(host){ host.innerHTML = markup; liveApplyPixelScale(host); }
+      if(host) host.innerHTML = markup;
     }catch(e){}
   }
 }
@@ -7658,7 +7641,7 @@ function renderLiveControls(){
         </div>
       </div>
     </div>
-    <div class="note">De uitvoer toont de ingestelde <b>canvasmaat 1:1 vanaf 0,0</b> — geen schaling, centrering of artboard-marge. Is de canvas groter dan het uitvoerscherm, dan worden de pixels daarbuiten afgeknipt (ze vallen buiten beeld) in plaats van verkleind. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
+    <div class="note">De uitvoer toont de ingestelde <b>canvasmaat 1:1 vanaf 0,0</b> — geen schaling, centrering of artboard-marge. De uitvoer gebruikt de resolutie die het systeem voor het scherm rapporteert; is de canvas groter, dan worden de pixels daarbuiten afgeknipt in plaats van verkleind. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
   `;
 }
 
@@ -7723,7 +7706,7 @@ function liveWindowFrame(){
   }
   try{
     const host = liveWindow.document.getElementById('liveSvgHost');
-    if(host){ host.innerHTML = liveSvgMarkup(); liveApplyPixelScale(host); }
+    if(host) host.innerHTML = liveSvgMarkup();
   }catch(e){}
 }
 
@@ -7836,7 +7819,7 @@ function liveOnlyApply(payload){
     const t = 'ly'+Date.now()+'-';
     const markup = svg.replace(/id="/g, 'id="'+t).replace(/url\(#/g, 'url(#'+t);
     const host = document.getElementById('liveOnlySvg');
-    if(host){ host.innerHTML = markup; liveApplyPixelScale(host); }
+    if(host) host.innerHTML = markup;
   }catch(e){}
 }
 
