@@ -4640,6 +4640,7 @@ function imPanelCells(s, x, y, w, h, ls, interactive){
   const seg = imSegments(s, 4000);
   const removedSet = s.removedPanels || [];
   let cells = `<path d="${occupiedOutlinePath(s,x,y,w,h)}" fill="none" stroke="#ffffff" stroke-width="${1*ls}"/>`;
+  let panelIdCounter = 0;
   for(let j=0;j<s.panelsY;j++){
     for(let i=0;i<s.panelsX;i++){
       const removed = removedSet.includes(i+'_'+j);
@@ -4652,6 +4653,7 @@ function imPanelCells(s, x, y, w, h, ls, interactive){
         }
         continue;
       }
+      panelIdCounter++;
       const selected = interactive && isPanelSelected(s.id, i, j);
       const fill = selected ? 'rgba(255,255,255,0.35)' : GREY;
       const stroke = selected ? '#ffffff' : WHITE;
@@ -4672,6 +4674,11 @@ function imPanelCells(s, x, y, w, h, ls, interactive){
         lines += `<line x1="${cx}" y1="${ly}" x2="${cx+cellW}" y2="${ly}"/>`;
       }
       if(lines) cells += `<g stroke="${WHITE}" stroke-width="${1*ls}" pointer-events="none">${lines}</g>`;
+      if(s.showPanelIds && cellW>14 && cellH>10){
+        const idScale = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct)||100)/100));
+        const idFontSize = Math.max(5, Math.min(96, Math.min(cellW,cellH)*0.2)) * idScale;
+        cells += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${idFontSize.toFixed(2)}" fill="#ffffff" opacity="0.65" style="pointer-events:none">${panelIdCounter}</text>`;
+      }
     }
   }
   cells += overlayMarks(s, x, y, w, h, ls);
