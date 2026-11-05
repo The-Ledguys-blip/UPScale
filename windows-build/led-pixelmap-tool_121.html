@@ -1318,7 +1318,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <div class="live-preview-wrap">
             <div id="livePreviewHost"></div>
           </div>
-          <div class="note" id="liveNote">Open de live output om de ingestelde canvasmaat <b>1:1 vanaf 0,0</b> op een tweede monitor te tonen — bruikbaar als signaal naar een LED-processor. De uitvoer gebruikt de resolutie die het systeem voor dat scherm rapporteert (bv. 1920×1080): is de canvas groter, dan vallen de buitenste pixels buiten beeld; is hij kleiner, dan blijft de rest van het scherm zwart.</div>
+          <div class="note" id="liveNote">Open de live output om de ingestelde canvasmaat <b>1:1 vanaf 0,0</b> op een tweede monitor te tonen — bruikbaar als signaal naar een LED-processor. De <b>witte lijn</b> markeert de canvasrand; is de canvas groter dan het scherm, dan vallen de buitenste pixels buiten beeld. Wijzigingen in de canvasmaat worden direct live doorgestuurd.</div>
         </div>
       </div>
     </div>
@@ -7521,6 +7521,10 @@ function buildLiveNativeSVG(comp){
       });
     }
   });
+  /* Witte canvasrand: altijd zichtbaar in de output, ook als het scherm
+     groter is dan de canvas. Ligt bovenop de objecten zodat hij nooit
+     bedekt wordt. */
+  out += `<rect x="1" y="1" width="${Math.max(1, W-2)}" height="${Math.max(1, H-2)}" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.95"/>`;
   /* Intrinsieke maat = canvasmaat: 1 SVG-eenheid = 1 schermpixel. Geen
      CSS-schaling, dus altijd 1:1 vanaf 0,0; wat buiten het scherm valt wordt
      afgeknipt i.p.v. verkleind of gecentreerd. */
@@ -7641,7 +7645,7 @@ function renderLiveControls(){
         </div>
       </div>
     </div>
-    <div class="note">De uitvoer toont de ingestelde <b>canvasmaat 1:1 vanaf 0,0</b> — geen schaling, centrering of artboard-marge. De uitvoer gebruikt de resolutie die het systeem voor het scherm rapporteert; is de canvas groter, dan worden de pixels daarbuiten afgeknipt in plaats van verkleind. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
+    <div class="note">De uitvoer toont de ingestelde <b>canvasmaat 1:1 vanaf 0,0</b> — geen schaling, centrering of artboard-marge. De <b>witte lijn</b> is de canvasrand en blijft altijd zichtbaar; is de canvas groter dan het scherm, dan worden de pixels daarbuiten afgeknipt. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
   `;
 }
 
