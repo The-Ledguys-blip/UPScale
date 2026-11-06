@@ -4748,11 +4748,14 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
   const border = '#ffffff';
   const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
   const useRounded = !!s.roundedCorners;
-  /* Ronding als percentage van de kortste zijde i.p.v. een vaste cap van
-     16 px: op een 1:1 LED-output (en in exports) was dat nauwelijks zichtbaar. */
+  /* Ronding werkt als CSS border-radius in procenten: horizontaal t.o.v. de
+     breedte, verticaal t.o.v. de hoogte. Daardoor zijn alle vier hoeken
+     dezelfde vorm (symmetrisch boven/onder/links/rechts) en wordt de vorm bij
+     50% een volledige ellips i.p.v. een rechthoek met afgeronde uiteinden. */
   const roundPctRaw = Number(s.cornerRadiusPct);
   const roundPct = Math.max(0, Math.min(50, isFinite(roundPctRaw) ? roundPctRaw : 8));
-  const roundRadius = useRounded ? Math.max(1.5, Math.min(w, h) * roundPct / 100) : 2;
+  const roundRX = useRounded ? Math.max(1.5, w * (roundPct / 100)) : 2;
+  const roundRY = useRounded ? Math.max(1.5, h * (roundPct / 100)) : 2;
   const shapeW = Math.max(useRounded ? w : (w-1), 1);
   const shapeH = Math.max(useRounded ? h : (h-1), 1);
   let inner;
@@ -4799,12 +4802,12 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
     cells += overlayMarks(s, x, y, w, h, ls);
     inner = cells;
   } else {
-    inner = `<rect x="${x}" y="${y}" width="${shapeW}" height="${shapeH}" fill="${color}" stroke="${color}" stroke-width="${1*ls}" rx="${roundRadius}"/>` + overlayMarks(s, x, y, w, h, ls);
+    inner = `<rect x="${x}" y="${y}" width="${shapeW}" height="${shapeH}" fill="${color}" stroke="${color}" stroke-width="${1*ls}" rx="${roundRX}" ry="${roundRY}"/>` + overlayMarks(s, x, y, w, h, ls);
   }
 
   if(useRounded){
     const roundId = `roundclip-${s.id}-${idx}-${interactive?'i':'s'}-${clipIdCounter++}`;
-    inner = `<clipPath id="${roundId}"><rect x="${x}" y="${y}" width="${shapeW}" height="${shapeH}" rx="${roundRadius}" ry="${roundRadius}"/></clipPath><g clip-path="url(#${roundId})">${inner}</g>`;
+    inner = `<clipPath id="${roundId}"><rect x="${x}" y="${y}" width="${shapeW}" height="${shapeH}" rx="${roundRX}" ry="${roundRY}"/></clipPath><g clip-path="url(#${roundId})">${inner}</g>`;
   }
 
   const crop = cropClipRect(s, x, y, w, h, c.resX, c.resY);
