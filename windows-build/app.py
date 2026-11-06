@@ -1118,7 +1118,10 @@ def main() -> int:
     LOGGER.info("Application log file: %s", log_path)
 
     window = MainWindow()
-    window.show()
+    if sys.platform == "darwin":
+        window.showMaximized()
+    else:
+        window.show()
     try:
         # ensure window uses same icon
         icon = app.windowIcon()

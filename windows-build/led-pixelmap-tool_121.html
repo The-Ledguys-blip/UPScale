@@ -4959,6 +4959,7 @@ function occupiedClipRects(s, x, y, w, h){
 
 function overlayMarks(s, x, y, w, h, lineScale){
   const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
+  const markColor = sliceTextColor(s);
   let out = '';
   const hasHoles = (s.type==='slice' && s.mode==='panels' && s.removedPanels && s.removedPanels.length>0);
   let clipOpen = '', clipClose = '';
@@ -4976,18 +4977,18 @@ function overlayMarks(s, x, y, w, h, lineScale){
     const squeezeY = Math.max(0, Math.min(100, Number(s.titleCropVertical) || 0));
     const rx = Math.max(1, r * (1 - 0.95 * (squeezeX / 100)));
     const ry = Math.max(1, r * (1 - 0.95 * (squeezeY / 100)));
-    marks += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="none" stroke="#ffffff" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+    marks += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="none" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
   }
   if(s.showCross){
     if(!hasHoles){
-      marks += `<rect x="${x}" y="${y}" width="${Math.max(w-1,1)}" height="${Math.max(h-1,1)}" fill="none" stroke="#ffffff" stroke-width="${1*ls}" pointer-events="none"/>`;
+      marks += `<rect x="${x}" y="${y}" width="${Math.max(w-1,1)}" height="${Math.max(h-1,1)}" fill="none" stroke="${markColor}" stroke-width="${1*ls}" pointer-events="none"/>`;
     }
-    marks += `<line x1="${x}" y1="${y}" x2="${x+w}" y2="${y+h}" stroke="#ffffff" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
-    marks += `<line x1="${x+w}" y1="${y}" x2="${x}" y2="${y+h}" stroke="#ffffff" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+    marks += `<line x1="${x}" y1="${y}" x2="${x+w}" y2="${y+h}" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+    marks += `<line x1="${x+w}" y1="${y}" x2="${x}" y2="${y+h}" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
   }
   out += clipOpen + marks + clipClose;
   if(hasHoles && s.showCross){
-    out += `<path d="${occupiedOutlinePath(s, x, y, w, h)}" stroke="#ffffff" stroke-width="${1*ls}" fill="none" pointer-events="none"/>`;
+    out += `<path d="${occupiedOutlinePath(s, x, y, w, h)}" stroke="${markColor}" stroke-width="${1*ls}" fill="none" pointer-events="none"/>`;
   }
   return out;
 }
