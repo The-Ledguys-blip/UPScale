@@ -7872,7 +7872,7 @@ if(typeof renderOverviewPanels === 'function') renderOverviewPanels();
 .live-route-toggle{flex:0 0 auto;font-size:11px;padding:5px 10px;}
 #liveOverlay{position:fixed;inset:0;z-index:9000;background:#000;display:none;overflow:hidden;}
 #liveOverlay #liveOverlaySvg{position:absolute;inset:0;overflow:hidden;}
-#liveOverlay #liveOverlaySvg svg{display:block;width:auto;height:auto;max-width:none;max-height:none;}
+#liveOverlay #liveOverlaySvg svg{display:block;width:100%;height:100%;max-width:none;max-height:none;}
 #liveOverlayBar{position:absolute;top:10px;right:10px;display:flex;gap:6px;}
 #liveOverlayBar button{appearance:none;background:rgba(18,22,26,.8);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:var(--font-sans);font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;}
 #liveOverlayBar button:hover{background:rgba(38,46,52,.9);}
@@ -7881,7 +7881,7 @@ if(typeof renderOverviewPanels === 'function') renderOverviewPanels();
 .live-only body>*{display:none!important;}
 .live-only #liveOnlyRoot{display:block!important;}
 #liveOnlyRoot #liveOnlySvg{position:absolute;left:0;top:0;}
-#liveOnlyRoot svg{display:block;width:auto;height:auto;max-width:none;max-height:none;}
+#liveOnlyRoot svg{display:block;width:100%;height:100%;max-width:none;max-height:none;}
 </style>
 
 <script id="live-output">
@@ -8296,7 +8296,8 @@ function liveSvgMarkup(){
 function buildLiveCanvasSvgMap(){
   const map = {};
   const active = getActiveCanvas();
-  const activeSize = getCanvasSize();
+  const prevCanvasW = el('canvasW').value;
+  const prevCanvasH = el('canvasH').value;
   canvases.forEach(c=>{
     if(!c) return;
     const isActive = !!active && c.id === active.id;
@@ -8304,17 +8305,25 @@ function buildLiveCanvasSvgMap(){
     if(isActive && liveScaledSvg){
       svg = liveScaledSvg;
     } else {
+      try{
+        el('canvasW').value = c.w;
+        el('canvasH').value = c.h;
+      }catch(e){}
       const list = isActive ? slices : (Array.isArray(c.slices) ? c.slices : []);
-      svg = buildLiveNativeSVG(getComposition(list), { id:c.id, w:c.w, h:c.h });
+      svg = buildLiveScaledSVG(getComposition(list));
     }
     map[c.id] = {
       id: c.id,
       name: c.name,
-      w: Math.max(1, Math.round(isActive ? activeSize.w : c.w)),
-      h: Math.max(1, Math.round(isActive ? activeSize.h : c.h)),
+      w: Math.max(1, Math.round(c.w)),
+      h: Math.max(1, Math.round(c.h)),
       svg: svg
     };
   });
+  try{
+    el('canvasW').value = prevCanvasW;
+    el('canvasH').value = prevCanvasH;
+  }catch(e){}
   liveCanvasSvgMap = map;
   return map;
 }
@@ -8322,7 +8331,7 @@ function buildLiveCanvasSvgMap(){
 function broadcastLive(force){
   if(liveOnly) return;
   try{
-    if(!liveScaledSvg) liveScaledSvg = buildLiveNativeSVG(getComposition());
+    if(!liveScaledSvg) liveScaledSvg = buildLiveScaledSVG(getComposition());
     const canvasesMap = buildLiveCanvasSvgMap();
     const payload = JSON.stringify({svg: liveScaledSvg, canvases: canvasesMap, ts: Date.now()});
     try{
@@ -8421,7 +8430,7 @@ function updateLiveSnapshot(comp){
   if(liveOnly) return;
   if(!liveIsOpen() && activeTab !== 'live') return;
   try{
-    liveScaledSvg = buildLiveNativeSVG(comp);
+    liveScaledSvg = buildLiveScaledSVG(comp);
     broadcastLive();
     pushLiveSvg();
     if(activeTab === 'live'){ renderLiveControls(); scheduleLivePreviewDraw(); }
@@ -8431,7 +8440,7 @@ function updateLiveSnapshot(comp){
 }
 
 function renderLiveOutput(comp){
-  try{ liveScaledSvg = buildLiveNativeSVG(comp); }catch(e){ console.warn('[LIVE] build error', e); }
+  try{ liveScaledSvg = buildLiveScaledSVG(comp); }catch(e){ console.warn('[LIVE] build error', e); }
   renderLiveControls();
   scheduleLivePreviewDraw();
   renderLiveStats();
@@ -8623,7 +8632,7 @@ function liveOpenCanvas(canvasId){
   const screenIndex = liveRouteScreen(cid);
   queueCompositionRender();
   try{
-    if(!liveScaledSvg) liveScaledSvg = buildLiveNativeSVG(getComposition());
+    if(!liveScaledSvg) liveScaledSvg = buildLiveScaledSVG(getComposition());
     broadcastLive();
   }catch(e){}
   // 1) native bridge: één echt venster per canvas
@@ -8718,7 +8727,7 @@ function liveWritePopupDoc(w){
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>UPScale Live Output</title>'+
     '<style>html,body{margin:0;padding:0;background:#000;overflow:hidden;height:100%;cursor:none}'+
     '#liveSvgHost{position:absolute;inset:0;overflow:hidden}'+
-    '#liveSvgHost svg{display:block;width:auto;height:auto;max-width:none;max-height:none}'+
+    '#liveSvgHost svg{display:block;width:100%;height:100%;max-width:none;max-height:none}'+
     '#fsBtn{position:absolute;top:12px;right:12px;appearance:none;background:rgba(18,22,26,.8);border:1px solid rgba(255,255,255,.2);color:#fff;font:12px sans-serif;padding:8px 13px;border-radius:6px;cursor:pointer;z-index:2}'+
     '<\/style><\/head><body><div id="liveSvgHost"><\/div>'+
     '<button id="fsBtn" type="button">Volscherm<\/button>'+
