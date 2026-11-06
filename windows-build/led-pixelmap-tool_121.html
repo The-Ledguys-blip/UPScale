@@ -5175,6 +5175,8 @@ function imGroupHTML(s){
               <option value="colorbars-h" ${s.testPatternType==='colorbars-h'?'selected':''}>Colorbars horizontaal</option>
               <option value="colorbars-v" ${s.testPatternType==='colorbars-v'?'selected':''}>Colorbars verticaal</option>
               <option value="smpte" ${s.testPatternType==='smpte'?'selected':''}>SMPTE bars</option>
+              <option value="colorbars-100" ${s.testPatternType==='colorbars-100'?'selected':''}>Colorbars 100% (verticaal)</option>
+              <option value="colorbars-100h" ${s.testPatternType==='colorbars-100h'?'selected':''}>Colorbars 100% (horizontaal)</option>
               <option value="grayscale" ${s.testPatternType==='grayscale'?'selected':''}>Grijstrap</option>
               <option value="gradient" ${s.testPatternType==='gradient'?'selected':''}>Gradient (bewegend)</option>
               <option value="grid" ${s.testPatternType==='grid'?'selected':''}>Grid</option>
@@ -5267,13 +5269,14 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       }
     } else if(tpType==='counters'){
       out += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(12,Math.min(w,h)/4)}" fill="#ffffff">00:00:00</text>`;
-    } else {
-      // colorbars-h default
-      const hid = 'tph-' + clipId;
-      const stops = colors.map((col,i)=>`<stop offset="${(i/(colors.length-1)*100).toFixed(1)}%" stop-color="${col}"/>`).join('');
-      out += `<defs><linearGradient id="${hid}" x1="0" y1="0" x2="1" y2="0">${stops}</linearGradient></defs>`;
-      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w*2)}" height="${Math.max(1,h)}" fill="url(#${hid})" style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} 2.4s linear infinite;opacity:0.95;"/>`;
-      out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,w)}px)}}</style>`;
+    } else if(tpType==='colorbars-100'){
+      const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
+      const bw = w / barColors.length;
+      barColors.forEach((col,i)=>{ out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; });
+    } else if(tpType==='colorbars-100h'){
+      const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
+      const bh = h / barColors.length;
+      barColors.forEach((col,i)=>{ out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; });
     }
     out += `</g>`;
     out += overlayMarks(s, x, y, w, h, ls);
