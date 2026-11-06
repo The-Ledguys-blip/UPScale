@@ -5276,7 +5276,22 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
     } else if(tpType==='colorbars-100h'){
       const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
       const bh = h / barColors.length;
-      barColors.forEach((col,i)=>{ out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; });
+      const bw = w / barColors.length;
+      // horizontal bars moving vertically
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} 2.4s linear infinite;">`;
+      for(let i=0;i<barColors.length*2;i++){
+        const col = barColors[i % barColors.length];
+        out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`;
+      }
+      out += `</g>`;
+      // vertical bars moving horizontally
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} 3.1s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
+      for(let i=0;i<barColors.length*2;i++){
+        const col = barColors[i % barColors.length];
+        out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`;
+      }
+      out += `</g>`;
+      out += `<style>@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}}@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}}</style>`;
     }
     out += `</g>`;
     out += overlayMarks(s, x, y, w, h, ls);
