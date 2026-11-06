@@ -306,6 +306,9 @@
   .overlay-row input[type=checkbox]{accent-color:var(--real);cursor:pointer;}
   .remove-btn{appearance:none;background:transparent;border:none;color:var(--text-faint);cursor:pointer;padding:2px 4px;font-size:15px;line-height:1;flex-shrink:0;}
   .remove-btn:hover{color:var(--warn);}
+  .testpattern-btn{appearance:none;background:var(--panel-3);border:1px solid var(--line);color:var(--text-dim);cursor:pointer;padding:2px 6px;font-size:10.5px;font-weight:600;line-height:1;border-radius:4px;flex-shrink:0;}
+  .testpattern-btn:hover{color:var(--text);border-color:var(--text-dim);}
+  .testpattern-btn.is-on{background:var(--real);color:#04140f;border-color:var(--real);}
 
   .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
   .field label{display:block;font-size:10.5px;color:var(--text-dim);margin-bottom:4px;}
@@ -4232,6 +4235,15 @@ function removeSlice(id){
   updateSliceSelectionBar();
 }
 
+function toggleTestPattern(id){
+  const s = slices.find(x=>x.id===id);
+  if(!s) return;
+  s.testPattern = !s.testPattern;
+  renderSlices();
+  renderComposition();
+  scheduleHistoryPush();
+}
+
 function computeSlice(s){
   ensureSliceZoom(s);
   let resX, resY;
@@ -4571,6 +4583,7 @@ function renderSlices(){
         <button class="collapse-btn" onclick="toggleCollapse(${s.id})" title="${s.collapsed?'uitklappen':'inklappen'}">${s.collapsed?'▸':'▾'}</button>
         <span class="swatch"></span>
         <input type="text" data-f="name" value="${s.name}" oninput="recalcAll()">
+        <button class="testpattern-btn ${s.testPattern?'is-on':''}" onclick="toggleTestPattern(${s.id})" title="Testpatroon aan/uit">${s.testPattern?'TP aan':'TP'}</button>
         <button class="remove-btn" onclick="removeSlice(${s.id})" title="verwijder">×</button>
       </div>
 
