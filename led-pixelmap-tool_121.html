@@ -4181,6 +4181,7 @@ function makeSlice(defaults){
     titleCropVertical: 0,
     showCircle: false,
     showCross: false,
+    testPattern: false,
     roundedCorners: false,
     cornerRadiusPct: 8,
     textColorPct: 50,
@@ -4293,6 +4294,8 @@ function readSliceInputs(){
     if(circleInput) s.showCircle = circleInput.checked;
     const crossInput = c.querySelector('[data-f=showCross]');
     if(crossInput) s.showCross = crossInput.checked;
+    const testPatternInput = c.querySelector('[data-f=testPattern]');
+    if(testPatternInput) s.testPattern = testPatternInput.checked;
     const roundedInput = c.querySelector('[data-f=roundedCorners]');
     if(roundedInput) s.roundedCorners = roundedInput.checked;
     const cornerRadiusInput = c.querySelector('[data-f=cornerRadiusPct]');
@@ -4696,6 +4699,7 @@ function renderSlices(){
           <div class="overlay-row">
             <label><input type="checkbox" data-f="showCircle" ${s.showCircle?'checked':''} onchange="recalcAll(); renderSlices();"> Cirkel</label>
             <label><input type="checkbox" data-f="showCross" ${s.showCross?'checked':''} onchange="recalcAll()"> Kruis</label>
+            <label><input type="checkbox" data-f="testPattern" ${s.testPattern?'checked':''} onchange="recalcAll()"> Testpatroon</label>
             <label><input type="checkbox" data-f="roundedCorners" ${s.roundedCorners?'checked':''} onchange="recalcAll(); updatePanelPreviews(); renderSlices();"> Ronde hoeken</label>
           </div>
           <div class="overlay-row">
@@ -5151,6 +5155,34 @@ function toggleImGroup(id){
 
 function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
   const s = c.slice;
+  if(s.testPattern){
+    const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
+    const useRounded = !!s.roundedCorners;
+    const roundPctRaw = Number(s.cornerRadiusPct);
+    const roundPct = Math.max(0, Math.min(50, isFinite(roundPctRaw) ? roundPctRaw : 8));
+    const roundRX = useRounded ? Math.max(1.5, w * (roundPct / 100)) : 0;
+    const roundRY = useRounded ? Math.max(1.5, h * (roundPct / 100)) : 0;
+    const clipId = 'tpclip-' + (clipIdCounter++);
+    const hid = 'tph-' + clipId;
+    const vid = 'tpv-' + clipId;
+    const colors = ['#ff0000','#ff7f00','#ffff00','#00ff00','#00ffff','#0000ff','#8b00ff','#ff0000'];
+    const hStops = colors.map((col,i)=>`<stop offset="${(i/(colors.length-1)*100).toFixed(1)}%" stop-color="${col}"/>`).join('');
+    const vColors = ['#ff0000','#ffff00','#00ff00','#00ffff','#0000ff','#ff00ff','#ff0000'];
+    const vStops = vColors.map((col,i,arr)=>`<stop offset="${(i/(arr.length-1)*100).toFixed(1)}%" stop-color="${col}"/>`).join('');
+    let out = '';
+    out += `<defs>`;
+    out += `<clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" rx="${roundRX}" ry="${roundRY}"/></clipPath>`;
+    out += `<linearGradient id="${hid}" x1="0" y1="0" x2="1" y2="0">${hStops}</linearGradient>`;
+    out += `<linearGradient id="${vid}" x1="0" y1="0" x2="0" y2="1">${vStops}</linearGradient>`;
+    out += `</defs>`;
+    out += `<g clip-path="url(#${clipId})">`;
+    out += `<rect x="${x}" y="${y}" width="${Math.max(1,w*2)}" height="${Math.max(1,h)}" fill="url(#${hid})" style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} 2.4s linear infinite;opacity:0.95;"/>`;
+    out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h*2)}" fill="url(#${vid})" style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} 3.1s linear infinite;opacity:0.55;mix-blend-mode:screen;"/>`;
+    out += `</g>`;
+    out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,w)}px)}}@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,h)}px)}}</style>`;
+    out += overlayMarks(s, x, y, w, h, ls);
+    return out;
+  }
   const color = colorForSlice(s);
   const border = '#ffffff';
   const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
