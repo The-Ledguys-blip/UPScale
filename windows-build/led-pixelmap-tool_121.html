@@ -231,6 +231,46 @@
   }
   .title-size-row .text-color-val{min-width:38px;}
 
+  /* canvas-switcher popup ------------------------------------ */
+  .tab-canvas-name{
+    font-size:10.5px;font-weight:500;color:var(--text-faint);
+    max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .tab-btn.active .tab-canvas-name{color:var(--text-dim);}
+  .tab-caret{opacity:.55;transition:transform .15s;}
+  .canvas-popup{
+    position:fixed;z-index:1300;width:320px;display:none;padding:12px;
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line-strong);border-radius:var(--r-lg);
+    box-shadow:var(--sh-lg);
+  }
+  .canvas-popup.open{display:block;}
+  .canvas-popup-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .canvas-popup-title{flex:1;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:var(--text-faint);}
+  .canvas-popup-close{padding:0;appearance:none;background:var(--panel);border:1px solid var(--line);color:var(--text-dim);width:26px;height:26px;border-radius:var(--r-xs);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .canvas-popup-close:hover{background:var(--panel-3);color:var(--text);}
+  .canvas-popup-list{display:flex;flex-direction:column;gap:5px;max-height:320px;overflow:auto;}
+  .canvas-row{display:flex;align-items:center;gap:9px;padding:8px 9px;border:1px solid transparent;border-radius:7px;cursor:pointer;transition:background .12s,border-color .12s;}
+  .canvas-row:hover{background:var(--panel-3);}
+  .canvas-row.active{background:rgba(255,159,67,.09);border-color:rgba(255,159,67,.45);}
+  .canvas-row-dot{width:8px;height:8px;border-radius:50%;background:var(--text-faint);flex-shrink:0;}
+  .canvas-row.active .canvas-row-dot{background:var(--real);box-shadow:0 0 8px var(--real);}
+  .canvas-row-main{flex:1;min-width:0;}
+  .canvas-row-name{font-family:var(--font-sans);font-size:12.5px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .canvas-row-meta{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);margin-top:2px;}
+  .canvas-row-edit{appearance:none;background:transparent;border:none;color:var(--text-faint);font-size:13px;cursor:pointer;padding:3px 4px;border-radius:4px;flex-shrink:0;}
+  .canvas-row-edit:hover{background:var(--panel-2);color:var(--text);}
+  .canvas-row-check{color:var(--real);font-size:12px;flex-shrink:0;}
+  .canvas-rename-input{width:100%;box-sizing:border-box;background:var(--panel-2);border:1px solid var(--real);color:var(--text);font-family:var(--font-sans);font-size:12.5px;font-weight:600;padding:3px 5px;border-radius:4px;outline:none;}
+  .canvas-popup-add{
+    width:100%;margin-top:9px;appearance:none;background:var(--panel-2);border:1px dashed var(--line-strong);
+    color:var(--text-dim);font-family:var(--font-sans);font-size:12px;font-weight:600;
+    padding:8px 10px;border-radius:6px;cursor:pointer;transition:border-color .15s,color .15s;
+  }
+  .canvas-popup-add:hover{border-color:var(--real);color:var(--real);}
+  .tab-btn.canvas-menu-open .tab-caret{transform:rotate(180deg);}
+  .tab-btn.canvas-menu-open{color:var(--text);background:var(--panel-2);}
+
   .guide-filename{font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);margin-top:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:13px;}
   .title-size-row .val{font-family:var(--font-mono);font-size:11px;color:var(--text);min-width:18px;text-align:right;flex-shrink:0;}
   .stepper-btns-inline{display:flex;flex-direction:column;width:14px;flex-shrink:0;border:1px solid var(--line);border-radius:4px;overflow:hidden;}
@@ -844,6 +884,15 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
   </div>
 </div>
 
+<div class="canvas-popup" id="canvasPopup">
+  <div class="canvas-popup-head">
+    <div class="canvas-popup-title">Canvassen</div>
+    <button class="canvas-popup-close" type="button" onclick="closeCanvasMenu()" title="Sluiten" aria-label="Sluiten">×</button>
+  </div>
+  <div class="canvas-popup-list" id="canvasPopupList"></div>
+  <button class="canvas-popup-add" type="button" onclick="addCanvas()">+ Nieuw canvas</button>
+</div>
+
   <div class="perf-hud" id="perfHud" style="display:none;">
     <div class="perf-hud-title">Performance</div>
     <div class="perf-hud-row"><span>Render avg</span><b id="perfHudAvg">0.0 ms</b></div>
@@ -854,8 +903,10 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
 
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="real" style="--tab-accent:var(--real)" onclick="switchTab('real')">
+    <button class="tab-btn active" id="canvasTabBtn" data-tab="real" style="--tab-accent:var(--real)" onclick="onCanvasTabClick(event)" title="Canvassen beheren">
       <span class="dot"></span> 1:1
+      <span class="tab-canvas-name" id="canvasTabName">Canvas 1</span>
+      <svg class="ic ic-xs tab-caret" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
     </button>
     <button class="tab-btn" data-tab="scaled" style="--tab-accent:var(--scaled)" onclick="switchTab('scaled')">
       <span class="dot"></span> Scaled Output
@@ -1355,6 +1406,9 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
 
 <script>
 let slices = [];
+let canvases = [];          // [{ id, name, w, h, arW, arH, slices: [] }]
+let activeCanvasId = null;
+let nextCanvasId = 1;
 let guideImage = null; // {dataUrl, opacity}
 let stageImage = null; // {dataUrl, opacity}
 let compositionRenderQueued = false;
@@ -2351,7 +2405,11 @@ let isRestoring = false;
 let historyTimer = null;
 
 function snapshotState(){
+  syncActiveCanvasFromInputs();
   return {
+    canvases: JSON.parse(JSON.stringify(canvases)),
+    activeCanvasId: activeCanvasId,
+    nextCanvasId: nextCanvasId,
     slices: JSON.parse(JSON.stringify(slices)),
     nextId: nextId,
     canvasW: el('canvasW').value,
@@ -2381,7 +2439,10 @@ function loadAutoSave(){
     const raw = localStorage.getItem(AUTOSAVE_KEY);
     if(!raw) return false;
     const data = JSON.parse(raw);
-    if(!data || !Array.isArray(data.slices) || !data.slices.length) return false;
+    if(!data) return false;
+    const hasCanvases = Array.isArray(data.canvases) && data.canvases.length;
+    const hasSlices = Array.isArray(data.slices) && data.slices.length;
+    if(!hasCanvases && !hasSlices) return false;
     restoreProject(data);
     return true;
   }catch(err){
@@ -2418,13 +2479,34 @@ function scheduleHistoryPush(){
 
 function restoreState(snap){
   isRestoring = true;
-  slices = JSON.parse(JSON.stringify(snap.slices));
+  if(Array.isArray(snap.canvases) && snap.canvases.length){
+    canvases = JSON.parse(JSON.stringify(snap.canvases));
+    canvases.forEach(c=>{
+      if(!Array.isArray(c.slices)) c.slices = [];
+      c.slices.forEach(s=>ensureSliceZoom(s));
+    });
+    let maxCanvasId = 0;
+    canvases.forEach(c=>{ maxCanvasId = Math.max(maxCanvasId, c.id || 0); });
+    nextCanvasId = Math.max(maxCanvasId + 1, parseInt(snap.nextCanvasId, 10) || 1);
+    activeCanvasId = canvases.some(c=>c.id === snap.activeCanvasId) ? snap.activeCanvasId : canvases[0].id;
+    slices = getActiveCanvas().slices;
+    applyCanvasInputs(getActiveCanvas());
+  } else {
+    slices = JSON.parse(JSON.stringify(snap.slices || []));
+    slices.forEach(s=>ensureSliceZoom(s));
+    const w = parseFloat(snap.canvasW) || 1920;
+    const h = parseFloat(snap.canvasH) || 1080;
+    canvases = [{ id: 1, name: 'Canvas 1', w: w, h: h, arW: w, arH: h, slices: slices }];
+    activeCanvasId = 1;
+    nextCanvasId = 2;
+    applyCanvasInputs(canvases[0]);
+  }
   nextId = snap.nextId;
-  el('canvasW').value = snap.canvasW;
-  el('canvasH').value = snap.canvasH;
   el('maxW').value = snap.maxW;
   el('maxH').value = snap.maxH;
   el('maxPx').value = snap.maxPx;
+  renderCanvasMenu();
+  updateCanvasTabName();
   renderSlices();
   recalcAll();
   updateCanvasRatio();
@@ -3078,11 +3160,280 @@ document.addEventListener('click', ()=>{
   closeAllMenus();
 });
 
+// ---- meerdere canvassen (aparte 1:1 werkruimtes) -----------
+function escapeHtmlText(value){
+  return String(value == null ? '' : value).replace(/[&<>"']/g, ch=>({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[ch]));
+}
+
+function getActiveCanvas(){
+  for(let i=0;i<canvases.length;i++){
+    if(canvases[i].id === activeCanvasId) return canvases[i];
+  }
+  return canvases.length ? canvases[0] : null;
+}
+
+function defaultCanvasDimensions(){
+  return {
+    w: Math.max(1, Math.round(parseFloat(el('canvasW').value) || 1920)),
+    h: Math.max(1, Math.round(parseFloat(el('canvasH').value) || 1080)),
+    arW: Math.max(0.01, parseFloat(el('aspectRatioW').value) || 16),
+    arH: Math.max(0.01, parseFloat(el('aspectRatioH').value) || 9)
+  };
+}
+
+function nextCanvasName(){
+  const names = {};
+  canvases.forEach(c=>{ if(c && c.name) names[c.name] = true; });
+  let n = canvases.length + 1;
+  while(names['Canvas ' + n]) n++;
+  return 'Canvas ' + n;
+}
+
+function makeCanvasRecord(opts){
+  const d = defaultCanvasDimensions();
+  const o = opts || {};
+  return {
+    id: nextCanvasId++,
+    name: o.name || nextCanvasName(),
+    w: d.w,
+    h: d.h,
+    arW: d.arW,
+    arH: d.arH,
+    slices: []
+  };
+}
+
+function sanitizeCanvases(rawList, fallback){
+  const fb = fallback || {};
+  const source = (Array.isArray(rawList) && rawList.length) ? rawList : [fb];
+  const used = {};
+  let free = 1;
+  return source.map((raw, idx)=>{
+    const c = raw || {};
+    let id = Number.isFinite(Number(c.id)) ? Math.round(Number(c.id)) : 0;
+    if(!id || used[id]){
+      while(used[free]) free++;
+      id = free;
+    }
+    used[id] = true;
+    const w = Math.max(1, Math.round(parseFloat(c.w) || parseFloat(fb.w) || 1920));
+    const h = Math.max(1, Math.round(parseFloat(c.h) || parseFloat(fb.h) || 1080));
+    const fallbackSlices = (idx === 0 && Array.isArray(fb.slices)) ? fb.slices : [];
+    return {
+      id: id,
+      name: String(c.name || (idx === 0 && fb.name) || ('Canvas ' + (idx + 1))).slice(0, 60),
+      w: w,
+      h: h,
+      arW: Math.max(0.01, parseFloat(c.arW) || parseFloat(c.w) || parseFloat(fb.w) || w),
+      arH: Math.max(0.01, parseFloat(c.arH) || parseFloat(c.h) || parseFloat(fb.h) || h),
+      slices: Array.isArray(c.slices) ? c.slices : fallbackSlices
+    };
+  });
+}
+
+function installCanvasModel(data){
+  const d = data || {};
+  const fallback = {
+    id: 1,
+    name: 'Canvas 1',
+    w: parseFloat(d.canvasW) || 1920,
+    h: parseFloat(d.canvasH) || 1080,
+    arW: parseFloat(d.canvasW) || 1920,
+    arH: parseFloat(d.canvasH) || 1080,
+    slices: Array.isArray(d.slices) ? d.slices : []
+  };
+  canvases = sanitizeCanvases(d.canvases, fallback);
+  let maxCanvasId = 0;
+  canvases.forEach(c=>{
+    if(!Array.isArray(c.slices)) c.slices = [];
+    c.slices.forEach(s=>ensureSliceZoom(s));
+    maxCanvasId = Math.max(maxCanvasId, c.id);
+  });
+  const requestedNext = parseInt(d.nextCanvasId, 10);
+  nextCanvasId = Math.max(maxCanvasId + 1, isFinite(requestedNext) ? requestedNext : 1);
+  const wanted = parseInt(d.activeCanvasId, 10);
+  activeCanvasId = canvases.some(c=>c.id === wanted) ? wanted : canvases[0].id;
+  slices = getActiveCanvas().slices;
+  return getActiveCanvas();
+}
+
+function applyCanvasInputs(canvas){
+  if(!canvas) return;
+  el('aspectRatioW').value = canvas.arW;
+  el('aspectRatioH').value = canvas.arH;
+  el('aspectWidthInput').value = canvas.w;
+  el('aspectHeightInput').value = canvas.h;
+  el('canvasW').value = canvas.w;
+  el('canvasH').value = canvas.h;
+}
+
+function syncActiveCanvasFromInputs(){
+  const canvas = getActiveCanvas();
+  if(!canvas) return;
+  canvas.w = Math.max(1, Math.round(parseFloat(el('canvasW').value) || canvas.w || 1920));
+  canvas.h = Math.max(1, Math.round(parseFloat(el('canvasH').value) || canvas.h || 1080));
+  canvas.arW = Math.max(0.01, parseFloat(el('aspectRatioW').value) || canvas.arW || canvas.w);
+  canvas.arH = Math.max(0.01, parseFloat(el('aspectRatioH').value) || canvas.arH || canvas.h);
+  canvas.slices = slices;
+}
+
+function updateCanvasTabName(){
+  const nameEl = el('canvasTabName');
+  if(!nameEl) return;
+  const canvas = getActiveCanvas();
+  nameEl.textContent = canvas ? canvas.name : '';
+}
+
+function renderCanvasMenu(){
+  const listEl = el('canvasPopupList');
+  if(!listEl) return;
+  listEl.innerHTML = canvases.map(c=>{
+    const active = c.id === activeCanvasId;
+    const count = c.slices.length;
+    return `<div class="canvas-row${active ? ' active' : ''}" data-canvas-id="${c.id}" onclick="selectCanvas(${c.id})">
+      <span class="canvas-row-dot"></span>
+      <div class="canvas-row-main">
+        <div class="canvas-row-name" data-canvas-name="${c.id}">${escapeHtmlText(c.name)}</div>
+        <div class="canvas-row-meta">${fmt(c.w)} × ${fmt(c.h)} px · ${count} ${count === 1 ? 'slice' : 'slices'}</div>
+      </div>
+      <button class="canvas-row-edit" type="button" title="Naam wijzigen" onclick="event.stopPropagation(); startCanvasRename(${c.id})">✎</button>
+      ${active ? '<span class="canvas-row-check">✓</span>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function openCanvasMenu(anchor){
+  const popup = el('canvasPopup');
+  if(!popup) return;
+  renderCanvasMenu();
+  popup.classList.add('open');
+  const trigger = anchor || el('canvasTabBtn');
+  if(trigger){
+    const rect = trigger.getBoundingClientRect();
+    const width = 320;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    const top = Math.min(rect.bottom + 6, window.innerHeight - 80);
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+  }
+  const tab = el('canvasTabBtn');
+  if(tab) tab.classList.add('canvas-menu-open');
+}
+
+function closeCanvasMenu(){
+  const popup = el('canvasPopup');
+  if(popup) popup.classList.remove('open');
+  const tab = el('canvasTabBtn');
+  if(tab) tab.classList.remove('canvas-menu-open');
+}
+
+function toggleCanvasMenu(anchor){
+  const popup = el('canvasPopup');
+  if(!popup) return;
+  if(popup.classList.contains('open')) closeCanvasMenu();
+  else openCanvasMenu(anchor);
+}
+
+function onCanvasTabClick(ev){
+  const popup = el('canvasPopup');
+  const wasOpen = popup && popup.classList.contains('open');
+  switchTab('real');
+  if(ev && ev.stopPropagation) ev.stopPropagation();
+  if(wasOpen) closeCanvasMenu();
+  else openCanvasMenu(ev && ev.currentTarget);
+}
+
+function refreshCanvasWorkspace(){
+  const canvas = getActiveCanvas();
+  applyCanvasInputs(canvas);
+  selectedSliceIds.clear();
+  selectedSliceId = null;
+  selectedPanels = [];
+  syncStageLayoutWithSlices(false);
+  renderSlices();
+  renderStagePropertiesList();
+  recalcAll();
+  updateCanvasRatio();
+  updateScaledCanvasRatio();
+  updateCanvasTabName();
+}
+
+function selectCanvas(id){
+  if(!canvases.some(c=>c.id === id)) return;
+  if(id === activeCanvasId){ closeCanvasMenu(); return; }
+  readSliceInputs();
+  syncActiveCanvasFromInputs();
+  activeCanvasId = id;
+  slices = getActiveCanvas().slices;
+  closeCanvasMenu();
+  refreshCanvasWorkspace();
+  commitHistory();
+}
+
+function addCanvas(){
+  readSliceInputs();
+  syncActiveCanvasFromInputs();
+  const canvas = makeCanvasRecord();
+  canvases.push(canvas);
+  activeCanvasId = canvas.id;
+  slices = canvas.slices;
+  refreshCanvasWorkspace();
+  renderCanvasMenu();
+  commitHistory();
+  startCanvasRename(canvas.id);
+}
+
+function renameCanvas(id, name){
+  const canvas = canvases.find(c=>c.id === id);
+  if(!canvas) return;
+  const clean = String(name == null ? '' : name).trim().slice(0, 60);
+  if(!clean || clean === canvas.name) return;
+  canvas.name = clean;
+  updateCanvasTabName();
+  renderCanvasMenu();
+  commitHistory();
+}
+
+function startCanvasRename(id){
+  const canvas = canvases.find(c=>c.id === id);
+  if(!canvas) return;
+  const nameEl = document.querySelector('.canvas-row-name[data-canvas-name="' + id + '"]');
+  if(!nameEl) return;
+  const input = document.createElement('input');
+  input.className = 'canvas-rename-input';
+  input.type = 'text';
+  input.maxLength = 60;
+  input.value = canvas.name;
+  let done = false;
+  const finish = (commit)=>{
+    if(done) return;
+    done = true;
+    if(commit) renameCanvas(id, input.value);
+    else renderCanvasMenu();
+  };
+  input.addEventListener('click', e=>e.stopPropagation());
+  input.addEventListener('keydown', e=>{
+    e.stopPropagation();
+    if(e.key === 'Enter'){ e.preventDefault(); finish(true); }
+    else if(e.key === 'Escape'){ e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', ()=>finish(true));
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
 function serializeProject(){
+  syncActiveCanvasFromInputs();
   return {
     app: 'led-pixelmap-tool',
     appVersion: APP_VERSION,
     savedAt: new Date().toISOString(),
+    canvases: JSON.parse(JSON.stringify(canvases)),
+    activeCanvasId,
+    nextCanvasId,
     slices: JSON.parse(JSON.stringify(slices)),
     nextId,
     canvasW: el('canvasW').value,
@@ -3129,8 +3480,14 @@ function saveProjectAs(){
 
 function newProject(){
   if(!confirm('Nieuw project starten? Niet-opgeslagen wijzigingen gaan verloren.')) return;
-  slices = [];
+  canvases = [];
+  activeCanvasId = null;
+  nextCanvasId = 1;
   nextId = 1;
+  const freshCanvas = makeCanvasRecord({ name: 'Canvas 1' });
+  canvases.push(freshCanvas);
+  activeCanvasId = freshCanvas.id;
+  slices = freshCanvas.slices;
   selectedSliceIds.clear();
   selectedSliceId = null;
   clipboardSlices = [];
@@ -3165,6 +3522,8 @@ function newProject(){
   recalcAll();
   updateCanvasRatio();
   updateScaledCanvasRatio();
+  renderCanvasMenu();
+  updateCanvasTabName();
   commitHistory();
 }
 
@@ -3192,14 +3551,15 @@ function handleLoadProject(evt){
 }
 
 function restoreProject(data){
-  slices = data.slices || [];
-  slices.forEach(s=>ensureSliceZoom(s));
-  nextId = data.nextId || (slices.reduce((m,s)=>Math.max(m,s.id||0),0)+1);
+  data = data || {};
+  installCanvasModel(data);
+  let maxSliceId = 0;
+  canvases.forEach(c=>c.slices.forEach(s=>{ maxSliceId = Math.max(maxSliceId, s.id || 0); }));
+  nextId = Math.max(maxSliceId + 1, parseInt(data.nextId, 10) || 1);
   selectedSliceIds.clear();
   selectedSliceId = null;
   selectedPanels = [];
-  el('canvasW').value = data.canvasW || 1920;
-  el('canvasH').value = data.canvasH || 1080;
+  applyCanvasInputs(getActiveCanvas());
   el('maxW').value = data.maxW || 1920;
   el('maxH').value = data.maxH || 1080;
   el('maxPx').value = data.maxPx || '';
@@ -3257,6 +3617,8 @@ function restoreProject(data){
   recalcAll();
   updateCanvasRatio();
   updateScaledCanvasRatio();
+  renderCanvasMenu();
+  updateCanvasTabName();
   syncStageLayoutWithSlices(false);
   commitHistory();
 }
@@ -6290,6 +6652,7 @@ function renderComposition(){
 }
 
 function recalcAll(){
+  syncActiveCanvasFromInputs();
   readSliceInputs();
   queueCompositionRender();
   scheduleHistoryPush();
@@ -6329,7 +6692,16 @@ updateScaledCanvasRatio();
 setStagePaperPreset(stagePaperPreset, true);
 updateStageOrientationButtons();
 setStageBgPropsCollapsed(true);
-resetStageLayoutFromComposition(false);
+
+if(!canvases.length){
+  const defaultCanvas = makeCanvasRecord({ name: 'Canvas 1' });
+  canvases.push(defaultCanvas);
+  activeCanvasId = defaultCanvas.id;
+  slices = defaultCanvas.slices;
+  applyCanvasInputs(defaultCanvas);
+}
+renderCanvasMenu();
+updateCanvasTabName();
 
 const restoredFromAutoSave = loadAutoSave();
 if(!restoredFromAutoSave){
@@ -6339,6 +6711,9 @@ if(!restoredFromAutoSave){
   renderSlices();
   recalcAll();
 }
+renderCanvasMenu();
+updateCanvasTabName();
+resetStageLayoutFromComposition(false);
 pushHistory();
 initZoomPan();
 document.querySelectorAll('.menu-version').forEach(elm=>elm.textContent=APP_VERSION);
@@ -8030,6 +8405,23 @@ document.addEventListener('click', function(e){
 });
 document.addEventListener('keydown', function(e){
   if(e.key==='Escape') toggleSettingsPopup(false);
+});
+</script>
+
+<script id="upscale-canvas-popup">
+document.addEventListener('click', function(e){
+  var p = document.getElementById('canvasPopup');
+  if(!p || !p.classList.contains('open')) return;
+  if(p.contains(e.target)) return;
+  if(e.target.closest && e.target.closest('#canvasTabBtn')) return;
+  closeCanvasMenu();
+});
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape') closeCanvasMenu();
+});
+window.addEventListener('resize', function(){
+  var p = document.getElementById('canvasPopup');
+  if(p && p.classList.contains('open')) openCanvasMenu(document.getElementById('canvasTabBtn'));
 });
 </script>
 
