@@ -3800,6 +3800,7 @@ function makeSlice(defaults){
     showCircle: false,
     showCross: false,
     roundedCorners: false,
+    cornerRadiusPct: 8,
     showPanelIds: false,
     panelIdSizePct: 100,
     collapsed: false,
@@ -3909,6 +3910,8 @@ function readSliceInputs(){
     if(crossInput) s.showCross = crossInput.checked;
     const roundedInput = c.querySelector('[data-f=roundedCorners]');
     if(roundedInput) s.roundedCorners = roundedInput.checked;
+    const cornerRadiusInput = c.querySelector('[data-f=cornerRadiusPct]');
+    if(cornerRadiusInput) s.cornerRadiusPct = Math.max(0, Math.min(50, parseInt(cornerRadiusInput.value) || 0));
     const idsInput = c.querySelector('[data-f=showPanelIds]');
     if(idsInput) s.showPanelIds = idsInput.checked;
     const panelIdSizeInput = c.querySelector('[data-f=panelIdSizePct]');
@@ -3959,6 +3962,16 @@ function stepPanelIdSize(id, delta){
   if(!s) return;
   readSliceInputs();
   s.panelIdSizePct = Math.max(40, Math.min(300, (parseInt(s.panelIdSizePct)||100) + delta));
+  renderSlices();
+  recalcAll();
+  commitHistory();
+}
+
+function stepCornerRadius(id, delta){
+  const s = slices.find(x=>x.id===id);
+  if(!s) return;
+  readSliceInputs();
+  s.cornerRadiusPct = Math.max(0, Math.min(50, (parseInt(s.cornerRadiusPct)||0) + delta));
   renderSlices();
   recalcAll();
   commitHistory();
@@ -4198,6 +4211,16 @@ function renderSlices(){
             <button type="button" class="reset-icon-btn" onclick="resetSliderField(${s.id},'panelIdSizePct',100)" title="reset naar standaard"><svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
           </div>
           <div class="title-size-row">
+            <label>Ronding</label>
+            <input type="range" data-f="cornerRadiusPct" min="0" max="50" step="1" value="${s.cornerRadiusPct ?? 8}" ${s.roundedCorners ? '' : 'disabled'} oninput="el('cornerRadiusVal-${s.id}').textContent=this.value+'%'; recalcAll()">
+            <span class="val" id="cornerRadiusVal-${s.id}" ondblclick="startInlineEdit(event,${s.id},'cornerRadiusPct',0,50)">${s.cornerRadiusPct ?? 8}%</span>
+            <div class="stepper-btns-inline">
+              <button type="button" onclick="stepCornerRadius(${s.id},1)">▲</button>
+              <button type="button" onclick="stepCornerRadius(${s.id},-1)">▼</button>
+            </div>
+            <button type="button" class="reset-icon-btn" onclick="resetSliderField(${s.id},'cornerRadiusPct',8)" title="reset naar standaard"><svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+          </div>
+          <div class="title-size-row">
             <label>Titel ↔</label>
             <input type="range" data-f="titleOffsetX" min="-50" max="50" step="1" value="${s.titleOffsetX}" oninput="el('titleOffXVal-${s.id}').textContent=this.value; recalcAll()">
             <span class="val" id="titleOffXVal-${s.id}" ondblclick="startInlineEdit(event,${s.id},'titleOffsetX',-50,50)">${s.titleOffsetX}</span>
@@ -4268,7 +4291,7 @@ function renderSlices(){
           <div class="overlay-row">
             <label><input type="checkbox" data-f="showCircle" ${s.showCircle?'checked':''} onchange="recalcAll(); renderSlices();"> Cirkel</label>
             <label><input type="checkbox" data-f="showCross" ${s.showCross?'checked':''} onchange="recalcAll()"> Kruis</label>
-            <label><input type="checkbox" data-f="roundedCorners" ${s.roundedCorners?'checked':''} onchange="recalcAll(); updatePanelPreviews();"> Ronde hoeken</label>
+            <label><input type="checkbox" data-f="roundedCorners" ${s.roundedCorners?'checked':''} onchange="recalcAll(); updatePanelPreviews(); renderSlices();"> Ronde hoeken</label>
           </div>
           <div class="overlay-row">
             <label><input type="checkbox" data-f="showTitle" ${s.showTitle?'checked':''} onchange="recalcAll(); renderSlices();"> Titel</label>
@@ -4725,7 +4748,11 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
   const border = '#ffffff';
   const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
   const useRounded = !!s.roundedCorners;
-  const roundRadius = useRounded ? Math.max(1.5, Math.min(16, Math.min(w, h) * 0.08)) : 2;
+  /* Ronding als percentage van de kortste zijde i.p.v. een vaste cap van
+     16 px: op een 1:1 LED-output (en in exports) was dat nauwelijks zichtbaar. */
+  const roundPctRaw = Number(s.cornerRadiusPct);
+  const roundPct = Math.max(0, Math.min(50, isFinite(roundPctRaw) ? roundPctRaw : 8));
+  const roundRadius = useRounded ? Math.max(1.5, Math.min(w, h) * roundPct / 100) : 2;
   const shapeW = Math.max(useRounded ? w : (w-1), 1);
   const shapeH = Math.max(useRounded ? h : (h-1), 1);
   let inner;
