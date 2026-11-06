@@ -4867,8 +4867,9 @@ function stepCrop(id, field, delta){
   commitHistory();
 }
 
-function getComposition(){
-  const comps = slices.map(s=>Object.assign({slice:s}, computeSlice(s)));
+function getComposition(list){
+  const src = Array.isArray(list) ? list : slices;
+  const comps = src.map(s=>Object.assign({slice:s}, computeSlice(s)));
   const resX = comps.reduce((m,c)=>Math.max(m, c.slice.posX + c.resX), 0) || 1;
   const resY = comps.reduce((m,c)=>Math.max(m, c.slice.posY + c.resY), 0) || 1;
   const totalPixels = resX*resY;
@@ -7659,6 +7660,19 @@ if(typeof renderOverviewPanels === 'function') renderOverviewPanels();
 .live-btn-primary:hover{filter:brightness(1.1);}
 .live-btn-row{display:flex;gap:6px;}
 .live-btn-row .stage-btn{flex:1;}
+.live-route-list{display:flex;flex-direction:column;gap:6px;max-height:380px;overflow:auto;padding-right:2px;}
+.live-route{border:1px solid var(--line);border-radius:8px;padding:7px 8px;background:var(--panel-2);transition:border-color .15s,background .15s;}
+.live-route.is-active{border-color:rgba(70,200,160,.45);}
+.live-route.is-open{background:rgba(70,200,160,.09);border-color:var(--real);}
+.live-route-head{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.live-route-state{width:7px;height:7px;border-radius:50%;background:var(--text-faint);flex-shrink:0;}
+.live-route.is-open .live-route-state{background:var(--real);box-shadow:0 0 0 2px rgba(70,200,160,.2);}
+.live-route-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
+.live-route-tag{font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--real);border:1px solid rgba(70,200,160,.4);border-radius:4px;padding:1px 4px;flex-shrink:0;}
+.live-route-size{font-family:var(--font-mono);font-size:10px;color:var(--text-faint);flex-shrink:0;}
+.live-route-controls{display:flex;gap:5px;align-items:center;}
+.live-route-controls select{flex:1;min-width:0;font-size:11px;padding:5px 6px;}
+.live-route-toggle{flex:0 0 auto;font-size:11px;padding:5px 10px;}
 #liveOverlay{position:fixed;inset:0;z-index:9000;background:#000;display:none;overflow:hidden;}
 #liveOverlay #liveOverlaySvg{position:absolute;inset:0;overflow:hidden;}
 #liveOverlay #liveOverlaySvg svg{display:block;width:auto;height:auto;max-width:none;max-height:none;}
@@ -7678,6 +7692,7 @@ if(typeof renderOverviewPanels === 'function') renderOverviewPanels();
 const LIVE_CHANNEL_NAME = 'upscale-live';
 const LIVE_LS_KEY = 'upscale-live-model';
 const LIVE_SCREEN_KEY = 'upscale-live-screen';
+const LIVE_ROUTES_KEY = 'upscale-live-routes-v2';
 
 let liveOpts = {
   mode: 'scaled',
@@ -7702,6 +7717,26 @@ let liveScreensCache = null;
 let liveOnly = false;
 let liveNativeOpen = false;
 let liveScreenChosen = false;
+let liveRoutes = {};
+let liveOpenCanvasIds = {};
+let liveCanvasSvgMap = {};
+let livePopupWins = {};
+let liveOnlyCanvasId = null;
+let liveOverlayCanvasId = null;
+
+(function initLiveRoutes(){
+  try{
+    const raw = localStorage.getItem(LIVE_ROUTES_KEY);
+    if(!raw) return;
+    const obj = JSON.parse(raw);
+    if(!obj || typeof obj !== 'object') return;
+    Object.keys(obj).forEach(key=>{
+      const id = parseInt(key, 10);
+      const idx = parseInt(obj[key], 10);
+      if(isFinite(id) && id > 0 && isFinite(idx) && idx >= 0) liveRoutes[id] = idx;
+    });
+  }catch(e){}
+})();
 
 (function initLiveBridge(){
   try{
@@ -7722,6 +7757,10 @@ let liveScreenChosen = false;
 })();
 
 function onLiveNativeState(open, info){
+  if(info && info.canvasId){
+    onLiveCanvasState(info.canvasId, open, info);
+    return;
+  }
   liveNativeOpen = !!open;
   if(open){
     try{ liveScreensCache = info && info.screens ? info.screens : liveScreensCache; }catch(e){}
@@ -7736,10 +7775,39 @@ function onLiveNativeState(open, info){
   if(activeTab === 'live'){ renderLiveControls(); renderLiveStats(); }
 }
 
+function onLiveCanvasState(canvasId, open, info){
+  const cid = parseInt(canvasId, 10);
+  if(!cid) return;
+  if(info && info.screens) liveScreensCache = info.screens;
+  if(open){
+    liveOpenCanvasIds[cid] = true;
+    if(info && typeof info.screenIndex === 'number' && isFinite(info.screenIndex)){
+      liveRoutes[cid] = info.screenIndex;
+      saveLiveRoutes();
+    }
+    queueCompositionRender();
+    try{ broadcastLive(true); }catch(e){}
+  } else {
+    delete liveOpenCanvasIds[cid];
+    try{
+      const w = livePopupWins[cid];
+      if(w && !w.closed) w.close();
+    }catch(e){}
+    delete livePopupWins[cid];
+    if(liveOverlayActive && liveOverlayCanvasId === cid) hideLiveOverlay();
+  }
+  liveNativeOpen = Object.keys(liveOpenCanvasIds).length > 0;
+  if(activeTab === 'live'){ renderLiveControls(); renderLiveStats(); }
+}
+
 function onLiveScreensChanged(screens){
   try{ liveScreensCache = screens || []; }catch(e){ liveScreensCache = []; }
   applyDefaultLiveScreen();
-  if(liveNativeOpen && window.py && typeof window.py.move_live_window === 'function'){
+  if(window.py && typeof window.py.move_live_window_for_canvas === 'function'){
+    Object.keys(liveOpenCanvasIds).forEach(key=>{
+      try{ window.py.move_live_window_for_canvas(parseInt(key,10), liveRouteScreen(key)); }catch(e){}
+    });
+  } else if(liveNativeOpen && window.py && typeof window.py.move_live_window === 'function'){
     try{ window.py.move_live_window(liveOpts.screenIndex); }catch(e){}
   }
   if(activeTab === 'live') renderLiveControls();
@@ -7921,7 +7989,9 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
   ctx.restore();
 }
 
-function liveIsOpen(){ return !!(liveWindow || liveOverlayActive || liveNativeOpen); }
+function liveIsOpen(){
+  return !!(liveWindow || liveOverlayActive || liveNativeOpen || Object.keys(liveOpenCanvasIds).length);
+}
 
 let liveScaledSvg = '';
 let liveSvgSeq = 0;
@@ -7975,12 +8045,14 @@ function buildLiveScaledSVG(comp){
 /* Echte 1:1 uitvoer: viewBox = ingestelde canvasmaat, anker linksboven (0,0),
    geen artboard-marge/centrering. Bij een outputscherm met dezelfde resolutie
    valt elk canvaspixel exact op het schermpixel. */
-function buildLiveNativeSVG(comp){
+function buildLiveNativeSVG(comp, canvasArg){
   if(!comp || !comp.comps) return '';
-  const canvas = getCanvasSize();
+  const canvas = canvasArg || getCanvasSize();
   const W = Math.max(1, Math.round(canvas.w));
   const H = Math.max(1, Math.round(canvas.h));
-  liveTargetW = W; liveTargetH = H;
+  /* Alleen de actieve editor-canvas mag de previewmaten bijwerken; per-canvas
+     builds voor de router mogen liveTargetW/H niet overschrijven. */
+  if(!canvasArg || canvasArg.id === activeCanvasId){ liveTargetW = W; liveTargetH = H; }
   const labelScale = Math.max(1, Math.min(W/1300, H/640));
   let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#000000"/>`;
   comp.comps.forEach((c, idx)=>{
@@ -8024,18 +8096,51 @@ function liveSvgMarkup(){
   return liveScaledSvg.replace(/id="/g, 'id="'+t).replace(/url\(#/g, 'url(#'+t);
 }
 
-function broadcastLive(){
-  const payload = JSON.stringify({svg: liveScaledSvg});
-  try{
-    if(!liveBroadcast && typeof BroadcastChannel !== 'undefined'){
-      liveBroadcast = new BroadcastChannel(LIVE_CHANNEL_NAME);
+function buildLiveCanvasSvgMap(){
+  const map = {};
+  const active = getActiveCanvas();
+  const activeSize = getCanvasSize();
+  canvases.forEach(c=>{
+    if(!c) return;
+    const isActive = !!active && c.id === active.id;
+    let svg = '';
+    if(isActive && liveScaledSvg){
+      svg = liveScaledSvg;
+    } else {
+      const list = isActive ? slices : (Array.isArray(c.slices) ? c.slices : []);
+      svg = buildLiveNativeSVG(getComposition(list), { id:c.id, w:c.w, h:c.h });
     }
-    if(liveBroadcast) liveBroadcast.postMessage(payload);
-  }catch(e){}
-  const now = Date.now();
-  if(now - liveBroadcastT > 90){
-    liveBroadcastT = now;
-    try{ localStorage.setItem(LIVE_LS_KEY, payload); }catch(e){}
+    map[c.id] = {
+      id: c.id,
+      name: c.name,
+      w: Math.max(1, Math.round(isActive ? activeSize.w : c.w)),
+      h: Math.max(1, Math.round(isActive ? activeSize.h : c.h)),
+      svg: svg
+    };
+  });
+  liveCanvasSvgMap = map;
+  return map;
+}
+
+function broadcastLive(force){
+  if(liveOnly) return;
+  try{
+    if(!liveScaledSvg) liveScaledSvg = buildLiveNativeSVG(getComposition());
+    const canvasesMap = buildLiveCanvasSvgMap();
+    const payload = JSON.stringify({svg: liveScaledSvg, canvases: canvasesMap, ts: Date.now()});
+    try{
+      if(!liveBroadcast && typeof BroadcastChannel !== 'undefined'){
+        liveBroadcast = new BroadcastChannel(LIVE_CHANNEL_NAME);
+      }
+      if(liveBroadcast) liveBroadcast.postMessage(payload);
+    }catch(e){}
+    const now = Date.now();
+    if(force || now - liveBroadcastT > 90){
+      liveBroadcastT = now;
+      try{ localStorage.setItem(LIVE_LS_KEY, payload); }catch(e){}
+    }
+  }catch(e){
+    console.warn('[LIVE] broadcast error', e);
   }
 }
 
@@ -8089,7 +8194,12 @@ function renderLiveStats(){
   const host = el('liveStats');
   if(!host) return;
   const targetRes = liveTargetW ? (fmt(Math.round(liveTargetW))+' × '+fmt(Math.round(liveTargetH))) : '—';
-  const status = liveNativeOpen ? 'native venster open' : (liveWindow ? 'venster open' : (liveOverlayActive ? 'overlay open' : 'niet actief'));
+  const openCount = Object.keys(liveOpenCanvasIds).length;
+  let status = 'niet actief';
+  if(openCount > 1) status = openCount + ' vensters open';
+  else if(openCount === 1) status = '1 venster open';
+  else if(liveWindow) status = 'venster open';
+  else if(liveOverlayActive) status = 'overlay open';
   const cards = [
     ['Uitvoer', '1:1 canvas · 0,0', '', 'accent-scaled'],
     ['Canvas', targetRes, 'px', 'accent-scaled'],
@@ -8103,11 +8213,53 @@ function renderLiveStats(){
     </div>`).join('');
 }
 
-function liveScreenOptions(){
-  if(liveScreensCache && liveScreensCache.length){
-    return liveScreensCache.map((s,i)=>`<option value="${i}"${i===liveOpts.screenIndex?' selected':''}>${i+1} · ${s.name} (${s.w}×${s.h})${s.primary?' · primair':''}</option>`).join('');
+function liveRouteScreen(canvasId){
+  const cid = parseInt(canvasId, 10);
+  const stored = liveRoutes[cid];
+  if(stored !== undefined && stored !== null && isFinite(Number(stored)) && Number(stored) >= 0){
+    return Number(stored);
   }
-  return `<option value="0">Venster (sleep naar scherm 2)</option>`;
+  return liveOpts.screenIndex || 0;
+}
+
+function saveLiveRoutes(){
+  try{ localStorage.setItem(LIVE_ROUTES_KEY, JSON.stringify(liveRoutes)); }catch(e){}
+}
+
+function liveScreenOptionsFor(canvasId){
+  const selected = liveRouteScreen(canvasId);
+  if(liveScreensCache && liveScreensCache.length){
+    return liveScreensCache.map((s,i)=>`<option value="${i}"${i===selected?' selected':''}>${i+1} · ${escapeHtmlText(s.name)} (${s.w}×${s.h})${s.primary?' · primair':''}</option>`).join('');
+  }
+  return `<option value="0">Scherm 1 (of sleep het venster)</option>`;
+}
+
+function liveIsCanvasOpen(canvasId){
+  return !!liveOpenCanvasIds[parseInt(canvasId, 10)];
+}
+
+function liveAnyOpen(){
+  return Object.keys(liveOpenCanvasIds).length > 0;
+}
+
+function liveRouteRowsHtml(){
+  if(!canvases.length) return '<div class="note" style="margin:0;">Geen canvassen gevonden.</div>';
+  return canvases.map(c=>{
+    const open = liveIsCanvasOpen(c.id);
+    const active = c.id === activeCanvasId;
+    return `<div class="live-route${open?' is-open':''}${active?' is-active':''}">
+      <div class="live-route-head">
+        <span class="live-route-state"></span>
+        <span class="live-route-name">${escapeHtmlText(c.name)}</span>
+        ${active?'<span class="live-route-tag">bewerkt</span>':''}
+        <span class="live-route-size">${fmt(c.w)}×${fmt(c.h)}</span>
+      </div>
+      <div class="live-route-controls">
+        <select class="calc" onchange="liveSetRouteScreen(${c.id}, this.value)">${liveScreenOptionsFor(c.id)}</select>
+        <button class="stage-btn live-route-toggle" onclick="liveToggleCanvas(${c.id})">${open?'Sluiten':'Openen'}</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderLiveControls(){
@@ -8115,24 +8267,23 @@ function renderLiveControls(){
   if(!host) return;
   host.innerHTML = `
     <div class="properties-group">
-      <div class="properties-header"><span>Uitvoerscherm</span></div>
+      <div class="properties-header"><span>Live-router · per canvas</span></div>
       <div class="properties-body" style="padding:10px;">
-        <div class="field"><label>Beeldscherm</label>
-          <select class="calc" id="liveScreenSelect" onchange="liveSelectScreen(this.value)">${liveScreenOptions()}</select>
+        <div class="live-route-list">${liveRouteRowsHtml()}</div>
+        <div class="live-btn-row" style="margin-top:8px;">
+          <button class="stage-btn" onclick="liveOpenAllRoutes()">Alles openen</button>
+          <button class="stage-btn" onclick="liveCloseAllRoutes()">Alles sluiten</button>
         </div>
-        <button class="stage-btn" style="width:100%;margin-top:7px;" onclick="liveRefreshScreens(true)">Schermen verversen</button>
+        <button class="live-btn-primary" style="width:100%;margin-top:6px;" onclick="liveOpenCanvas(activeCanvasId)">Open actieve canvas</button>
       </div>
     </div>
     <div class="properties-group">
-      <div class="properties-header"><span>Uitvoer</span></div>
+      <div class="properties-header"><span>Schermen</span></div>
       <div class="properties-body" style="padding:10px;">
-        <button class="live-btn-primary" onclick="openLiveOutput()">${liveIsOpen()?'Heropen live output':'Open live output'}</button>
-        <div class="live-btn-row" style="margin-top:6px;">
-          <button class="stage-btn" onclick="closeLiveOutput()">Sluiten</button>
-        </div>
+        <button class="stage-btn" style="width:100%;" onclick="liveRefreshScreens(true)">Schermen verversen</button>
       </div>
     </div>
-    <div class="note">De uitvoer toont de ingestelde <b>canvasmaat 1:1 vanaf 0,0</b> — geen schaling, centrering of artboard-marge. De <b>witte lijn</b> is de canvasrand en blijft altijd zichtbaar; is de canvas groter dan het scherm, dan worden de pixels daarbuiten afgeknipt. Wijzigingen worden live doorgestuurd. <b>Esc</b> sluit de output.</div>
+    <div class="note">Elke canvas krijgt een <b>eigen live-uitgang</b>. Wijs per canvas een scherm toe en open of sluit de route onafhankelijk van de actieve editor-canvas. De uitvoer toont de ingestelde <b>canvasmaat 1:1 vanaf 0,0</b> — geen schaling, centrering of artboard-marge. De <b>witte lijn</b> is de canvasrand en blijft altijd zichtbaar; pixels buiten het scherm worden afgeknipt. <b>Esc</b> sluit het actieve live-venster.</div>
   `;
 }
 
@@ -8142,6 +8293,18 @@ function setLiveOpt(key, val){
   scheduleLivePreviewDraw();
   renderLiveStats();
   if(liveIsOpen()) queueCompositionRender();
+}
+
+function liveSetRouteScreen(canvasId, screenIndex){
+  const cid = parseInt(canvasId, 10);
+  if(!cid) return;
+  const idx = Math.max(0, parseInt(screenIndex, 10) || 0);
+  liveRoutes[cid] = idx;
+  saveLiveRoutes();
+  if(liveIsCanvasOpen(cid) && window.py && typeof window.py.move_live_window_for_canvas === 'function'){
+    try{ window.py.move_live_window_for_canvas(cid, idx); }catch(e){}
+  }
+  renderLiveControls();
 }
 
 function liveRefreshScreens(force){
@@ -8173,6 +8336,135 @@ function liveSelectScreen(idx){
   }
 }
 
+function hideLiveOverlay(){
+  const ov = el('liveOverlay');
+  if(ov) ov.style.display = 'none';
+  liveOverlayActive = false;
+  liveOverlayCanvasId = null;
+  if(document.fullscreenElement){ try{ document.exitFullscreen(); }catch(e){} }
+}
+
+function openLiveOverlayForCanvas(canvasId){
+  const cid = parseInt(canvasId, 10) || activeCanvasId;
+  let ov = el('liveOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'liveOverlay';
+    ov.innerHTML = '<div id="liveOverlaySvg"></div><div id="liveOverlayBar">'+
+      '<button type="button" onclick="liveCloseCanvas(' + cid + ')">Sluiten (Esc)</button></div>';
+    document.body.appendChild(ov);
+  }
+  const entry = liveCanvasSvgMap[cid];
+  if(entry && entry.svg) liveScaledSvg = entry.svg;
+  ov.style.display = 'block';
+  liveOverlayActive = true;
+  liveOverlayCanvasId = cid;
+  liveOpenCanvasIds[cid] = true;
+  liveNativeOpen = liveAnyOpen();
+  pushLiveSvg();
+  renderLiveControls();
+  renderLiveStats();
+}
+
+function liveOpenCanvas(canvasId){
+  if(liveOnly) return false;
+  const cid = parseInt(canvasId, 10);
+  if(!cid) return false;
+  const canvas = canvases.find(c=>c.id === cid);
+  const name = canvas ? canvas.name : ('Canvas ' + cid);
+  const screenIndex = liveRouteScreen(cid);
+  queueCompositionRender();
+  try{
+    if(!liveScaledSvg) liveScaledSvg = buildLiveNativeSVG(getComposition());
+    broadcastLive();
+  }catch(e){}
+  // 1) native bridge: één echt venster per canvas
+  if(window.py && typeof window.py.open_live_window_for_canvas === 'function'){
+    try{
+      window.py.open_live_window_for_canvas(cid, screenIndex, name);
+      liveOpenCanvasIds[cid] = true;
+      liveNativeOpen = true;
+      broadcastLive(true);
+      renderLiveControls();
+      renderLiveStats();
+      return true;
+    }catch(e){ console.warn('[LIVE] bridge open failed', e); }
+  }
+  // 2) browser-popup met ?live=1&canvas=<id>
+  let w = livePopupWins[cid];
+  if(w && w.closed){ delete livePopupWins[cid]; w = null; }
+  if(!w){
+    try{
+      const base = location.href.split('#')[0].split('?')[0];
+      const url = base + '?live=1&canvas=' + encodeURIComponent(cid);
+      w = window.open(url, 'UPScaleLive_' + cid, 'popup,width=960,height=540');
+    }catch(e){ w = null; }
+  }
+  if(w && !w.closed){
+    try{ w.focus(); }catch(e){}
+    livePopupWins[cid] = w;
+    liveOpenCanvasIds[cid] = true;
+    liveNativeOpen = liveAnyOpen();
+    broadcastLive(true);
+    renderLiveControls();
+    renderLiveStats();
+    return true;
+  }
+  // 3) overlay-fallback (browser zonder popups)
+  openLiveOverlayForCanvas(cid);
+  return false;
+}
+
+function liveCloseCanvas(canvasId){
+  const cid = parseInt(canvasId, 10);
+  if(!cid) return;
+  try{
+    const w = livePopupWins[cid];
+    if(w && !w.closed) w.close();
+  }catch(e){}
+  delete livePopupWins[cid];
+  delete liveOpenCanvasIds[cid];
+  if(window.py && typeof window.py.close_live_window_for_canvas === 'function'){
+    try{ window.py.close_live_window_for_canvas(cid); }catch(e){}
+  }
+  if(liveOverlayActive && liveOverlayCanvasId === cid) hideLiveOverlay();
+  liveNativeOpen = liveAnyOpen();
+  renderLiveControls();
+  renderLiveStats();
+}
+
+function liveToggleCanvas(canvasId){
+  if(liveIsCanvasOpen(canvasId)) liveCloseCanvas(canvasId);
+  else liveOpenCanvas(canvasId);
+}
+
+function liveOpenAllRoutes(){
+  if(!canvases.length) return;
+  canvases.forEach(c=>{
+    if(!liveIsCanvasOpen(c.id)) liveOpenCanvas(c.id);
+  });
+  renderLiveControls();
+  renderLiveStats();
+}
+
+function liveCloseAllRoutes(){
+  Object.keys(livePopupWins).forEach(key=>{
+    try{
+      const w = livePopupWins[key];
+      if(w && !w.closed) w.close();
+    }catch(e){}
+  });
+  livePopupWins = {};
+  if(window.py && typeof window.py.close_all_live_windows === 'function'){
+    try{ window.py.close_all_live_windows(); }catch(e){}
+  }
+  liveOpenCanvasIds = {};
+  liveNativeOpen = false;
+  if(liveOverlayActive) hideLiveOverlay();
+  renderLiveControls();
+  renderLiveStats();
+}
+
 function liveWritePopupDoc(w){
   w.document.open();
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>UPScale Live Output</title>'+
@@ -8202,62 +8494,12 @@ function liveWindowFrame(){
 }
 
 function openLiveOverlay(){
-  let ov = el('liveOverlay');
-  if(!ov){
-    ov = document.createElement('div');
-    ov.id = 'liveOverlay';
-    ov.innerHTML = '<div id="liveOverlaySvg"></div><div id="liveOverlayBar">'+
-      '<button type="button" onclick="closeLiveOutput()">Sluiten (Esc)</button></div>';
-    document.body.appendChild(ov);
-  }
-  ov.style.display = 'block';
-  liveOverlayActive = true;
-  pushLiveSvg();
-  renderLiveControls();
-  renderLiveStats();
+  openLiveOverlayForCanvas(activeCanvasId);
 }
 
 function openLiveOutput(){
   if(liveOnly) return;
-  queueCompositionRender();
-  try{ if(!liveScaledSvg) liveScaledSvg = buildLiveNativeSVG(getComposition()); }catch(e){}
-  // 1) native bridge (desktop-app venster — betrouwbaar tweede scherm)
-  if(window.py && typeof window.py.open_live_window === 'function'){
-    try{
-      window.py.open_live_window(liveOpts.screenIndex, function(r){});
-      liveNativeOpen = true;
-      broadcastLive();
-      renderLiveControls();
-      renderLiveStats();
-      return;
-    }catch(e){ console.warn('[LIVE] bridge open failed', e); }
-  }
-  // 2) browser popup-venster
-  let w = null;
-  if(!liveWindow){
-    try{ w = window.open('', 'UPScaleLiveOutput', 'popup,width=1000,height=560'); }catch(e){ w = null; }
-  } else {
-    w = liveWindow;
-  }
-  if(w && !w.closed){
-    try{
-      if(!w.document.getElementById('liveSvgHost')) liveWritePopupDoc(w);
-      w.focus();
-      liveWindow = w;
-      if(w.__liveHooked !== true){
-        w.__liveHooked = true;
-        w.onunload = function(){ liveWindow = null; };
-      }
-      liveWindowFrame();
-      broadcastLive();
-      renderLiveControls();
-      renderLiveStats();
-      return;
-    }catch(e){
-      console.warn('[LIVE] popup failed', e);
-    }
-  }
-  openLiveOverlay();
+  liveOpenCanvas(activeCanvasId);
 }
 
 function toggleLiveFullscreen(){
@@ -8277,15 +8519,16 @@ function closeLiveOutput(){
   }
   liveWindow = null;
   liveFrames = 0; liveFps = 0;
-  const ov = el('liveOverlay');
-  if(ov) ov.style.display = 'none';
-  liveOverlayActive = false;
-  if(document.fullscreenElement){ try{ document.exitFullscreen(); }catch(e){} }
-  if(window.py && typeof window.py.close_live_window === 'function'){
-    try{ window.py.close_live_window(); }catch(e){}
+  hideLiveOverlay();
+  if(liveAnyOpen()){
+    liveCloseAllRoutes();
+  } else {
+    if(window.py && typeof window.py.close_live_window === 'function'){
+      try{ window.py.close_live_window(); }catch(e){}
+    }
+    liveNativeOpen = false;
+    if(activeTab === 'live'){ renderLiveControls(); renderLiveStats(); }
   }
-  liveNativeOpen = false;
-  if(activeTab === 'live'){ renderLiveControls(); renderLiveStats(); }
 }
 
 function onLiveTabActivated(){
@@ -8305,21 +8548,48 @@ let liveOnlyChannel = null;
 function liveOnlyApply(payload){
   try{
     const obj = JSON.parse(payload);
-    const svg = (obj && typeof obj.svg === 'string') ? obj.svg : '';
+    let svg = '';
+    let canvasName = '';
+    if(liveOnlyCanvasId != null){
+      const map = obj && obj.canvases;
+      if(map){
+        const entry = map[liveOnlyCanvasId] || map[String(liveOnlyCanvasId)];
+        if(!entry || typeof entry.svg !== 'string' || !entry.svg) return;
+        svg = entry.svg;
+        canvasName = entry.name || '';
+      } else if(obj && typeof obj.svg === 'string'){
+        svg = obj.svg; // oude payload zonder canvassen-map
+      } else {
+        return;
+      }
+    } else {
+      svg = (obj && typeof obj.svg === 'string') ? obj.svg : '';
+    }
     if(!svg) return;
     const t = 'ly'+Date.now()+'-';
     const markup = svg.replace(/id="/g, 'id="'+t).replace(/url\(#/g, 'url(#'+t);
     const host = document.getElementById('liveOnlySvg');
     if(host) host.innerHTML = markup;
+    if(liveOnlyCanvasId != null){
+      document.title = 'UPScale Live · ' + (canvasName || ('Canvas ' + liveOnlyCanvasId));
+    }
   }catch(e){}
 }
 
 function initLiveOnly(){
+  try{
+    const m = /[?&]canvas=([^&]*)/.exec(location.search);
+    if(m && m[1]){
+      const id = parseInt(decodeURIComponent(m[1]), 10);
+      if(isFinite(id) && id > 0) liveOnlyCanvasId = id;
+    }
+  }catch(e){}
   document.documentElement.classList.add('live-only');
   const root = document.createElement('div');
   root.id = 'liveOnlyRoot';
   root.innerHTML = '<div id="liveOnlySvg"></div>';
   document.body.appendChild(root);
+  if(liveOnlyCanvasId != null) document.title = 'UPScale Live · Canvas ' + liveOnlyCanvasId;
   try{
     const saved = localStorage.getItem(LIVE_LS_KEY);
     if(saved) liveOnlyApply(saved);
@@ -8332,6 +8602,11 @@ function initLiveOnly(){
   }catch(e){}
   window.addEventListener('storage', function(ev){
     if(ev.key === LIVE_LS_KEY && ev.newValue) liveOnlyApply(ev.newValue);
+  });
+  document.addEventListener('keydown', function(ev){
+    if(ev.key === 'Escape'){
+      try{ window.close(); }catch(e){}
+    }
   });
 }
 

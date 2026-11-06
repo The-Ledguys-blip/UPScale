@@ -369,7 +369,10 @@ class MainWindow(QMainWindow):
 
         html_path = find_html_file()
         self._html_path = html_path
-        self._live_window = None
+        # Eén live-venster per canvas (router). canvas-id -> LiveOutputWindow.
+        self._live_windows = {}
+        self._live_canvas_names = {}
+        self._last_live_canvas_id = None
         self.web_view.setUrl(QUrl.fromLocalFile(html_path.as_posix()))
         # if requested via environment, trigger an automatic export after the page loads
         self.web_view.page().loadFinished.connect(self._on_page_load_finished)
@@ -403,14 +406,11 @@ class MainWindow(QMainWindow):
         # Fallback: close the live output with Esc when it is the active window,
         # even if a child web view swallows the key event.
         try:
-            if (
-                event.type() == QEvent.Type.KeyPress
-                and event.key() == Qt.Key_Escape
-                and self._live_window is not None
-                and self._live_window.isActiveWindow()
-            ):
-                self._close_live_window()
-                return True
+            if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key_Escape:
+                for canvas_id, window in list(self._live_windows.items()):
+                    if window is not None and window.isActiveWindow():
+                        self._close_live_window_for_canvas(canvas_id)
+                        return True
         except Exception:
             LOGGER.exception("eventFilter failed")
         return super().eventFilter(obj, event)
@@ -595,15 +595,31 @@ class MainWindow(QMainWindow):
             render_menu.addAction(action)
             self._render_mode_actions[mode] = action
 
+    def _active_live_window(self):
+        """Return (canvas_id, window) for the most recently used live output."""
+        canvas_id = self._last_live_canvas_id
+        if canvas_id in self._live_windows:
+            return canvas_id, self._live_windows[canvas_id]
+        if self._live_windows:
+            canvas_id = next(iter(self._live_windows))
+            self._last_live_canvas_id = canvas_id
+            return canvas_id, self._live_windows[canvas_id]
+        return None, None
+
+    def _canvas_label(self, canvas_id: int) -> str:
+        name = self._live_canvas_names.get(canvas_id)
+        return name or f"Canvas {canvas_id}"
+
     def _rebuild_output_menu(self) -> None:
-        """List the connected video outputs; selecting one routes the scaled output there."""
+        """List connected displays and open live routes (one per canvas)."""
         menu = getattr(self, "_output_menu", None)
         if menu is None:
             return
         menu.clear()
         screens = QGuiApplication.screens()
         primary = QGuiApplication.primaryScreen()
-        active_idx = getattr(self._live_window, "_screen_index", -1) if self._live_window is not None else -1
+        _, active_window = self._active_live_window()
+        active_idx = getattr(active_window, "_screen_index", -1) if active_window is not None else -1
         if not screens:
             empty = menu.addAction("Geen beeldschermen gevonden")
             empty.setEnabled(False)
@@ -613,22 +629,47 @@ class MainWindow(QMainWindow):
             label = f"Display {i + 1} — {name} ({g.width()}×{g.height()})"
             if primary is not None and screen is primary:
                 label += " · primair"
-            if self._live_window is not None and i == active_idx:
+            if active_window is not None and i == active_idx:
                 label = "● " + label
             action = menu.addAction(label)
             action.setCheckable(True)
-            action.setChecked(self._live_window is not None and i == active_idx)
+            action.setChecked(active_window is not None and i == active_idx)
             action.triggered.connect(lambda checked=False, idx=i: self._route_output(idx))
         menu.addSeparator()
-        close_action = menu.addAction("Live output sluiten")
-        close_action.setEnabled(self._live_window is not None)
-        close_action.triggered.connect(self._close_live_window)
+        if self._live_windows:
+            for canvas_id in sorted(self._live_windows.keys()):
+                window = self._live_windows.get(canvas_id)
+                if window is None:
+                    continue
+                screen_no = int(getattr(window, "_screen_index", 0)) + 1
+                action = menu.addAction(f"Sluit live · {self._canvas_label(canvas_id)} (Display {screen_no})")
+                action.triggered.connect(
+                    lambda checked=False, c=canvas_id: self._close_live_window_for_canvas(c)
+                )
+            close_all = menu.addAction("Alle live outputs sluiten")
+            close_all.triggered.connect(self._close_all_live_windows)
+        else:
+            empty = menu.addAction("Geen live output open")
+            empty.setEnabled(False)
         refresh_action = menu.addAction("Schermen verversen")
         refresh_action.triggered.connect(self._notify_screens_changed)
 
     def _route_output(self, screen_index: int) -> None:
-        """Route the scaled output (Live Output window) to the given video output."""
-        self._open_live_window(screen_index)
+        """Route the most recent live output to the given display."""
+        canvas_id, window = self._active_live_window()
+        if window is not None:
+            self._move_live_window_for_canvas(canvas_id, screen_index)
+            return
+        try:
+            js = (
+                "if(typeof liveSetRouteScreen==='function' && typeof liveOpenCanvas==='function'"
+                " && typeof activeCanvasId!=='undefined'){"
+                f"liveSetRouteScreen(activeCanvasId,{int(screen_index)});"
+                "liveOpenCanvas(activeCanvasId);}"
+            )
+            self.web_view.page().runJavaScript(js)
+        except Exception:
+            LOGGER.exception("route_output failed")
 
     def _set_render_mode(self, mode: str) -> None:
         if mode not in RENDER_MODES:
@@ -647,6 +688,13 @@ class MainWindow(QMainWindow):
             "UPScale",
             "Render modus opgeslagen. Herstart de app om de wijziging toe te passen.",
         )
+
+    def closeEvent(self, event) -> None:
+        try:
+            self._close_all_live_windows()
+        except Exception:
+            LOGGER.exception("closeEvent live cleanup failed")
+        super().closeEvent(event)
 
     def _reload_page(self) -> None:
         if self.web_view.url().isValid():
@@ -691,6 +739,26 @@ class MainWindow(QMainWindow):
         except Exception:
             LOGGER.exception("notify_live_state failed")
 
+    def _notify_live_canvas_state(self, canvas_id: int, is_open: bool, screen_index: int = None) -> None:
+        """Push the open/closed state of one canvas route to the router UI."""
+        try:
+            payload = {"screens": json.loads(self._list_screens())}
+            payload["canvasId"] = int(canvas_id)
+            if screen_index is not None:
+                try:
+                    payload["screenIndex"] = int(screen_index)
+                except Exception:
+                    pass
+            js = (
+                "typeof onLiveCanvasState==='function' && onLiveCanvasState("
+                + str(int(canvas_id)) + ", "
+                + ("true" if is_open else "false")
+                + ", " + json.dumps(payload) + ")"
+            )
+            self.web_view.page().runJavaScript(js)
+        except Exception:
+            LOGGER.exception("notify_live_canvas_state failed")
+
     def _notify_screens_changed(self) -> None:
         """Push the current list of connected displays to the screen picker."""
         try:
@@ -705,13 +773,19 @@ class MainWindow(QMainWindow):
 
     def _on_screen_removed(self, *_args) -> None:
         self._notify_screens_changed()
-        # keep an open output window on a valid monitor if its screen went away
+        # keep every open output window on a valid monitor if its screen went away
         try:
-            if self._live_window is not None:
-                screens = QGuiApplication.screens()
-                idx = self._live_window._screen_index
+            screens = QGuiApplication.screens()
+            for canvas_id, window in list(self._live_windows.items()):
+                if window is None:
+                    continue
+                idx = int(getattr(window, "_screen_index", 0))
                 if not screens or idx >= len(screens):
-                    self._live_window.show_on_screen(0)
+                    if screens:
+                        window.show_on_screen(0)
+                        self._notify_live_canvas_state(canvas_id, True, 0)
+                    else:
+                        self._close_live_window_for_canvas(canvas_id)
         except Exception:
             LOGGER.exception("screen removed handling failed")
 
@@ -726,57 +800,116 @@ class MainWindow(QMainWindow):
         except Exception:
             LOGGER.exception("screen listener setup failed")
 
-    def _open_live_window(self, screen_index: int = 0) -> bool:
+    def _open_live_window_for_canvas(self, canvas_id: int, screen_index: int = 0, name: str = "") -> bool:
+        """Open (or re-show) the live output window for one canvas."""
         try:
-            html_path = getattr(self, "_html_path", None) or find_html_file()
-            url = QUrl.fromLocalFile(Path(html_path).as_posix())
-            url.setQuery("live=1")
-            if self._live_window is None:
-                self._live_window = LiveOutputWindow(url, self)
-                try:
-                    self._live_window.closeRequested.connect(self._close_live_window)
-                except Exception:
-                    LOGGER.exception("connect closeRequested failed")
-            else:
-                current = self._live_window.view.url()
-                if current.isEmpty() or "live=1" not in current.query():
-                    self._live_window.view.setUrl(url)
+            canvas_id = int(canvas_id)
+            if canvas_id <= 0:
+                return False
             try:
                 idx = int(screen_index)
             except Exception:
                 idx = 0
-            self._live_window.show_on_screen(idx)
-            self._notify_live_state(True, idx)
-            LOGGER.info("Live output window opened on screen %s", idx)
-            return True
-        except Exception:
-            LOGGER.exception("open_live_window failed")
-            return False
-
-    def _move_live_window(self, screen_index: int = 0) -> bool:
-        if self._live_window is None:
-            return False
-        try:
-            self._live_window.show_on_screen(int(screen_index))
-            return True
-        except Exception:
-            LOGGER.exception("move_live_window failed")
-            return False
-
-    def _close_live_window(self) -> bool:
-        try:
-            if self._live_window is not None:
+            if idx < 0:
+                idx = 0
+            if name:
+                self._live_canvas_names[canvas_id] = str(name)[:60]
+            window = self._live_windows.get(canvas_id)
+            if window is None:
+                html_path = getattr(self, "_html_path", None) or find_html_file()
+                url = QUrl.fromLocalFile(Path(html_path).as_posix())
+                url.setQuery(f"live=1&canvas={canvas_id}")
+                window = LiveOutputWindow(url, self)
                 try:
-                    self._live_window.view.setUrl(QUrl("about:blank"))
+                    window.closeRequested.connect(
+                        lambda c=canvas_id: self._close_live_window_for_canvas(c)
+                    )
+                except Exception:
+                    LOGGER.exception("connect closeRequested failed")
+                self._live_windows[canvas_id] = window
+            else:
+                current = window.view.url()
+                wanted = f"canvas={canvas_id}"
+                if current.isEmpty() or wanted not in current.query():
+                    html_path = getattr(self, "_html_path", None) or find_html_file()
+                    url = QUrl.fromLocalFile(Path(html_path).as_posix())
+                    url.setQuery(f"live=1&canvas={canvas_id}")
+                    window.view.setUrl(url)
+            if name:
+                try:
+                    window.setWindowTitle(f"UPScale Live · {str(name)[:60]}")
                 except Exception:
                     pass
-                self._live_window.close()
-                self._live_window = None
-            self._notify_live_state(False)
+            window.show_on_screen(idx)
+            self._last_live_canvas_id = canvas_id
+            self._notify_live_canvas_state(canvas_id, True, idx)
+            LOGGER.info("Live output for canvas %s opened on screen %s", canvas_id, idx)
             return True
         except Exception:
-            LOGGER.exception("close_live_window failed")
+            LOGGER.exception("open_live_window_for_canvas failed")
             return False
+
+    def _move_live_window_for_canvas(self, canvas_id: int, screen_index: int = 0) -> bool:
+        try:
+            canvas_id = int(canvas_id)
+        except Exception:
+            return False
+        window = self._live_windows.get(canvas_id)
+        if window is None:
+            return False
+        try:
+            window.show_on_screen(int(screen_index))
+            self._last_live_canvas_id = canvas_id
+            self._notify_live_canvas_state(canvas_id, True, int(screen_index))
+            return True
+        except Exception:
+            LOGGER.exception("move_live_window_for_canvas failed")
+            return False
+
+    def _close_live_window_for_canvas(self, canvas_id: int) -> bool:
+        try:
+            canvas_id = int(canvas_id)
+        except Exception:
+            return False
+        try:
+            window = self._live_windows.pop(canvas_id, None)
+            if window is not None:
+                try:
+                    window.view.setUrl(QUrl("about:blank"))
+                except Exception:
+                    pass
+                window.close()
+            self._live_canvas_names.pop(canvas_id, None)
+            if self._last_live_canvas_id == canvas_id:
+                self._last_live_canvas_id = next(iter(self._live_windows), None)
+            self._notify_live_canvas_state(canvas_id, False)
+            return True
+        except Exception:
+            LOGGER.exception("close_live_window_for_canvas failed")
+            return False
+
+    def _close_all_live_windows(self) -> bool:
+        ok = True
+        for canvas_id in list(self._live_windows.keys()):
+            if not self._close_live_window_for_canvas(canvas_id):
+                ok = False
+        return ok
+
+    # ---- legacy single-window helpers (kept for older HTML builds) ----
+    def _open_live_window(self, screen_index: int = 0) -> bool:
+        canvas_id, window = self._active_live_window()
+        if window is not None:
+            return self._move_live_window_for_canvas(canvas_id, screen_index)
+        return self._open_live_window_for_canvas(1, screen_index)
+
+    def _move_live_window(self, screen_index: int = 0) -> bool:
+        canvas_id, window = self._active_live_window()
+        if window is None:
+            return False
+        return self._move_live_window_for_canvas(canvas_id, screen_index)
+
+    def _close_live_window(self) -> bool:
+        return self._close_all_live_windows()
 
     def _on_page_load_finished(self, ok: bool) -> None:
         if not ok:
@@ -786,6 +919,15 @@ class MainWindow(QMainWindow):
             self.web_view.page().runJavaScript('updateHeaderTitle();')
         except Exception:
             pass
+        # Re-sync the router UI with any live windows that survived a page reload.
+        try:
+            for canvas_id, window in list(self._live_windows.items()):
+                if window is not None:
+                    self._notify_live_canvas_state(
+                        canvas_id, True, int(getattr(window, "_screen_index", 0))
+                    )
+        except Exception:
+            LOGGER.exception("re-sync live routes failed")
         # auto-trigger export for testing when environment variable is set
         if os.environ.get('UPSCAPE_AUTO_EXPORT') == '1':
             try:
@@ -882,6 +1024,22 @@ class MainWindow(QMainWindow):
             @Slot(result=bool)
             def close_live_window(self) -> bool:
                 return main_window._close_live_window()
+
+            @Slot(int, int, str, result=bool)
+            def open_live_window_for_canvas(self, canvas_id: int, screen_index: int = 0, name: str = "") -> bool:
+                return main_window._open_live_window_for_canvas(canvas_id, screen_index, name)
+
+            @Slot(int, int, result=bool)
+            def move_live_window_for_canvas(self, canvas_id: int, screen_index: int = 0) -> bool:
+                return main_window._move_live_window_for_canvas(canvas_id, screen_index)
+
+            @Slot(int, result=bool)
+            def close_live_window_for_canvas(self, canvas_id: int) -> bool:
+                return main_window._close_live_window_for_canvas(canvas_id)
+
+            @Slot(result=bool)
+            def close_all_live_windows(self) -> bool:
+                return main_window._close_all_live_windows()
 
         return Bridge()
 
