@@ -4186,6 +4186,8 @@ function makeSlice(defaults){
     showCross: false,
     testPattern: false,
     testPatternType: 'none',
+    testPatternSpeed: 5,
+    testPatternCollapsed: true,
     roundedCorners: false,
     cornerRadiusPct: 8,
     textColorPct: 50,
@@ -4313,6 +4315,8 @@ function readSliceInputs(){
     if(testPatternInput) s.testPattern = testPatternInput.checked;
     const testPatternTypeInput = c.querySelector('[data-f=testPatternType]');
     if(testPatternTypeInput) s.testPatternType = testPatternTypeInput.value;
+    const testPatternSpeedInput = c.querySelector('[data-f=testPatternSpeed]');
+    if(testPatternSpeedInput) s.testPatternSpeed = Math.max(1, Math.min(10, parseInt(testPatternSpeedInput.value) || 5));
     const roundedInput = c.querySelector('[data-f=roundedCorners]');
     if(roundedInput) s.roundedCorners = roundedInput.checked;
     const cornerRadiusInput = c.querySelector('[data-f=cornerRadiusPct]');
@@ -4598,6 +4602,34 @@ function renderSlices(){
       </div>
 
       ${(s.type==='slice' && s.mode==='panels') ? imGroupHTML(s) : ''}
+      <div class="properties-group">
+        <div class="properties-header" onclick="toggleTestPatternGroup(${s.id})">
+          <span class="properties-chevron">${s.testPatternCollapsed?'▸':'▾'}</span>
+          <span>Testpatroon</span>
+        </div>
+        <div class="properties-body" style="${s.testPatternCollapsed?'display:none;':''}">
+          <div class="title-size-row" style="margin-bottom:8px;">
+            <label>Patroon</label>
+            <select class="calc" data-f="testPatternType" onchange="recalcAll(); renderSlices();">
+              <option value="none" ${ (s.testPatternType||'none')==='none'?'selected':''}>Geen</option>
+              <option value="solid-black" ${s.testPatternType==='solid-black'?'selected':''}>Zwart</option>
+              <option value="solid-red" ${s.testPatternType==='solid-red'?'selected':''}>Rood</option>
+              <option value="solid-green" ${s.testPatternType==='solid-green'?'selected':''}>Groen</option>
+              <option value="solid-blue" ${s.testPatternType==='solid-blue'?'selected':''}>Blauw</option>
+              <option value="solid-white" ${s.testPatternType==='solid-white'?'selected':''}>Wit</option>
+              <option value="counters" ${s.testPatternType==='counters'?'selected':''}>Counters</option>
+              <option value="diagonal" ${s.testPatternType==='diagonal'?'selected':''}>Diagonale lijnen</option>
+              <option value="gradient" ${s.testPatternType==='gradient'?'selected':''}>Gradient (bewegend)</option>
+              <option value="grid" ${s.testPatternType==='grid'?'selected':''}>Grid</option>
+            </select>
+          </div>
+          <div class="title-size-row" style="margin-bottom:0;">
+            <label>Snelheid</label>
+            <input type="range" data-f="testPatternSpeed" min="1" max="10" step="1" value="${s.testPatternSpeed||5}" oninput="el('testSpeedVal-${s.id}').textContent=this.value; recalcAll()">
+            <span class="val" id="testSpeedVal-${s.id}">${s.testPatternSpeed||5}</span>
+          </div>
+        </div>
+      </div>
 
       <div class="properties-group">
         <div class="properties-header" onclick="togglePropertiesGroup(${s.id})">
@@ -5159,33 +5191,6 @@ function imGroupHTML(s){
             <span class="im-x">×</span>
             <input type="text" inputmode="numeric" class="calc im-dim" data-f="imSegCols" value="${seg.segX}" oninput="onImCountInput(${s.id})">
           </div>
-          <div class="title-size-row" style="margin-bottom:10px;">
-            <label>Testpatroon</label>
-            <select class="calc" data-f="testPatternType" onchange="recalcAll(); renderSlices();">
-              <option value="none" ${ (s.testPatternType||'none')==='none'?'selected':''}>Geen</option>
-              <option value="solid-black" ${s.testPatternType==='solid-black'?'selected':''}>Zwart</option>
-              <option value="solid-white" ${s.testPatternType==='solid-white'?'selected':''}>Wit</option>
-              <option value="solid-red" ${s.testPatternType==='solid-red'?'selected':''}>Rood</option>
-              <option value="solid-green" ${s.testPatternType==='solid-green'?'selected':''}>Groen</option>
-              <option value="solid-blue" ${s.testPatternType==='solid-blue'?'selected':''}>Blauw</option>
-              <option value="solid-yellow" ${s.testPatternType==='solid-yellow'?'selected':''}>Geel</option>
-              <option value="solid-cyan" ${s.testPatternType==='solid-cyan'?'selected':''}>Cyaan</option>
-              <option value="solid-magenta" ${s.testPatternType==='solid-magenta'?'selected':''}>Magenta</option>
-              <option value="colorbars-h" ${s.testPatternType==='colorbars-h'?'selected':''}>Colorbars horizontaal</option>
-              <option value="colorbars-v" ${s.testPatternType==='colorbars-v'?'selected':''}>Colorbars verticaal</option>
-              <option value="smpte" ${s.testPatternType==='smpte'?'selected':''}>SMPTE bars</option>
-              <option value="colorbars-100" ${s.testPatternType==='colorbars-100'?'selected':''}>Colorbars 100% (verticaal)</option>
-              <option value="colorbars-100h" ${s.testPatternType==='colorbars-100h'?'selected':''}>Colorbars 100% (horizontaal)</option>
-              <option value="grayscale" ${s.testPatternType==='grayscale'?'selected':''}>Grijstrap</option>
-              <option value="gradient" ${s.testPatternType==='gradient'?'selected':''}>Gradient (bewegend)</option>
-              <option value="grid" ${s.testPatternType==='grid'?'selected':''}>Grid</option>
-              <option value="checkerboard" ${s.testPatternType==='checkerboard'?'selected':''}>Dambord</option>
-              <option value="diagonal" ${s.testPatternType==='diagonal'?'selected':''}>Diagonale lijnen</option>
-              <option value="dots" ${s.testPatternType==='dots'?'selected':''}>Dots</option>
-              <option value="graystep" ${s.testPatternType==='graystep'?'selected':''}>Grijstappen</option>
-              <option value="counters" ${s.testPatternType==='counters'?'selected':''}>Counters</option>
-            </select>
-          </div>
         </div>
       </div>`;
 }
@@ -5194,6 +5199,14 @@ function toggleImGroup(id){
   const s = slices.find(x=>x.id===id);
   if(!s) return;
   s.imCollapsed = !s.imCollapsed;
+  renderSlices();
+}
+
+function toggleTestPatternGroup(id){
+  const s = slices.find(x=>x.id===id);
+  if(!s) return;
+  readSliceInputs();
+  s.testPatternCollapsed = !s.testPatternCollapsed;
   renderSlices();
 }
 
@@ -5208,6 +5221,7 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
     const roundRX = useRounded ? Math.max(1.5, w * (roundPct / 100)) : 0;
     const roundRY = useRounded ? Math.max(1.5, h * (roundPct / 100)) : 0;
     const clipId = 'tpclip-' + (clipIdCounter++);
+    const dur = (11 - Math.max(1, Math.min(10, Number(s.testPatternSpeed) || 5))).toFixed(1);
     const colors = ['#ff0000','#ff7f00','#ffff00','#00ff00','#00ffff','#0000ff','#8b00ff','#ff0000'];
     let out = '';
     out += `<defs><clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" rx="${roundRX}" ry="${roundRY}"/></clipPath></defs>`;
@@ -5219,7 +5233,7 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       const gid = 'tpv-' + clipId;
       const stops = colors.map((col,i)=>`<stop offset="${(i/(colors.length-1)*100).toFixed(1)}%" stop-color="${col}"/>`).join('');
       out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs>`;
-      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h*2)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} 2.4s linear infinite;opacity:0.95;"/>`;
+      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h*2)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;opacity:0.95;"/>`;
       out += `<style>@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,h)}px)}}</style>`;
     } else if(tpType==='smpte'){
       const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
@@ -5230,15 +5244,18 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#000000"/><stop offset="100%" stop-color="#ffffff"/></linearGradient></defs>`;
       out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="url(#${gid})"/>`;
     } else if(tpType==='gradient'){
-      const gid = 'tpg-' + clipId;
-      out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#000000"/><stop offset="50%" stop-color="#808080"/><stop offset="100%" stop-color="#ffffff"/></linearGradient></defs>`;
-      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h*2)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} 3s linear infinite;opacity:0.95;"/>`;
-      out += `<style>@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,h)}px)}}</style>`;
-    } else if(tpType==='grid'){
-      const step = Math.max(4, Math.round(Math.min(w,h)/12));
-      for(let gx=x; gx<=x+w; gx+=step){ out += `<line x1="${gx}" y1="${y}" x2="${gx}" y2="${y+h}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
-      for(let gy=y; gy<=y+h; gy+=step){ out += `<line x1="${x}" y1="${gy}" x2="${x+w}" y2="${gy}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
-    } else if(tpType==='checkerboard'){
+      const gid = 'tph-' + clipId;
+      out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#000000"/><stop offset="50%" stop-color="#808080"/><stop offset="100%" stop-color="#ffffff"/></linearGradient></defs>`;
+      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w*2)}" height="${Math.max(1,h)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.95;"/>`;
+      out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,w)}px)}}</style>`;
+    } else if(tpType==='diagonal'){
+      const step = Math.max(6, Math.round(Math.min(w,h)/10));
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
+      for(let d=-h; d<w+h; d+=step){
+        out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`;
+      }
+      out += `</g>`;
+      out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${step}px)}}</style>`;
       const cell = Math.max(4, Math.round(Math.min(w,h)/16));
       for(let cy=y; cy<y+h; cy+=cell){
         for(let cx=x; cx<x+w; cx+=cell){
@@ -5251,6 +5268,10 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       for(let d=-h; d<w; d+=step){
         out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`;
       }
+    } else if(tpType==='grid'){
+      const step = Math.max(4, Math.round(Math.min(w,h)/12));
+      for(let gx=x; gx<=x+w; gx+=step){ out += `<line x1="${gx}" y1="${y}" x2="${gx}" y2="${y+h}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
+      for(let gy=y; gy<=y+h; gy+=step){ out += `<line x1="${x}" y1="${gy}" x2="${x+w}" y2="${gy}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
     } else if(tpType==='dots'){
       const step = Math.max(6, Math.round(Math.min(w,h)/12));
       for(let cy=y+step/2; cy<y+h; cy+=step){
@@ -5273,14 +5294,14 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       const bw = w / barColors.length;
       const bh = h / barColors.length;
       // vertical bars moving horizontally
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} 2.4s linear infinite;">`;
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
       for(let i=0;i<barColors.length*2;i++){
         const col = barColors[i % barColors.length];
         out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`;
       }
       out += `</g>`;
       // horizontal bars moving vertically
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} 3.1s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
       for(let i=0;i<barColors.length*2;i++){
         const col = barColors[i % barColors.length];
         out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`;
@@ -5292,14 +5313,14 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       const bh = h / barColors.length;
       const bw = w / barColors.length;
       // horizontal bars moving vertically
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} 2.4s linear infinite;">`;
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;">`;
       for(let i=0;i<barColors.length*2;i++){
         const col = barColors[i % barColors.length];
         out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`;
       }
       out += `</g>`;
       // vertical bars moving horizontally
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} 3.1s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
       for(let i=0;i<barColors.length*2;i++){
         const col = barColors[i % barColors.length];
         out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`;
