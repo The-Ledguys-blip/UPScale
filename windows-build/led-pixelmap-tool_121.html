@@ -218,6 +218,18 @@
     width:17px;height:17px;border-radius:50%;background:var(--real);border:2px solid #0e1113;cursor:pointer;
   }
   .title-size-row input[type=range]:disabled{opacity:0.35;cursor:not-allowed;}
+  /* Tekstkleur-slider: links zwart, rechts wit. Doelbewust specifieker dan de
+     generieke .title-size-row-regels hierboven, anders wint die achtergrond. */
+  .title-size-row input[type=range].text-color-slider{
+    background:linear-gradient(90deg,#000000 0%,#ffffff 100%);
+  }
+  .title-size-row input[type=range].text-color-slider::-webkit-slider-runnable-track{
+    height:14px;border-radius:7px;background:linear-gradient(90deg,#000000 0%,#ffffff 100%);
+  }
+  .title-size-row input[type=range].text-color-slider::-moz-range-track{
+    height:14px;border-radius:7px;background:linear-gradient(90deg,#000000 0%,#ffffff 100%);
+  }
+  .title-size-row .text-color-val{min-width:38px;}
 
   .guide-filename{font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);margin-top:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:13px;}
   .title-size-row .val{font-family:var(--font-mono);font-size:11px;color:var(--text);min-width:18px;text-align:right;flex-shrink:0;}
@@ -2230,6 +2242,14 @@ function colorForSlice(s){
   return hslToHex(hue, 72, 56);
 }
 
+/* Tekstkleur per slice: slider links = zwart, rechts = wit. De waarde is
+   binair (1-50 zwart, 51-100 wit), de slider zelf loopt vloeiend zwart-wit. */
+function sliceTextColor(s){
+  const raw = Number(s && s.textColorPct);
+  const pct = Math.max(1, Math.min(100, isFinite(raw) ? raw : 50));
+  return pct >= 51 ? '#ffffff' : '#000000';
+}
+
 function contrastText(hex){
   const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
   const lum = (0.299*r + 0.587*g + 0.114*b)/255;
@@ -3801,6 +3821,7 @@ function makeSlice(defaults){
     showCross: false,
     roundedCorners: false,
     cornerRadiusPct: 8,
+    textColorPct: 50,
     showPanelIds: false,
     panelIdSizePct: 100,
     collapsed: false,
@@ -3892,6 +3913,8 @@ function readSliceInputs(){
     if(zoomInput) s.sliceZoom = Math.max(10, Math.min(300, parseInt(zoomInput.value)||100));
     const titleInput = c.querySelector('[data-f=titleSize]');
     if(titleInput) s.titleSize = Math.max(6, Math.min(90, parseInt(titleInput.value)||12));
+    const textColorInput = c.querySelector('[data-f=textColorPct]');
+    if(textColorInput) s.textColorPct = Math.max(1, Math.min(100, parseInt(textColorInput.value)||50));
     const titleOffXInput = c.querySelector('[data-f=titleOffsetX]');
     if(titleOffXInput) s.titleOffsetX = Math.max(-50, Math.min(50, parseInt(titleOffXInput.value)||0));
     const titleOffYInput = c.querySelector('[data-f=titleOffsetY]');
@@ -3952,6 +3975,16 @@ function stepTitleSize(id, delta){
   if(!s) return;
   readSliceInputs();
   s.titleSize = Math.max(6, Math.min(90, (parseInt(s.titleSize)||12) + delta));
+  renderSlices();
+  recalcAll();
+  commitHistory();
+}
+
+function stepTextColor(id, delta){
+  const s = slices.find(x=>x.id===id);
+  if(!s) return;
+  readSliceInputs();
+  s.textColorPct = Math.max(1, Math.min(100, (parseInt(s.textColorPct)||50) + delta));
   renderSlices();
   recalcAll();
   commitHistory();
@@ -4199,6 +4232,16 @@ function renderSlices(){
               <button type="button" onclick="stepTitleSize(${s.id},-1)">▼</button>
             </div>
             <button type="button" class="reset-icon-btn" onclick="resetSliderField(${s.id},'titleSize',12)" title="reset naar standaard"><svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+          </div>
+          <div class="title-size-row">
+            <label>Tekstkleur</label>
+            <input type="range" class="text-color-slider" data-f="textColorPct" min="1" max="100" step="1" value="${s.textColorPct ?? 50}" oninput="el('textColorVal-${s.id}').textContent=(parseInt(this.value)>=51?'Wit':'Zwart'); recalcAll()">
+            <span class="val text-color-val" id="textColorVal-${s.id}" ondblclick="startInlineEdit(event,${s.id},'textColorPct',1,100)">${(s.textColorPct ?? 50) >= 51 ? 'Wit' : 'Zwart'}</span>
+            <div class="stepper-btns-inline">
+              <button type="button" onclick="stepTextColor(${s.id},1)">▲</button>
+              <button type="button" onclick="stepTextColor(${s.id},-1)">▼</button>
+            </div>
+            <button type="button" class="reset-icon-btn" onclick="resetSliderField(${s.id},'textColorPct',50)" title="reset naar standaard"><svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
           </div>
           <div class="title-size-row">
             <label>ID-grootte</label>
@@ -4700,7 +4743,7 @@ function imPanelCells(s, x, y, w, h, ls, interactive){
       if(s.showPanelIds && cellW>14 && cellH>10){
         const idScale = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct)||100)/100));
         const idFontSize = Math.max(5, Math.min(96, Math.min(cellW,cellH)*0.2)) * idScale;
-        cells += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${idFontSize.toFixed(2)}" fill="#000000" opacity="0.75" style="pointer-events:none">${panelIdCounter}</text>`;
+        cells += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${idFontSize.toFixed(2)}" fill="${sliceTextColor(s)}" opacity="0.75" style="pointer-events:none">${panelIdCounter}</text>`;
       }
     }
   }
@@ -4794,7 +4837,7 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
                anders zijn de ID's op een 1:1 LED-output (en in exports op ware
                grootte) niet leesbaar. De slider schaalt hier omheen. */
             const idFontSize = Math.max(5, Math.min(96, Math.min(cellW,cellH)*0.2)) * idScale;
-            cells += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${idFontSize.toFixed(2)}" fill="#000000" opacity="0.75" style="pointer-events:none">${panelIdCounter}</text>`;
+            cells += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${idFontSize.toFixed(2)}" fill="${sliceTextColor(s)}" opacity="0.75" style="pointer-events:none">${panelIdCounter}</text>`;
           }
         }
       }
@@ -4848,7 +4891,7 @@ function drawComposition(svgId, comp, opts){
   let rects = '';
   comp.comps.forEach((c, idx)=>{
     const color = colorForSlice(c.slice);
-    const textColor = '#ffffff';
+    const textColor = sliceTextColor(c.slice);
     const x = ox + c.slice.posX*scale, y = oy + c.slice.posY*scale;
     const w = c.resX*scale, h = c.resY*scale;
     const shape = shapeSVG(c, idx, x, y, w, h, '22', isReal);
@@ -4913,6 +4956,7 @@ function drawComposition(svgId, comp, opts){
     comp.comps.forEach((c, idx)=>{
       const x = scx + c.slice.posX*combinedScale, y = scy + c.slice.posY*combinedScale;
       const w = c.resX*combinedScale, h = c.resY*combinedScale;
+      const scaledTextColor = sliceTextColor(c.slice);
       innerRects += shapeSVG(c, idx, x, y, w, h, '33', false);
       if(w>60 && h>28){
         const scaledResX = Math.max(1, Math.round(c.resX*realScale));
@@ -4921,15 +4965,15 @@ function drawComposition(svgId, comp, opts){
         const scaledPosY = Math.round(c.slice.posY*realScale);
         const bb = occupiedPixelBox(c.slice, x, y, w, h);
         const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
-        if(c.slice.showPosition !== false) innerRects += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="#ffffff" opacity="0.85" style="pointer-events:none">${fmt(scaledPosX)},${fmt(scaledPosY)}</text>`;
+        if(c.slice.showPosition !== false) innerRects += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${fmt(scaledPosX)},${fmt(scaledPosY)}</text>`;
         const namePos = titleNamePos(c.slice, bb);
-        if(c.slice.showTitle !== false) innerRects += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="#ffffff" style="pointer-events:none">${c.slice.name}</text>`);
+        if(c.slice.showTitle !== false) innerRects += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${scaledTextColor}" style="pointer-events:none">${c.slice.name}</text>`);
         const bottomLines = [];
         if(c.slice.showResolution !== false) bottomLines.push(`${fmt(scaledResX)}×${fmt(scaledResY)} px`);
         if(hasPanelInfo && c.slice.showPanelCount !== false) bottomLines.push(`${c.slice.panelsX}×${c.slice.panelsY} panelen`);
         bottomLines.forEach((line, li)=>{
           const yOff = (bottomLines.length - li - 1) * 12 + 7;
-          innerRects += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="#ffffff" opacity="0.85" style="pointer-events:none">${line}</text>`;
+          innerRects += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
         });
       }
     });
@@ -5188,7 +5232,7 @@ function drawStageLayout(comp){
       : '';
     let labels = '';
     if(w > 65 && h > 28){
-      labels += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="#ffffff" style="pointer-events:none">${c.slice.name}</text>`;
+      labels += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${sliceTextColor(c.slice)}" style="pointer-events:none">${c.slice.name}</text>`;
     }
     rects += `<g data-id="${c.slice.id}" style="cursor:${hasSelection ? 'pointer' : 'default'}" onmousedown="startStageDrag(event, ${c.slice.id})">${shape}${labels}${selectedBox}</g>`;
   });
@@ -5280,7 +5324,7 @@ function drawOverviewLayout(comp){
       : '';
     let labels = '';
     if(w > 65 && h > 28){
-      labels += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="#ffffff" style="pointer-events:none">${c.slice.name}</text>`;
+      labels += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${sliceTextColor(c.slice)}" style="pointer-events:none">${c.slice.name}</text>`;
     }
     rects += `<g data-id="${c.slice.id}" style="cursor:${hasSelection?'pointer':'grab'}" onmousedown="startStageDrag(event, ${c.slice.id})">${shape}${labels}${selectedBox}</g>`;
   });
@@ -5884,18 +5928,19 @@ function buildStageLayoutSVGString(comp, stage, targetW, targetH){
     const stageComp = Object.assign({}, c, { slice: Object.assign({}, c.slice, { roundedCorners: false }) });
     const shape = shapeSVG(stageComp, idx, x, y, w, h, '33', false, relScale);
     let labels = '';
+    const stageTextColor = sliceTextColor(c.slice);
     if(w > 60 && h > 28){
       const bb = occupiedPixelBox(c.slice, x, y, w, h);
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
-      if(c.slice.showPosition !== false) labels += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="#ffffff" opacity="0.85">${fmt(Math.round(c.slice.stagePosX))},${fmt(Math.round(c.slice.stagePosY))}</text>`;
+      if(c.slice.showPosition !== false) labels += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="${stageTextColor}" opacity="0.85">${fmt(Math.round(c.slice.stagePosX))},${fmt(Math.round(c.slice.stagePosY))}</text>`;
       const namePos = titleNamePos(c.slice, bb);
-      if(c.slice.showTitle !== false) labels += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-family="sans-serif" font-weight="600" fill="#ffffff">${c.slice.name}</text>`);
+      if(c.slice.showTitle !== false) labels += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-family="sans-serif" font-weight="600" fill="${stageTextColor}">${c.slice.name}</text>`);
       const bottomLines = [];
       if(c.slice.showResolution !== false) bottomLines.push(`${fmt(Math.max(1, Math.round(c.slice.stageW)))}×${fmt(Math.max(1, Math.round(c.slice.stageH)))} mm`);
       if(hasPanelInfo && c.slice.showPanelCount !== false) bottomLines.push(`${c.slice.panelsX}×${c.slice.panelsY} panelen`);
       bottomLines.forEach((line, li)=>{
         const yOff = (bottomLines.length - li - 1) * 12 + 7;
-        labels += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="#ffffff" opacity="0.85">${line}</text>`;
+        labels += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="${stageTextColor}" opacity="0.85">${line}</text>`;
       });
     }
     rects += shape + labels;
@@ -5947,15 +5992,16 @@ function buildCompositionSVGString(comp, targetW, targetH, scale, labelScale){
       const smallSize = 10 * labelScale;
       const bb = occupiedPixelBox(c.slice, x, y, cw, ch);
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
-      if(c.slice.showPosition !== false) content += `<text x="${bb.x+8}" y="${bb.y+smallSize*1.5}" font-size="${smallSize}" font-family="monospace" fill="#ffffff" opacity="0.85">${Math.round(bb.x)},${Math.round(bb.y)}</text>`;
+      const textColor = sliceTextColor(c.slice);
+      if(c.slice.showPosition !== false) content += `<text x="${bb.x+8}" y="${bb.y+smallSize*1.5}" font-size="${smallSize}" font-family="monospace" fill="${textColor}" opacity="0.85">${Math.round(bb.x)},${Math.round(bb.y)}</text>`;
       const namePos = titleNamePos(c.slice, bb);
-      if(c.slice.showTitle !== false) content += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${titleSize}" font-family="sans-serif" font-weight="600" fill="#ffffff">${c.slice.name}</text>`);
+      if(c.slice.showTitle !== false) content += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${titleSize}" font-family="sans-serif" font-weight="600" fill="${textColor}">${c.slice.name}</text>`);
       const bottomLines = [];
       if(c.slice.showResolution !== false) bottomLines.push(`${Math.round(cw)}×${Math.round(ch)} px`);
       if(hasPanelInfo && c.slice.showPanelCount !== false) bottomLines.push(`${c.slice.panelsX}×${c.slice.panelsY} panelen`);
       bottomLines.forEach((line, li)=>{
         const yOff = (bottomLines.length - li - 1) * smallSize*1.3 + smallSize*0.8;
-        content += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="${smallSize}" font-family="monospace" fill="#ffffff" opacity="0.85">${line}</text>`;
+        content += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="${smallSize}" font-family="monospace" fill="${textColor}" opacity="0.85">${line}</text>`;
       });
     }
   });
@@ -6593,7 +6639,7 @@ function drawDataPlan(){
         }
       }
     }
-    if(w>65&&h>28) out+=`<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${s.titleSize||12}" font-weight="600" fill="#ffffff" style="pointer-events:none">${s.name}</text>`;
+    if(w>65&&h>28) out+=`<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${s.titleSize||12}" font-weight="600" fill="${sliceTextColor(s)}" style="pointer-events:none">${s.name}</text>`;
   });
   Object.keys(planChains).forEach(pKey=>{
     const port=parseInt(pKey);
@@ -6709,7 +6755,7 @@ function drawPowerPlan(){
     const w=Math.max(1,s.stageW)*scale, h=Math.max(1,s.stageH)*scale;
     if(s.type!=='slice'||s.mode!=='panels'){
       out+=`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#2a3136" stroke="#5d6a73" stroke-width="1" rx="2"/>`;
-      if(w>65&&h>28) out+=`<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${s.titleSize||12}" font-weight="600" fill="#ffffff" style="pointer-events:none">${s.name}</text>`;
+      if(w>65&&h>28) out+=`<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${s.titleSize||12}" font-weight="600" fill="${sliceTextColor(s)}" style="pointer-events:none">${s.name}</text>`;
       return;
     }
     const cw=w/s.panelsX, ch=h/s.panelsY;
@@ -6729,7 +6775,7 @@ function drawPowerPlan(){
         centers[key]={x:x+i*cw+cw/2, y:y+j*ch+ch/2, cw, ch};
       }
     }
-    if(w>65&&h>28) out+=`<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${s.titleSize||12}" font-weight="600" fill="#ffffff" style="pointer-events:none">${s.name}</text>`;
+    if(w>65&&h>28) out+=`<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${s.titleSize||12}" font-weight="600" fill="${sliceTextColor(s)}" style="pointer-events:none">${s.name}</text>`;
   });
   Object.keys(planPowerChains).forEach(oKey=>{
     const chain=planPowerChains[oKey]||[];
@@ -7527,6 +7573,7 @@ function buildLiveScaledSVG(comp){
   comp.comps.forEach((c, idx)=>{
     const x = scx + c.slice.posX*combinedScale, y = scy + c.slice.posY*combinedScale;
     const w = c.resX*combinedScale, h = c.resY*combinedScale;
+    const scaledTextColor = sliceTextColor(c.slice);
     out += shapeSVG(c, idx, x, y, w, h, '33', false);
     if(w>60 && h>28){
       const scaledResX = Math.max(1, Math.round(c.resX*realScale));
@@ -7535,15 +7582,15 @@ function buildLiveScaledSVG(comp){
       const scaledPosY = Math.round(c.slice.posY*realScale);
       const bb = occupiedPixelBox(c.slice, x, y, w, h);
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
-      if(c.slice.showPosition !== false) out += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="#ffffff" opacity="0.85" style="pointer-events:none">${fmt(scaledPosX)},${fmt(scaledPosY)}</text>`;
+      if(c.slice.showPosition !== false) out += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${fmt(scaledPosX)},${fmt(scaledPosY)}</text>`;
       const namePos = titleNamePos(c.slice, bb);
-      if(c.slice.showTitle !== false) out += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="#ffffff" style="pointer-events:none">${c.slice.name}</text>`);
+      if(c.slice.showTitle !== false) out += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${scaledTextColor}" style="pointer-events:none">${c.slice.name}</text>`);
       const bottomLines = [];
       if(c.slice.showResolution !== false) bottomLines.push(`${fmt(scaledResX)}×${fmt(scaledResY)} px`);
       if(hasPanelInfo && c.slice.showPanelCount !== false) bottomLines.push(`${c.slice.panelsX}×${c.slice.panelsY} panelen`);
       bottomLines.forEach((line, li)=>{
         const yOff = (bottomLines.length - li - 1) * 12 + 7;
-        out += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="#ffffff" opacity="0.85" style="pointer-events:none">${line}</text>`;
+        out += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
       });
     }
   });
@@ -7564,24 +7611,25 @@ function buildLiveNativeSVG(comp){
   comp.comps.forEach((c, idx)=>{
     const s = c.slice;
     const x = s.posX, y = s.posY, w = c.resX, h = c.resY;
+    const textColor = sliceTextColor(s);
     out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1);
     if(w > 60 && h > 28){
       const bb = occupiedPixelBox(s, x, y, w, h);
       const fs = (9.5 * labelScale).toFixed(2);
       if(s.showPosition !== false){
-        out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + 15*labelScale}" font-size="${fs}" fill="#ffffff" opacity="0.85">${fmt(Math.round(x))},${fmt(Math.round(y))}</text>`;
+        out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + 15*labelScale}" font-size="${fs}" fill="${textColor}" opacity="0.85">${fmt(Math.round(x))},${fmt(Math.round(y))}</text>`;
       }
       const namePos = titleNamePos(s, bb);
       if(s.showTitle !== false){
         const ts = ((Number(s.titleSize) || 12) * labelScale).toFixed(2);
-        out += applyTitleSqueeze(s, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${ts}" font-weight="600" fill="#ffffff">${s.name}</text>`);
+        out += applyTitleSqueeze(s, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${ts}" font-weight="600" fill="${textColor}">${s.name}</text>`);
       }
       const lines = [];
       if(s.showResolution !== false) lines.push(fmt(Math.round(w)) + '×' + fmt(Math.round(h)) + ' px');
       if(s.type==='slice' && s.mode==='panels' && s.showPanelCount !== false) lines.push(s.panelsX + '×' + s.panelsY + ' panelen');
       lines.forEach((line, li)=>{
         const yOff = (lines.length - li - 1) * 12 * labelScale + 7 * labelScale;
-        out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + bb.h - yOff}" font-size="${fs}" fill="#ffffff" opacity="0.85">${line}</text>`;
+        out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + bb.h - yOff}" font-size="${fs}" fill="${textColor}" opacity="0.85">${line}</text>`;
       });
     }
   });
