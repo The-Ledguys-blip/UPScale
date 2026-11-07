@@ -580,6 +580,9 @@ body{
   padding:5px 9px;font-weight:500;transition:border-color .15s,color .15s,background .15s;
 }
 .aspect-presets button:hover{border-color:var(--real);color:var(--text);background:var(--panel-2);}
+.aspect-presets button.active{border-color:var(--real);color:var(--text);background:color-mix(in srgb,var(--real) 18%,var(--panel-3));}
+input.calc.auto-input{color:var(--text-faint);background:var(--panel-3);cursor:default;}
+input.calc.auto-input:focus{outline:none;border-color:var(--line);}
 
 /* zoom overlay --------------------------------------------- */
 .zoom-controls{
@@ -836,23 +839,24 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <div class="canvas-bar aspect-box">
             <div class="cb-label">Aspect</div>
             <div class="cb-inputs">
-              <input type="text" inputmode="decimal" class="calc" id="aspectRatioW" value="16">
+              <input type="text" inputmode="decimal" class="calc auto-input" id="aspectRatioW" value="16" readonly tabindex="-1" title="Wordt automatisch berekend uit de pixelresolutie">
               <span class="cb-x">:</span>
-              <input type="text" inputmode="decimal" class="calc" id="aspectRatioH" value="9">
+              <input type="text" inputmode="decimal" class="calc auto-input" id="aspectRatioH" value="9" readonly tabindex="-1" title="Wordt automatisch berekend uit de pixelresolutie">
             </div>
             <div class="aspect-presets">
-              <button onclick="setAspectPreset(16,9)">16:9</button>
-              <button onclick="setAspectPreset(16,10)">16:10</button>
-              <button onclick="setAspectPreset(4,3)">4:3</button>
-              <button onclick="setAspectPreset(21,9)">21:9</button>
-              <button onclick="setAspectPreset(1,1)">1:1</button>
-              <button onclick="setAspectPreset(9,16)">9:16</button>
+              <button type="button" id="aspectCustomBtn" class="aspect-preset-btn" data-custom="1" onclick="setAspectCustom()" title="Vrije resolutie — aspect volgt de ingevoerde pixels">Custom</button>
+              <button type="button" class="aspect-preset-btn" data-arw="16" data-arh="9" onclick="setAspectPreset(16,9)">16:9</button>
+              <button type="button" class="aspect-preset-btn" data-arw="16" data-arh="10" onclick="setAspectPreset(16,10)">16:10</button>
+              <button type="button" class="aspect-preset-btn" data-arw="4" data-arh="3" onclick="setAspectPreset(4,3)">4:3</button>
+              <button type="button" class="aspect-preset-btn" data-arw="21" data-arh="9" onclick="setAspectPreset(21,9)">21:9</button>
+              <button type="button" class="aspect-preset-btn" data-arw="1" data-arh="1" onclick="setAspectPreset(1,1)">1:1</button>
+              <button type="button" class="aspect-preset-btn" data-arw="9" data-arh="16" onclick="setAspectPreset(9,16)">9:16</button>
             </div>
             <div class="field-grid" style="margin-top:11px;margin-bottom:0;">
               <div class="field field-req"><label>Breedte (px)</label><input type="text" inputmode="decimal" class="calc" id="aspectWidthInput" value="3840"></div>
               <div class="field field-req"><label>Hoogte (px)</label><input type="text" inputmode="decimal" class="calc" id="aspectHeightInput" value="2160"></div>
             </div>
-            <div class="hint-input">Vul <b>breedte</b> en <b>hoogte</b> in — dit bepaalt de canvas-resolutie.</div>
+            <div class="hint-input">Vul <b>breedte</b> en <b>hoogte</b> in — de aspect ratio wordt automatisch berekend. Kies <b>Custom</b> voor vrije resolutie; een preset laat de andere zijde meeschalen.</div>
           </div>
           <div class="canvas-bar derived">
             <div class="cb-label">Canvas Resolutie <span class="cb-tag">automatisch</span></div>
@@ -2280,6 +2284,7 @@ function confirmStageCrop(){
   queueCompositionRender();
 }
 let nextId = 1;
+let aspectMode = 'preset';
 
 function fmt(n, d=0){ return Number(n||0).toLocaleString('nl-BE', {minimumFractionDigits:d, maximumFractionDigits:d, useGrouping:false}); }
 function el(id){ return document.getElementById(id); }
@@ -3204,6 +3209,7 @@ function makeCanvasRecord(opts){
     h: d.h,
     arW: d.arW,
     arH: d.arH,
+    aspectMode: aspectMode === 'custom' ? 'custom' : 'preset',
     slices: []
   };
 }
@@ -3231,6 +3237,9 @@ function sanitizeCanvases(rawList, fallback){
       h: h,
       arW: Math.max(0.01, parseFloat(c.arW) || parseFloat(c.w) || parseFloat(fb.w) || w),
       arH: Math.max(0.01, parseFloat(c.arH) || parseFloat(c.h) || parseFloat(fb.h) || h),
+      aspectMode: (c.aspectMode === 'custom' || c.aspectMode === 'preset')
+        ? c.aspectMode
+        : (ratioMatchesPreset(w, h) ? 'preset' : 'custom'),
       slices: Array.isArray(c.slices) ? c.slices : fallbackSlices
     };
   });
@@ -3264,12 +3273,22 @@ function installCanvasModel(data){
 
 function applyCanvasInputs(canvas){
   if(!canvas) return;
-  el('aspectRatioW').value = canvas.arW;
-  el('aspectRatioH').value = canvas.arH;
+  aspectMode = (canvas.aspectMode === 'custom') ? 'custom'
+    : (canvas.aspectMode === 'preset') ? 'preset'
+    : (ratioMatchesPreset(canvas.w, canvas.h) ? 'preset' : 'custom');
   el('aspectWidthInput').value = canvas.w;
   el('aspectHeightInput').value = canvas.h;
   el('canvasW').value = canvas.w;
   el('canvasH').value = canvas.h;
+  if(aspectMode === 'preset'){
+    el('aspectRatioW').value = canvas.arW;
+    el('aspectRatioH').value = canvas.arH;
+  } else {
+    const parts = aspectPartsForPixels(canvas.w, canvas.h);
+    el('aspectRatioW').value = parts.a;
+    el('aspectRatioH').value = parts.b;
+  }
+  updateAspectModeUI();
 }
 
 function syncActiveCanvasFromInputs(){
@@ -3279,6 +3298,7 @@ function syncActiveCanvasFromInputs(){
   canvas.h = Math.max(1, Math.round(parseFloat(el('canvasH').value) || canvas.h || 1080));
   canvas.arW = Math.max(0.01, parseFloat(el('aspectRatioW').value) || canvas.arW || canvas.w);
   canvas.arH = Math.max(0.01, parseFloat(el('aspectRatioH').value) || canvas.arH || canvas.h);
+  canvas.aspectMode = aspectMode;
   canvas.slices = slices;
 }
 
@@ -3493,6 +3513,7 @@ function newProject(){
   activeCanvasId = null;
   nextCanvasId = 1;
   nextId = 1;
+  aspectMode = 'preset';
   const freshCanvas = makeCanvasRecord({ name: 'Canvas 1' });
   canvases.push(freshCanvas);
   activeCanvasId = freshCanvas.id;
@@ -4132,7 +4153,77 @@ function updateSelectionBar(){
   }
 }
 
+const ASPECT_PRESETS = [[16,9],[16,10],[4,3],[21,9],[1,1],[9,16]];
+
+function ratioMatchesPreset(w, h){
+  if(!(w > 0) || !(h > 0)) return false;
+  const r = w / h;
+  return ASPECT_PRESETS.some(([pw, ph]) => Math.abs((pw/ph) - r) <= r * 0.005);
+}
+
+function aspectPartsForPixels(w, h){
+  const iw = Math.max(1, Math.round(w));
+  const ih = Math.max(1, Math.round(h));
+  const g = gcd(iw, ih);
+  const a = iw / g, b = ih / g;
+  if(a > 999 || b > 999) return { a: (iw/ih).toFixed(3), b: 1 };
+  return { a, b };
+}
+
+function updateAspectModeUI(){
+  const customBtn = el('aspectCustomBtn');
+  if(customBtn) customBtn.classList.toggle('active', aspectMode === 'custom');
+  const ratio = (parseFloat(el('canvasW').value)||1) / (parseFloat(el('canvasH').value)||1);
+  document.querySelectorAll('.aspect-preset-btn[data-arw]').forEach(btn=>{
+    const pw = parseFloat(btn.dataset.arw), ph = parseFloat(btn.dataset.arh);
+    const match = Math.abs((pw/ph) - ratio) <= ratio * 0.005;
+    btn.classList.toggle('active', aspectMode === 'preset' && match);
+  });
+}
+
+/* In Custom-modus is de pixelresolutie leidend en volgt de aspect ratio. */
+function syncAspectFromPixels(){
+  const w = Math.max(1, parseFloat(el('aspectWidthInput').value) || parseFloat(el('canvasW').value) || 1);
+  const h = Math.max(1, parseFloat(el('aspectHeightInput').value) || parseFloat(el('canvasH').value) || 1);
+  const parts = aspectPartsForPixels(w, h);
+  el('aspectRatioW').value = parts.a;
+  el('aspectRatioH').value = parts.b;
+  el('canvasW').value = Math.round(w);
+  el('canvasH').value = Math.round(h);
+  updateCanvasRatio();
+  updateAspectModeUI();
+}
+
+function setAspectCustom(){
+  aspectMode = 'custom';
+  readAspectPixelInputs();
+  syncAspectFromPixels();
+  const wInput = el('aspectWidthInput');
+  if(wInput){ wInput.focus(); wInput.select(); }
+  if(typeof recalcAll === 'function') recalcAll();
+  commitHistory();
+}
+
+function readAspectPixelInputs(){
+  const wInput = el('aspectWidthInput');
+  const hInput = el('aspectHeightInput');
+  if(wInput){
+    const w = parseFloat(wInput.value);
+    if(!(w > 0)) wInput.value = Math.max(1, parseFloat(el('canvasW').value) || 1920);
+  }
+  if(hInput){
+    const h = parseFloat(hInput.value);
+    if(!(h > 0)) hInput.value = Math.max(1, parseFloat(el('canvasH').value) || 1080);
+  }
+}
+
 function applyAspect(driver){
+  readAspectPixelInputs();
+  if(aspectMode === 'custom'){
+    syncAspectFromPixels();
+    recalcAll();
+    return;
+  }
   const arW = Math.max(0.01, parseFloat(el('aspectRatioW').value)||16);
   const arH = Math.max(0.01, parseFloat(el('aspectRatioH').value)||9);
   if(driver === 'height'){
@@ -4149,13 +4240,16 @@ function applyAspect(driver){
     el('canvasH').value = h;
   }
   updateCanvasRatio();
+  updateAspectModeUI();
   recalcAll();
 }
 
 function setAspectPreset(w, h){
+  aspectMode = 'preset';
   el('aspectRatioW').value = w;
   el('aspectRatioH').value = h;
   applyAspect('width');
+  updateAspectModeUI();
   commitHistory();
 }
 
