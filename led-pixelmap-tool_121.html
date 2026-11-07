@@ -5268,8 +5268,8 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
         out += `</g>`;
       }
       let ks='';
-      if(tpMotion && tpHoriz) ks += `@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}}`;
-      if(tpMotion && tpVert) ks += `@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}}`;
+      if(tpMotion && tpHoriz) ks += `@keyframes tpx-${clipId}{from{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}to{transform:translateX(0px)}}`;
+      if(tpMotion && tpVert) ks += `@keyframes tpy-${clipId}{from{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}to{transform:translateY(0px)}}`;
       if(ks) out += `<style>${ks}</style>`;
     } else if(tpType==='colorbars-100h'){
       const bh = h / barColors.length;
@@ -5287,8 +5287,8 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
         out += `</g>`;
       }
       let ks='';
-      if(tpMotion && tpVert) ks += `@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}}`;
-      if(tpMotion && tpHoriz) ks += `@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}}`;
+      if(tpMotion && tpVert) ks += `@keyframes tpy-${clipId}{from{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}to{transform:translateY(0px)}}`;
+      if(tpMotion && tpHoriz) ks += `@keyframes tpx-${clipId}{from{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}to{transform:translateX(0px)}}`;
       if(ks) out += `<style>${ks}</style>`;
     } else if(tpType==='counters'){
       out += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(12,Math.min(w,h)/4)}" fill="#ffffff">00:00:00</text>`;
@@ -5298,7 +5298,7 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
         out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
         for(let d=-h; d<w+h; d+=step){ out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`; }
         out += `</g>`;
-        out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${step}px)}}</style>`;
+        out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(-${step}px)}to{transform:translateX(0px)}}</style>`;
       } else {
         for(let d=-h; d<w; d+=step){ out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`; }
       }
@@ -5307,7 +5307,7 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#000000"/><stop offset="50%" stop-color="#808080"/><stop offset="100%" stop-color="#ffffff"/></linearGradient></defs>`;
       if(tpMotion && tpHoriz){
         out += `<rect x="${x}" y="${y}" width="${Math.max(1,w*2)}" height="${Math.max(1,h)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.95;"/>`;
-        out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,w)}px)}}</style>`;
+        out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(-${Math.max(1,w)}px)}to{transform:translateX(0px)}}</style>`;
       } else {
         out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="url(#${gid})" opacity="0.95;"/>`;
       }
