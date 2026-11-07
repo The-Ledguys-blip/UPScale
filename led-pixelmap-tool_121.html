@@ -7871,7 +7871,7 @@ if(typeof renderOverviewPanels === 'function') renderOverviewPanels();
 .live-route-toggle{flex:0 0 auto;font-size:11px;padding:5px 10px;}
 #liveOverlay{position:fixed;inset:0;z-index:9000;background:#000;display:none;overflow:hidden;}
 #liveOverlay #liveOverlaySvg{position:absolute;inset:0;overflow:hidden;}
-#liveOverlay #liveOverlaySvg svg{display:block;width:auto;height:auto;max-width:none;max-height:none;}
+#liveOverlay #liveOverlaySvg svg{display:block;width:100%;height:100%;max-width:none;max-height:none;}
 #liveOverlayBar{position:absolute;top:10px;right:10px;display:flex;gap:6px;}
 #liveOverlayBar button{appearance:none;background:rgba(18,22,26,.8);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:var(--font-sans);font-size:12px;padding:7px 12px;border-radius:6px;cursor:pointer;}
 #liveOverlayBar button:hover{background:rgba(38,46,52,.9);}
@@ -7880,7 +7880,7 @@ if(typeof renderOverviewPanels === 'function') renderOverviewPanels();
 .live-only body>*{display:none!important;}
 .live-only #liveOnlyRoot{display:block!important;}
 #liveOnlyRoot #liveOnlySvg{position:absolute;left:0;top:0;}
-#liveOnlyRoot svg{display:block;width:auto;height:auto;max-width:none;max-height:none;}
+#liveOnlyRoot svg{display:block;width:100%;height:100%;max-width:none;max-height:none;}
 </style>
 
 <script id="live-output">
@@ -8413,8 +8413,8 @@ function buildLiveCanvasSvgMap(){
 function broadcastLive(force){
   if(liveOnly) return;
   try{
-    if(!liveScaledSvg) liveScaledSvg = buildLiveScaledCanvasSVG(getComposition());
-    const canvasesMap = buildLiveOutputSvgMap();
+    if(!liveScaledSvg) liveScaledSvg = buildLiveScaledSVG(getComposition());
+    const canvasesMap = buildLiveCanvasSvgMap();
     const payload = JSON.stringify({svg: liveScaledSvg, canvases: canvasesMap, ts: Date.now()});
     try{
       if(!liveBroadcast && typeof BroadcastChannel !== 'undefined'){
@@ -8512,7 +8512,7 @@ function updateLiveSnapshot(comp){
   if(liveOnly) return;
   if(!liveIsOpen() && activeTab !== 'live') return;
   try{
-    liveScaledSvg = buildLiveScaledCanvasSVG(comp);
+    liveScaledSvg = buildLiveScaledSVG(comp);
     broadcastLive();
     pushLiveSvg();
     if(activeTab === 'live'){ renderLiveControls(); scheduleLivePreviewDraw(); }
@@ -8522,7 +8522,7 @@ function updateLiveSnapshot(comp){
 }
 
 function renderLiveOutput(comp){
-  try{ liveScaledSvg = buildLiveScaledCanvasSVG(comp); }catch(e){ console.warn('[LIVE] build error', e); }
+  try{ liveScaledSvg = buildLiveScaledSVG(comp); }catch(e){ console.warn('[LIVE] build error', e); }
   renderLiveControls();
   scheduleLivePreviewDraw();
   renderLiveStats();
@@ -8714,7 +8714,7 @@ function liveOpenCanvas(canvasId){
   const screenIndex = liveRouteScreen(cid);
   queueCompositionRender();
   try{
-    if(!liveScaledSvg) liveScaledSvg = buildLiveScaledCanvasSVG(getComposition());
+    if(!liveScaledSvg) liveScaledSvg = buildLiveScaledSVG(getComposition());
     broadcastLive();
   }catch(e){}
   // 1) native bridge: één echt venster per canvas
@@ -8809,7 +8809,7 @@ function liveWritePopupDoc(w){
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>UPScale Live Output</title>'+
     '<style>html,body{margin:0;padding:0;background:#000;overflow:hidden;height:100%;cursor:none}'+
     '#liveSvgHost{position:absolute;inset:0;overflow:hidden}'+
-    '#liveSvgHost svg{display:block;width:auto;height:auto;max-width:none;max-height:none}'+
+    '#liveSvgHost svg{display:block;width:100%;height:100%;max-width:none;max-height:none}'+
     '#fsBtn{position:absolute;top:12px;right:12px;appearance:none;background:rgba(18,22,26,.8);border:1px solid rgba(255,255,255,.2);color:#fff;font:12px sans-serif;padding:8px 13px;border-radius:6px;cursor:pointer;z-index:2}'+
     '<\/style><\/head><body><div id="liveSvgHost"><\/div>'+
     '<button id="fsBtn" type="button">Volscherm<\/button>'+
