@@ -2486,7 +2486,7 @@ function restoreState(snap){
     canvases = JSON.parse(JSON.stringify(snap.canvases));
     canvases.forEach(c=>{
       if(!Array.isArray(c.slices)) c.slices = [];
-      c.slices.forEach(s=>ensureSliceZoom(s));
+      c.slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); });
     });
     let maxCanvasId = 0;
     canvases.forEach(c=>{ maxCanvasId = Math.max(maxCanvasId, c.id || 0); });
@@ -2496,7 +2496,7 @@ function restoreState(snap){
     applyCanvasInputs(getActiveCanvas());
   } else {
     slices = JSON.parse(JSON.stringify(snap.slices || []));
-    slices.forEach(s=>ensureSliceZoom(s));
+    slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); });
     const w = parseFloat(snap.canvasW) || 1920;
     const h = parseFloat(snap.canvasH) || 1080;
     canvases = [{ id: 1, name: 'Canvas 1', w: w, h: h, arW: w, arH: h, slices: slices }];
@@ -3251,7 +3251,7 @@ function installCanvasModel(data){
   let maxCanvasId = 0;
   canvases.forEach(c=>{
     if(!Array.isArray(c.slices)) c.slices = [];
-    c.slices.forEach(s=>ensureSliceZoom(s));
+    c.slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); });
     maxCanvasId = Math.max(maxCanvasId, c.id);
   });
   const requestedNext = parseInt(d.nextCanvasId, 10);
@@ -3696,6 +3696,14 @@ function ensureSliceZoom(slice){
   if(!slice) return;
   if(!Number.isFinite(slice.sliceZoom)) slice.sliceZoom = 100;
   slice.sliceZoom = Math.max(10, Math.min(300, Math.round(slice.sliceZoom)));
+}
+
+function normalizeTestPatternFlags(slice){
+  if(!slice) return;
+  if(slice.testPatternType === 'colorbars-100h' && slice.testPatternVertical !== true && slice.testPatternHorizontal !== false){
+    slice.testPatternHorizontal = false;
+    slice.testPatternVertical = true;
+  }
 }
 
 function ensureStageSize(slice){
@@ -4625,7 +4633,7 @@ function renderSlices(){
         <div class="properties-body" style="${s.testPatternCollapsed?'display:none;':''}">
           <div class="title-size-row" style="margin-bottom:8px;">
             <label>Patroon</label>
-            <select class="calc" data-f="testPatternType" onchange="recalcAll(); renderSlices();">
+            <select class="calc" data-f="testPatternType" onchange="onTestPatternTypeChange(${s.id}, this.value)">
               <option value="none" ${ (s.testPatternType||'none')==='none'?'selected':''}>Geen</option>
               <option value="solid-black" ${s.testPatternType==='solid-black'?'selected':''}>Zwart</option>
               <option value="solid-red" ${s.testPatternType==='solid-red'?'selected':''}>Rood</option>
@@ -5230,6 +5238,23 @@ function toggleTestPatternGroup(id){
   renderSlices();
 }
 
+function onTestPatternTypeChange(id, type){
+  readSliceInputs();
+  const s = slices.find(x=>x.id===id);
+  if(!s) return;
+  s.testPatternType = type || 'none';
+  s.testPattern = s.testPatternType !== 'none';
+  if(type === 'colorbars-100h'){
+    s.testPatternHorizontal = false;
+    s.testPatternVertical = true;
+  } else if(type === 'colorbars-100'){
+    s.testPatternHorizontal = true;
+    s.testPatternVertical = false;
+  }
+  renderSlices();
+  recalcAll();
+}
+
 function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
   const s = c.slice;
   const tpType = s.testPatternType || (s.testPattern ? 'colorbars-h' : 'none');
@@ -5254,42 +5279,39 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="${solidColor}"/>`;
     } else if(tpType==='colorbars-100'){
       const bw = w / barColors.length;
-      const bh = h / barColors.length;
-      if(tpMotion && tpHoriz){
-        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
-        for(let i=0;i<barColors.length*2;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; }
-        out += `</g>`;
-      } else {
-        barColors.forEach((col,i)=>{ out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; });
+      const moveY = tpMotion && tpVert && !tpHoriz;
+      const animated = tpMotion && (tpHoriz || tpVert);
+      const count = animated ? barColors.length*2 : barColors.length;
+      if(animated){
+        const anim = moveY ? `tpy-${clipId}` : `tpx-${clipId}`;
+        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;">`;
       }
-      if(tpMotion && tpVert){
-        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
-        for(let i=0;i<barColors.length*2;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; }
+      for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; }
+      if(animated){
         out += `</g>`;
+        const dist = moveY ? h : bw*barColors.length;
+        const tf = moveY ? 'translateY' : 'translateX';
+        const name = moveY ? 'tpy' : 'tpx';
+        out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
       }
-      let ks='';
-      if(tpMotion && tpHoriz) ks += `@keyframes tpx-${clipId}{from{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}to{transform:translateX(0px)}}`;
-      if(tpMotion && tpVert) ks += `@keyframes tpy-${clipId}{from{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}to{transform:translateY(0px)}}`;
-      if(ks) out += `<style>${ks}</style>`;
     } else if(tpType==='colorbars-100h'){
       const bh = h / barColors.length;
       const bw = w / barColors.length;
-      if(tpMotion && tpVert){
-        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;">`;
-        for(let i=0;i<barColors.length*2;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; }
-        out += `</g>`;
-      } else {
-        barColors.forEach((col,i)=>{ out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; });
+      const moveX = tpMotion && tpHoriz && !tpVert;
+      const animated = tpMotion && (tpHoriz || tpVert);
+      const count = animated ? barColors.length*2 : barColors.length;
+      if(animated){
+        const anim = moveX ? `tpx-${clipId}` : `tpy-${clipId}`;
+        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;">`;
       }
-      if(tpMotion && tpHoriz){
-        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
-        for(let i=0;i<barColors.length*2;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; }
+      for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; }
+      if(animated){
         out += `</g>`;
+        const dist = moveX ? bw*barColors.length : bh*barColors.length;
+        const tf = moveX ? 'translateX' : 'translateY';
+        const name = moveX ? 'tpx' : 'tpy';
+        out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
       }
-      let ks='';
-      if(tpMotion && tpVert) ks += `@keyframes tpy-${clipId}{from{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}to{transform:translateY(0px)}}`;
-      if(tpMotion && tpHoriz) ks += `@keyframes tpx-${clipId}{from{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}to{transform:translateX(0px)}}`;
-      if(ks) out += `<style>${ks}</style>`;
     } else if(tpType==='counters'){
       out += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(12,Math.min(w,h)/4)}" fill="#ffffff">00:00:00</text>`;
     } else if(tpType==='diagonal'){
