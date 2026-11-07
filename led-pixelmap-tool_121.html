@@ -4194,6 +4194,9 @@ function makeSlice(defaults){
     testPatternType: 'none',
     testPatternSpeed: 5,
     testPatternCollapsed: true,
+    testPatternMotion: true,
+    testPatternHorizontal: true,
+    testPatternVertical: false,
     roundedCorners: false,
     cornerRadiusPct: 8,
     textColorPct: 50,
@@ -4323,6 +4326,12 @@ function readSliceInputs(){
     if(testPatternTypeInput) s.testPatternType = testPatternTypeInput.value;
     const testPatternSpeedInput = c.querySelector('[data-f=testPatternSpeed]');
     if(testPatternSpeedInput) s.testPatternSpeed = Math.max(1, Math.min(10, parseInt(testPatternSpeedInput.value) || 5));
+    const tpMotionInput = c.querySelector('[data-f=testPatternMotion]');
+    if(tpMotionInput) s.testPatternMotion = tpMotionInput.checked;
+    const tpHorizInput = c.querySelector('[data-f=testPatternHorizontal]');
+    if(tpHorizInput) s.testPatternHorizontal = tpHorizInput.checked;
+    const tpVertInput = c.querySelector('[data-f=testPatternVertical]');
+    if(tpVertInput) s.testPatternVertical = tpVertInput.checked;
     const roundedInput = c.querySelector('[data-f=roundedCorners]');
     if(roundedInput) s.roundedCorners = roundedInput.checked;
     const cornerRadiusInput = c.querySelector('[data-f=cornerRadiusPct]');
@@ -4623,16 +4632,22 @@ function renderSlices(){
               <option value="solid-green" ${s.testPatternType==='solid-green'?'selected':''}>Groen</option>
               <option value="solid-blue" ${s.testPatternType==='solid-blue'?'selected':''}>Blauw</option>
               <option value="solid-white" ${s.testPatternType==='solid-white'?'selected':''}>Wit</option>
-              <option value="counters" ${s.testPatternType==='counters'?'selected':''}>Counters</option>
               <option value="diagonal" ${s.testPatternType==='diagonal'?'selected':''}>Diagonale lijnen</option>
               <option value="gradient" ${s.testPatternType==='gradient'?'selected':''}>Gradient (bewegend)</option>
               <option value="grid" ${s.testPatternType==='grid'?'selected':''}>Grid</option>
+              <option value="colorbars-100" ${s.testPatternType==='colorbars-100'?'selected':''}>Colorbars 100% (verticaal)</option>
+              <option value="colorbars-100h" ${s.testPatternType==='colorbars-100h'?'selected':''}>Colorbars 100% (horizontaal)</option>
             </select>
           </div>
           <div class="title-size-row" style="margin-bottom:0;">
             <label>Snelheid</label>
             <input type="range" data-f="testPatternSpeed" min="1" max="10" step="1" value="${s.testPatternSpeed||5}" oninput="el('testSpeedVal-${s.id}').textContent=this.value; recalcAll()">
             <span class="val" id="testSpeedVal-${s.id}">${s.testPatternSpeed||5}</span>
+          </div>
+          <div class="overlay-row" style="margin-top:8px;">
+            <label><input type="checkbox" data-f="testPatternMotion" ${s.testPatternMotion?'checked':''} onchange="recalcAll()"> Motion</label>
+            <label><input type="checkbox" data-f="testPatternHorizontal" ${s.testPatternHorizontal?'checked':''} onchange="recalcAll()"> Horizontaal</label>
+            <label><input type="checkbox" data-f="testPatternVertical" ${s.testPatternVertical?'checked':''} onchange="recalcAll()"> Verticaal</label>
           </div>
         </div>
       </div>
@@ -5219,6 +5234,9 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
   const s = c.slice;
   const tpType = s.testPatternType || (s.testPattern ? 'colorbars-h' : 'none');
   if(tpType && tpType !== 'none'){
+    const tpMotion = s.testPatternMotion !== false;
+    const tpHoriz = s.testPatternHorizontal !== false;
+    const tpVert = !!s.testPatternVertical;
     const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
     const useRounded = !!s.roundedCorners;
     const roundPctRaw = Number(s.cornerRadiusPct);
@@ -5227,111 +5245,76 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
     const roundRY = useRounded ? Math.max(1.5, h * (roundPct / 100)) : 0;
     const clipId = 'tpclip-' + (clipIdCounter++);
     const dur = (11 - Math.max(1, Math.min(10, Number(s.testPatternSpeed) || 5))).toFixed(1);
-    const colors = ['#ff0000','#ff7f00','#ffff00','#00ff00','#00ffff','#0000ff','#8b00ff','#ff0000'];
+    const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
     let out = '';
     out += `<defs><clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" rx="${roundRX}" ry="${roundRY}"/></clipPath></defs>`;
     out += `<g clip-path="url(#${clipId})">`;
-    const solidColor = (tpType==='solid-black')?'#000000':(tpType==='solid-white')?'#ffffff':(tpType==='solid-red')?'#ff0000':(tpType==='solid-green')?'#00ff00':(tpType==='solid-blue')?'#0000ff':(tpType==='solid-yellow')?'#ffff00':(tpType==='solid-cyan')?'#00ffff':(tpType==='solid-magenta')?'#ff00ff':null;
+    const solidColor = (tpType==='solid-black')?'#000000':(tpType==='solid-white')?'#ffffff':(tpType==='solid-red')?'#ff0000':(tpType==='solid-green')?'#00ff00':(tpType==='solid-blue')?'#0000ff':null;
     if(solidColor){
       out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="${solidColor}"/>`;
-    } else if(tpType==='colorbars-v'){
-      const gid = 'tpv-' + clipId;
-      const stops = colors.map((col,i)=>`<stop offset="${(i/(colors.length-1)*100).toFixed(1)}%" stop-color="${col}"/>`).join('');
-      out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">${stops}</linearGradient></defs>`;
-      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h*2)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;opacity:0.95;"/>`;
-      out += `<style>@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,h)}px)}}</style>`;
-    } else if(tpType==='smpte'){
-      const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
+    } else if(tpType==='colorbars-100'){
       const bw = w / barColors.length;
-      barColors.forEach((col,i)=>{ out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; });
-    } else if(tpType==='grayscale'){
-      const gid = 'tph-' + clipId;
-      out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#000000"/><stop offset="100%" stop-color="#ffffff"/></linearGradient></defs>`;
-      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="url(#${gid})"/>`;
+      const bh = h / barColors.length;
+      if(tpMotion && tpHoriz){
+        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
+        for(let i=0;i<barColors.length*2;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; }
+        out += `</g>`;
+      } else {
+        barColors.forEach((col,i)=>{ out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; });
+      }
+      if(tpMotion && tpVert){
+        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
+        for(let i=0;i<barColors.length*2;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; }
+        out += `</g>`;
+      }
+      let ks='';
+      if(tpMotion && tpHoriz) ks += `@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}}`;
+      if(tpMotion && tpVert) ks += `@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}}`;
+      if(ks) out += `<style>${ks}</style>`;
+    } else if(tpType==='colorbars-100h'){
+      const bh = h / barColors.length;
+      const bw = w / barColors.length;
+      if(tpMotion && tpVert){
+        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;">`;
+        for(let i=0;i<barColors.length*2;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; }
+        out += `</g>`;
+      } else {
+        barColors.forEach((col,i)=>{ out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; });
+      }
+      if(tpMotion && tpHoriz){
+        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
+        for(let i=0;i<barColors.length*2;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; }
+        out += `</g>`;
+      }
+      let ks='';
+      if(tpMotion && tpVert) ks += `@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}}`;
+      if(tpMotion && tpHoriz) ks += `@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}}`;
+      if(ks) out += `<style>${ks}</style>`;
+    } else if(tpType==='counters'){
+      out += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(12,Math.min(w,h)/4)}" fill="#ffffff">00:00:00</text>`;
+    } else if(tpType==='diagonal'){
+      const step = Math.max(6, Math.round(Math.min(w,h)/10));
+      if(tpMotion && (tpHoriz || tpVert)){
+        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
+        for(let d=-h; d<w+h; d+=step){ out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`; }
+        out += `</g>`;
+        out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${step}px)}}</style>`;
+      } else {
+        for(let d=-h; d<w; d+=step){ out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`; }
+      }
     } else if(tpType==='gradient'){
       const gid = 'tph-' + clipId;
       out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#000000"/><stop offset="50%" stop-color="#808080"/><stop offset="100%" stop-color="#ffffff"/></linearGradient></defs>`;
-      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w*2)}" height="${Math.max(1,h)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.95;"/>`;
-      out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,w)}px)}}</style>`;
-    } else if(tpType==='diagonal'){
-      const step = Math.max(6, Math.round(Math.min(w,h)/10));
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
-      for(let d=-h; d<w+h; d+=step){
-        out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`;
-      }
-      out += `</g>`;
-      out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${step}px)}}</style>`;
-      const cell = Math.max(4, Math.round(Math.min(w,h)/16));
-      for(let cy=y; cy<y+h; cy+=cell){
-        for(let cx=x; cx<x+w; cx+=cell){
-          const dark = ((Math.floor((cx-x)/cell)+Math.floor((cy-y)/cell)) % 2 === 0);
-          out += `<rect x="${cx}" y="${cy}" width="${cell}" height="${cell}" fill="${dark?'#000000':'#ffffff'}" opacity="0.9"/>`;
-        }
-      }
-    } else if(tpType==='diagonal'){
-      const step = Math.max(6, Math.round(Math.min(w,h)/10));
-      for(let d=-h; d<w; d+=step){
-        out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`;
+      if(tpMotion && tpHoriz){
+        out += `<rect x="${x}" y="${y}" width="${Math.max(1,w*2)}" height="${Math.max(1,h)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.95;"/>`;
+        out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,w)}px)}}</style>`;
+      } else {
+        out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="url(#${gid})" opacity="0.95;"/>`;
       }
     } else if(tpType==='grid'){
       const step = Math.max(4, Math.round(Math.min(w,h)/12));
       for(let gx=x; gx<=x+w; gx+=step){ out += `<line x1="${gx}" y1="${y}" x2="${gx}" y2="${y+h}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
       for(let gy=y; gy<=y+h; gy+=step){ out += `<line x1="${x}" y1="${gy}" x2="${x+w}" y2="${gy}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
-    } else if(tpType==='dots'){
-      const step = Math.max(6, Math.round(Math.min(w,h)/12));
-      for(let cy=y+step/2; cy<y+h; cy+=step){
-        for(let cx=x+step/2; cx<x+w; cx+=step){
-          out += `<circle cx="${cx}" cy="${cy}" r="${Math.max(1,step/8)}" fill="#ffffff" opacity="0.9"/>`;
-        }
-      }
-    } else if(tpType==='graystep'){
-      const steps = 10;
-      const sw = w / steps;
-      for(let i=0;i<steps;i++){
-        const v = Math.round((i/(steps-1))*255);
-        const hex = '#' + v.toString(16).padStart(2,'0').repeat(3);
-        out += `<rect x="${x + i*sw}" y="${y}" width="${sw+1}" height="${h}" fill="${hex}"/>`;
-      }
-    } else if(tpType==='counters'){
-      out += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(12,Math.min(w,h)/4)}" fill="#ffffff">00:00:00</text>`;
-    } else if(tpType==='colorbars-100'){
-      const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
-      const bw = w / barColors.length;
-      const bh = h / barColors.length;
-      // vertical bars moving horizontally
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
-      for(let i=0;i<barColors.length*2;i++){
-        const col = barColors[i % barColors.length];
-        out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`;
-      }
-      out += `</g>`;
-      // horizontal bars moving vertically
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
-      for(let i=0;i<barColors.length*2;i++){
-        const col = barColors[i % barColors.length];
-        out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`;
-      }
-      out += `</g>`;
-      out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}}@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}}</style>`;
-    } else if(tpType==='colorbars-100h'){
-      const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
-      const bh = h / barColors.length;
-      const bw = w / barColors.length;
-      // horizontal bars moving vertically
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpy-${clipId} ${dur}s linear infinite;">`;
-      for(let i=0;i<barColors.length*2;i++){
-        const col = barColors[i % barColors.length];
-        out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`;
-      }
-      out += `</g>`;
-      // vertical bars moving horizontally
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.45;mix-blend-mode:screen;">`;
-      for(let i=0;i<barColors.length*2;i++){
-        const col = barColors[i % barColors.length];
-        out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`;
-      }
-      out += `</g>`;
-      out += `<style>@keyframes tpy-${clipId}{from{transform:translateY(0px)}to{transform:translateY(-${Math.max(1,bh*barColors.length)}px)}}@keyframes tpx-${clipId}{from{transform:translateX(0px)}to{transform:translateX(-${Math.max(1,bw*barColors.length)}px)}}</style>`;
     }
     out += `</g>`;
     out += overlayMarks(s, x, y, w, h, ls);
