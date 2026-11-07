@@ -906,10 +906,10 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
 
 
   <div class="tabs">
-    <button class="tab-btn active" id="canvasTabBtn" data-tab="real" style="--tab-accent:var(--real)" onclick="onCanvasTabClick(event)" title="Canvassen beheren">
+    <button class="tab-btn active" id="canvasTabBtn" data-tab="real" style="--tab-accent:var(--real)" onclick="switchTab('real'); closeCanvasMenu();" title="1:1 canvas">
       <span class="dot"></span> 1:1
       <span class="tab-canvas-name" id="canvasTabName">Canvas 1</span>
-      <svg class="ic ic-xs tab-caret" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+      <svg class="ic ic-xs tab-caret" viewBox="0 0 24 24" onclick="onCanvasCaretClick(event)" style="cursor:pointer"><path d="M6 9l6 6 6-6"/></svg>
     </button>
     <button class="tab-btn" data-tab="scaled" style="--tab-accent:var(--scaled)" onclick="switchTab('scaled')">
       <span class="dot"></span> Scaled Output
@@ -3337,6 +3337,12 @@ function toggleCanvasMenu(anchor){
   if(!popup) return;
   if(popup.classList.contains('open')) closeCanvasMenu();
   else openCanvasMenu(anchor);
+}
+
+function onCanvasCaretClick(ev){
+  if(ev){ ev.stopPropagation(); ev.preventDefault(); }
+  switchTab('real');
+  toggleCanvasMenu(el('canvasTabBtn'));
 }
 
 function onCanvasTabClick(ev){
