@@ -996,7 +996,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
             </div>
           </div>
           <div class="legend" id="realLegend"></div>
-          <div class="note">Sleep een slice om te verplaatsen — randen magnetiseren op andere slices en de canvas. Sleep op de lege achtergrond om een selectiekader te trekken en meerdere slices tegelijk te selecteren (dan te verplaatsen met de muis of de pijltjestoetsen). <b>Shift</b> + klik op een slice om die aan de selectie toe te voegen of eruit te halen. Houd <b>spatie</b> ingedrukt en sleep om te pannen (hand-tool). <b>Ctrl</b> + dubbelklik op een paneel om het te verwijderen of terug te zetten. <b>Ctrl+Shift</b> + klik om meerdere panelen te selecteren. <b>Pinch</b> (2 vingers uit elkaar op het trackpad) zoomt in/uit.</div>
+          <div class="note">Sleep een slice om te verplaatsen — randen magnetiseren op andere slices en de canvas. Sleep op de lege achtergrond om een selectiekader te trekken en meerdere slices tegelijk te selecteren (dan te verplaatsen met de muis of de pijltjestoetsen). <b>Shift</b> + klik op een slice om die aan de selectie toe te voegen of eruit te halen. Gekoppelde slices verplaatsen en snappen als één groep. Houd <b>spatie</b> ingedrukt en sleep om te pannen (hand-tool). <b>Ctrl</b> + dubbelklik op een paneel om het te verwijderen of terug te zetten. <b>Ctrl+Shift</b> + klik om meerdere panelen te selecteren. <b>Pinch</b> (2 vingers uit elkaar op het trackpad) zoomt in/uit.</div>
         </div>
       </div>
     </div>
@@ -2606,7 +2606,13 @@ document.addEventListener('keydown', (e)=>{
     if(e.key==='ArrowLeft') dx = -step;
     if(e.key==='ArrowRight') dx = step;
     const moveStage = activeTab === 'stage';
+    const moveIds = new Set(selectedSliceIds);
     selectedSliceIds.forEach(id=>{
+      const s = slices.find(x=>x.id===id);
+      const info = getSliceLinkInfo(s);
+      if(info) info.members.forEach(m=>moveIds.add(m.id));
+    });
+    moveIds.forEach(id=>{
       const s = slices.find(x=>x.id===id);
       if(!s) return;
       if(moveStage){
@@ -3731,20 +3737,38 @@ function startDrag(evt, id){
   if(!s) return;
   const comp = computeSlice(s);
 
-  const groupIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id];
+  /* Gekoppelde slices gedragen zich als één object: sleep je er één, dan
+     verhuist de hele groep mee en snapt de groep als geheel. */
+  const baseIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id];
+  const groupIdSet = new Set(baseIds);
+  const linkInfo = getSliceLinkInfo(s);
+  if(linkInfo) linkInfo.members.forEach(m=>groupIdSet.add(m.id));
+  const groupIds = [...groupIdSet];
   const groupStart = {};
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   groupIds.forEach(gid=>{
     const gs = slices.find(x=>x.id===gid);
-    if(gs) groupStart[gid] = {posX: gs.posX, posY: gs.posY};
+    if(!gs) return;
+    const gc = computeSlice(gs);
+    groupStart[gid] = {posX: gs.posX, posY: gs.posY};
+    minX = Math.min(minX, gs.posX);
+    minY = Math.min(minY, gs.posY);
+    maxX = Math.max(maxX, gs.posX + gc.resX);
+    maxY = Math.max(maxY, gs.posY + gc.resY);
   });
 
   dragState = {
     id,
     startSvgX: pt.x, startSvgY: pt.y,
-    startPosX: s.posX, startPosY: s.posY,
     resX: comp.resX, resY: comp.resY,
     moved: false,
-    groupIds, groupStart
+    groupIds, groupStart,
+    groupBoundsStart: {
+      x: Number.isFinite(minX) ? minX : 0,
+      y: Number.isFinite(minY) ? minY : 0,
+      w: Number.isFinite(maxX - minX) ? (maxX - minX) : 1,
+      h: Number.isFinite(maxY - minY) ? (maxY - minY) : 1
+    }
   };
   const g = svg.querySelector(`g[data-id="${id}"]`);
   if(g) g.style.cursor = 'grabbing';
@@ -4097,7 +4121,10 @@ function startStageDrag(evt, id){
   if(!target) return;
   ensureStagePos(target);
 
-  const groupIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id];
+  const groupIdSet = new Set((selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id]);
+  const linkInfo = getSliceLinkInfo(target);
+  if(linkInfo) linkInfo.members.forEach(m=>groupIdSet.add(m.id));
+  const groupIds = [...groupIdSet];
   const groupStart = {};
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   groupIds.forEach(gid=>{
@@ -4230,10 +4257,10 @@ function onDragMove(evt){
   if(Math.abs(deltaSvgX) > 1.5 || Math.abs(deltaSvgY) > 1.5){
     dragState.moved = true;
   }
-  let newX = dragState.startPosX + deltaSvgX/scale;
-  let newY = dragState.startPosY + deltaSvgY/scale;
+  let newX = dragState.groupBoundsStart.x + deltaSvgX/scale;
+  let newY = dragState.groupBoundsStart.y + deltaSvgY/scale;
 
-  const w = dragState.resX, h = dragState.resY;
+  const w = dragState.groupBoundsStart.w, h = dragState.groupBoundsStart.h;
   const snapThresholdComp = SNAP_SVG_UNITS/scale;
   const others = slices.filter(x=>!dragState.groupIds.includes(x.id));
   const canvas = getCanvasSize();
@@ -4263,8 +4290,8 @@ function onDragMove(evt){
 
   const finalX = Math.max(0, Math.round(snappedX));
   const finalY = Math.max(0, Math.round(snappedY));
-  const offX = finalX - dragState.startPosX;
-  const offY = finalY - dragState.startPosY;
+  const offX = finalX - dragState.groupBoundsStart.x;
+  const offY = finalY - dragState.groupBoundsStart.y;
 
   dragState.groupIds.forEach(gid=>{
     const gs = slices.find(x=>x.id===gid);
