@@ -3990,14 +3990,18 @@ function getSliceLinkInfo(slice, list){
   const all = Array.isArray(list) ? list : slices;
   const members = all.filter(x=> (Number(x.linkGroup) || 0) === gid);
   if(members.length < 2) return null;
-  members.sort((a,b)=> (Number(a.linkOrder) || 0) - (Number(b.linkOrder) || 0) || a.id - b.id);
-  const index = members.findIndex(m=>m.id === slice.id);
-  if(index < 0) return null;
-  const leader = members[0];
+  /* De indeling volgt altijd de werkelijke posities op de pixelmap:
+     rijen van boven naar beneden, binnen een rij van links naar rechts.
+     De opgeslagen linkOrder doet hier niet meer aan mee, zodat ook een
+     groep die in een eerdere versie is gekoppeld meteen goed staat. */
   const layoutInfo = buildLinkLayout(members);
+  const physical = layoutInfo.layout.map(x=> x.m);
+  const index = layoutInfo.layout.findIndex(x=> x.m.id === slice.id);
+  if(index < 0) return null;
+  const leader = physical[0];
   const slot = layoutInfo.layout[index] || null;
   return {
-    gid, members, leader, index, count: members.length,
+    gid, members: physical, leader, index, count: physical.length,
     axis: leader.linkAxis === 'v' ? 'v' : 'h',
     layout: layoutInfo.layout,
     rowSizes: layoutInfo.rowSizes,
@@ -4041,36 +4045,25 @@ function groupLinkRows(members){
   return rows;
 }
 
-/* Bouw het virtuele vlak: rij voor rij van boven naar beneden, binnen elke
-   rij van links naar rechts. Zo loopt de koppeling vanaf 0,0 naar rechts en
-   gaat daarna een rij naar beneden, weer vanaf links. */
+/* Bouw het virtuele vlak rechtstreeks uit de posities op de pixelmap:
+   rij voor rij van boven naar beneden, binnen elke rij van links naar
+   rechts. Zo komt slice 4 automatisch onder slice 1 en loopt de koppeling
+   nooit door naast slice 3. */
 function buildLinkLayout(members){
-  const ordered = members.slice().sort((a,b)=>
-    (Number(a.linkOrder) || 0) - (Number(b.linkOrder) || 0) || (a.id - b.id));
-  const rows = groupLinkRows(ordered);
-  const rowSizes = rows.map(r=> r.members.length);
+  const rows = groupLinkRows(members);
   const layout = [];
-  let cursorY = 0, virtualW = 1, k = 0;
-  rowSizes.forEach((size, ri)=>{
+  let cursorY = 0, virtualW = 1;
+  rows.forEach((row, ri)=>{
     let cursorX = 0, rowH = 1;
-    for(let ci=0;ci<size;ci++){
-      const m = ordered[k++];
-      if(!m) break;
-      const c = computeSlice(m);
-      layout.push({ m, ox: cursorX, oy: cursorY, resX: c.resX, resY: c.resY, row: ri, col: ci });
-      cursorX += c.resX;
-      rowH = Math.max(rowH, c.resY);
-    }
+    row.members.forEach((it, ci)=>{
+      layout.push({ m: it.m, ox: cursorX, oy: cursorY, resX: it.c.resX, resY: it.c.resY, row: ri, col: ci });
+      cursorX += it.c.resX;
+      rowH = Math.max(rowH, it.c.resY);
+    });
     virtualW = Math.max(virtualW, cursorX);
     cursorY += rowH;
   });
-  while(k < ordered.length){
-    const m = ordered[k++];
-    const c = computeSlice(m);
-    layout.push({ m, ox: 0, oy: cursorY, resX: c.resX, resY: c.resY, row: rowSizes.length, col: 0 });
-    virtualW = Math.max(virtualW, c.resX);
-    cursorY += c.resY;
-  }
+  const rowSizes = rows.map(r=> r.members.length);
   return {
     layout,
     rowSizes,
@@ -4105,10 +4098,12 @@ function syncLinkGroupSettings(list){
       members.forEach(s=>{ s.linkGroup = 0; s.linkOrder = 0; });
       return;
     }
-    members.sort((a,b)=> (Number(a.linkOrder) || 0) - (Number(b.linkOrder) || 0) || a.id - b.id);
-    const leader = members[0];
+    const rows = groupLinkRows(members);
+    const ordered = [];
+    rows.forEach(r=> r.members.forEach(it=> ordered.push(it.m)));
+    const leader = ordered[0];
     const axis = leader.linkAxis === 'v' ? 'v' : 'h';
-    members.forEach((s,i)=>{
+    ordered.forEach((s,i)=>{
       s.linkOrder = i;
       s.linkAxis = axis;
       s.titleCropHorizontal = Number(leader.titleCropHorizontal) || 0;
@@ -4207,24 +4202,6 @@ function selectLinkGroupOf(id){
   renderSlices();
   updateSliceSelectionBar();
   syncSidebarSelection();
-}
-
-function moveLinkOrder(id, delta){
-  const s = slices.find(x=>x.id === id);
-  const info = getSliceLinkInfo(s);
-  if(!info) return;
-  const target = info.index + (delta < 0 ? -1 : 1);
-  if(target < 0 || target >= info.members.length) return;
-  readSliceInputs();
-  const a = info.members[info.index];
-  const b = info.members[target];
-  const ao = a.linkOrder, bo = b.linkOrder;
-  a.linkOrder = bo;
-  b.linkOrder = ao;
-  syncLinkGroupSettings();
-  renderSlices();
-  recalcAll();
-  commitHistory();
 }
 
 function toggleLinkGroup(id){
@@ -5220,7 +5197,7 @@ function renderSlices(){
     const link = getSliceLinkInfo(s);
     const linkLayoutDesc = link
       ? (link.rowCount > 1
-          ? `${link.colCount} kolommen × ${link.rowCount} rijen · rij ${link.row+1}, kolom ${link.col+1}`
+          ? `${link.colCount} kolommen × ${link.rowCount} rijen`
           : 'horizontaal (links → rechts)')
       : '';
     const overlayLocked = !!(link && link.index !== 0);
@@ -5296,11 +5273,9 @@ function renderSlices(){
         </div>
         <div class="properties-body" style="${s.linkCollapsed?'display:none;':''}">
           ${link ? `
-          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${linkLayoutDesc} · positie <b>${link.index+1}</b> van ${link.count}.</div>
+          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${linkLayoutDesc} · rij <b>${link.row+1}</b>, kolom <b>${link.col+1}</b>.</div>
           <div class="link-order-row">
-            <button type="button" onclick="moveLinkOrder(${s.id},-1)" ${link.index===0?'disabled':''} title="vorige positie">◀</button>
-            <span class="link-order-pos">${link.index+1} / ${link.count}</span>
-            <button type="button" onclick="moveLinkOrder(${s.id},1)" ${link.index===link.count-1?'disabled':''} title="volgende positie">▶</button>
+            <span class="link-order-pos">rij ${link.row+1} · kolom ${link.col+1}</span>
             <button type="button" onclick="selectLinkGroupOf(${s.id})">Selecteer groep</button>
             <button type="button" onclick="unlinkLinkGroupOf(${s.id})">Ontkoppel</button>
           </div>

@@ -8,7 +8,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 
 - **Tab in het objecten-menu**: met Tab ga je direct naar de invulbare velden (naam, R/G/B, positie, resolutie, checkboxes). De ▲/▼-stapknoppen, schuifbalken en icoon-knoppen worden overgeslagen, zodat je snel door de gegevens heen tabt. Alles blijft gewoon met de muis bedienbaar.
 - **Live Output vloeiend met meerdere uitgangen**: elk live-venster krijgt alleen nog een nieuw beeld als zijn eigen canvas echt verandert. Bij 1, 2 en 4 live outputs blijven de vensters op 60 fps en blijft ook de hoofdapp op 60 fps, ook tijdens het slepen van een slice. Lopende testpatroon-animaties worden bij een update niet meer gereset, maar pakken de beweging op waar ze waren.
-- **Slice-koppeling in rijen**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie. De volgorde telt automatisch door zoals de slices liggen: vanaf linksboven (0,0) naar rechts, daarna een rij naar beneden en weer vanaf links. Ook bij meerdere rijen (bijv. 3 naast elkaar en 3 daaronder) wordt één doorlopend virtueel vlak gemaakt, waarover cirkel en kruis over alle naden heen lopen.
+- **Slice-koppeling in rijen**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie. Het virtuele vlak volgt exact de werkelijke posities op de pixelmap: rijen van boven naar beneden, binnen een rij van links naar rechts. Staan er 3 slices naast elkaar en 3 daaronder, dan komt slice 4 dus onder slice 1 (niet naast slice 3) en loopt de koppeling rij voor rij door. Dit geldt ook voor groepen die in een eerdere versie zijn gekoppeld. Cirkel en kruis lopen over alle naden heen door.
 - **Doorlopend kruis en rondje**: markeringen worden op het virtuele vlak van de hele groep berekend en per slice geclipt, zodat ze exact op de naad aansluiten.
 - **Koppeling-sectie per slice**: badge met positie (bijv. 🔗 2/3), uitleg, volgorde aanpassen met ◀/▶, groep selecteren en ontkoppelen.
 - **Leider bepaalt de cirkelvorm**: de eerste slice in de groep bepaalt de cirkelvervorming (zodat de vorm op de naad aansluit). Cirkel, kruis en tekstkleur (zwart/wit) blijven **per slice** instelbaar en werken gewoon door in een gekoppelde groep.
@@ -62,7 +62,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Gekoppelde slice is los te verplaatsen en snapt daarbij
 - [x] Snapt de hele groep als één object wanneer de groep geselecteerd is
 - [x] Pijltjestoetsen verplaatsen de geselecteerde slices (groep bij groep-selectie)
-- [x] Koppelvolgorde telt rijen door: links → rechts, dan een rij naar beneden
+- [x] Koppelvolgorde volgt de pixelmap: 4 komt onder 1, niet naast 3
 - [x] 2×3-koppeling vormt één virtueel vlak met doorlopende cirkel/kruis
 - [x] Live-uitgang toont 1:1 canvasresolutie vanaf 0,0 (geen overview/schaling)
 - [x] Live-router per canvas blijft werken
