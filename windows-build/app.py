@@ -1083,6 +1083,50 @@ class MainWindow(QMainWindow):
                     LOGGER.exception("choose_project_folder failed")
                     return ""
 
+            @Slot(str, str, result=str)
+            def save_project_as(self, default_name: str, content: str) -> str:
+                """Show the native macOS/Windows save panel and write the project there."""
+                try:
+                    folder = self.default_project_dir()
+                    initial = project_target_path(folder, default_name)
+                    try:
+                        main_window.raise_()
+                        main_window.activateWindow()
+                    except Exception:
+                        pass
+                    chosen, _selected_filter = QFileDialog.getSaveFileName(
+                        main_window,
+                        "Project opslaan als",
+                        initial.as_posix(),
+                        "UPScale-project (*.UP);;Alle bestanden (*)",
+                    )
+                    if not chosen:
+                        return "CANCEL"
+                    chosen_path = Path(chosen).expanduser()
+                    target = project_target_path(chosen_path.parent, chosen_path.name)
+                    # Als de gebruiker zelf de extensie weghaalde, kan het .UP-doel
+                    # al bestaan zonder dat de native dialoog dat kon melden.
+                    if target != chosen_path and target.exists():
+                        answer = QMessageBox.question(
+                            main_window,
+                            "Bestand bestaat al",
+                            f"{target.name} bestaat al in deze map. Wil je het overschrijven?",
+                            QMessageBox.Yes | QMessageBox.No,
+                            QMessageBox.No,
+                        )
+                        if answer != QMessageBox.Yes:
+                            return "CANCEL"
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text(content or "", encoding="utf-8")
+                    cfg = load_config()
+                    cfg["project_save_dir"] = target.parent.as_posix()
+                    save_config(cfg)
+                    LOGGER.info("save_project_as wrote %s", target)
+                    return "OK:" + target.as_posix()
+                except Exception:
+                    LOGGER.exception("save_project_as failed")
+                    return "Opslaan mislukt. Controleer of je schrijfrechten hebt in deze map."
+
             @Slot(str, str, result=bool)
             def project_file_exists(self, folder: str, filename: str) -> bool:
                 try:

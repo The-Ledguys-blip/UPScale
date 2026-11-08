@@ -3819,6 +3819,29 @@ async function browseProjectFolder(){
 }
 
 async function saveProjectAs(){
+  const filename = normalizeProjectFilename(projectDisplayName(lastSavedFilename));
+  const hasBridge = await pyBridgeReady(1500);
+  if(hasBridge){
+    const data = JSON.stringify(serializeProject());
+    const result = await callPy('save_project_as', [filename, data]);
+    if(result === 'CANCEL') return;
+    if(typeof result === 'string' && result.indexOf('OK:') === 0){
+      const savedPath = result.slice(3);
+      lastSavedPath = savedPath;
+      lastSavedFilename = savedPath.split(/[\\/]/).pop() || filename;
+      lastProjectSaveDir = savedPath.replace(/[\\/][^\\/]+$/, '');
+      try{ localStorage.setItem(PROJECT_SAVE_DIR_KEY, lastProjectSaveDir); }catch(e){}
+      updateHeaderTitle();
+      return;
+    }
+    alert((typeof result === 'string' && result) ? result : 'Opslaan mislukt.');
+    return;
+  }
+  /* Browserfallback: geen native dialoog beschikbaar, gebruik het eigen venster. */
+  await openSaveProjectDialog();
+}
+
+async function openSaveProjectDialog(){
   const modal = el('saveProjectModal');
   if(!modal){
     downloadProjectFile(normalizeProjectFilename(projectDisplayName(lastSavedFilename)));
