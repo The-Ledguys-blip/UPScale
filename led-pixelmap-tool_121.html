@@ -609,6 +609,20 @@ input.calc.auto-input:focus{outline:none;border-color:var(--line);}
 .field-req input.calc{border-color:var(--line-strong);}
 .hint-input{font-size:11px;color:var(--text-dim);line-height:1.5;margin-top:8px;}
 .hint-input b{color:var(--text);}
+
+/* slice linking (doorlopend kruis/rondje) ------------------- */
+.panel-selection-bar button:disabled{opacity:.42;cursor:not-allowed;}
+.panel-selection-bar .link-btn{appearance:none;background:rgba(255,159,67,.12);border:1px solid var(--scaled);color:var(--scaled);font-family:var(--font-sans);font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;white-space:nowrap;}
+.panel-selection-bar .link-btn:hover:not(:disabled){background:rgba(255,159,67,.22);}
+.slice-card.linked{border-left-color:var(--scaled);}
+.link-badge{font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--scaled);border:1px solid var(--scaled);border-radius:999px;padding:2px 6px;flex-shrink:0;white-space:nowrap;}
+.link-status{font-size:11px;color:var(--text);line-height:1.55;}
+.link-status b{font-family:var(--font-mono);color:var(--scaled);}
+.link-order-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+.link-order-row button{appearance:none;background:var(--panel-3);border:1px solid var(--line);color:var(--text-dim);font-family:var(--font-sans);font-size:11px;font-weight:600;padding:5px 9px;border-radius:6px;cursor:pointer;}
+.link-order-row button:hover:not(:disabled){border-color:var(--scaled);color:var(--text);}
+.link-order-row button:disabled{opacity:.4;cursor:not-allowed;}
+.link-order-pos{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);padding:0 2px;}
 .locked-size::before{
   content:'';width:13px;height:13px;background:currentColor;opacity:.6;
   -webkit-mask:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'><rect x='4' y='10' width='16' height='10' rx='2'/><path d='M8 10V7a4 4 0 0 1 8 0v3'/></svg>") center/contain no-repeat;
@@ -960,6 +974,9 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
               <span id="sliceSelectionName">geselecteerd</span>
               <button class="delete-btn" onclick="copySelectedSlice()" style="background:rgba(148,163,184,.12);border-color:var(--real);color:var(--real);" title="Ctrl+C">Kopieer</button>
               <button class="delete-btn" onclick="pasteSlice()" style="background:rgba(148,163,184,.12);border-color:var(--real);color:var(--real);" title="Ctrl+V">Plak</button>
+              <button class="link-btn" id="linkSlicesHBtn" onclick="linkSelectedSlices('h')" title="Koppel de geselecteerde slices horizontaal (links → rechts); kruis en rondje lopen door over de naad">Koppel ↔</button>
+              <button class="link-btn" id="linkSlicesVBtn" onclick="linkSelectedSlices('v')" title="Koppel de geselecteerde slices verticaal (boven → onder); kruis en rondje lopen door over de naad">Koppel ↕</button>
+              <button class="link-btn" id="unlinkSlicesBtn" onclick="unlinkSelectedSlices()" title="Ontkoppel de geselecteerde slices">Ontkoppel</button>
               <button class="delete-btn" onclick="removeSelectedSlices()" title="Delete">Verwijder</button>
               <button class="clear-btn" onclick="clearSliceSelection()" title="selectie wissen">×</button>
             </div>
@@ -2491,7 +2508,8 @@ function restoreState(snap){
     canvases = JSON.parse(JSON.stringify(snap.canvases));
     canvases.forEach(c=>{
       if(!Array.isArray(c.slices)) c.slices = [];
-      c.slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); });
+      c.slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); ensureLinkFields(s); });
+      sanitizeLinkGroups(c.slices);
     });
     let maxCanvasId = 0;
     canvases.forEach(c=>{ maxCanvasId = Math.max(maxCanvasId, c.id || 0); });
@@ -2501,7 +2519,8 @@ function restoreState(snap){
     applyCanvasInputs(getActiveCanvas());
   } else {
     slices = JSON.parse(JSON.stringify(snap.slices || []));
-    slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); });
+    slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); ensureLinkFields(s); });
+    sanitizeLinkGroups(slices);
     const w = parseFloat(snap.canvasW) || 1920;
     const h = parseFloat(snap.canvasH) || 1080;
     canvases = [{ id: 1, name: 'Canvas 1', w: w, h: h, arW: w, arH: h, slices: slices }];
@@ -2660,6 +2679,8 @@ function pasteSlice(){
     clone.posX = clone.posX + 40;
     clone.posY = clone.posY + 40;
     clone.removedPanels = clone.removedPanels || [];
+    clone.linkGroup = 0;
+    clone.linkOrder = 0;
     clone.hue = pickAvailableHue();
     slices.push(clone);
     newIds.push(clone.id);
@@ -2679,6 +2700,7 @@ function removeSelectedSlices(){
   selectedPanels = selectedPanels.filter(p=>!ids.includes(p.sliceId));
   selectedSliceIds.clear();
   syncPrimarySelection();
+  sanitizeLinkGroups();
   renderSlices();
   recalcAll();
   commitHistory();
@@ -2730,6 +2752,17 @@ function updateSliceSelectionBar(){
   } else {
     bar.style.display = 'none';
   }
+  const canLink = selectedSliceIds.size >= 2;
+  ['linkSlicesHBtn','linkSlicesVBtn'].forEach(btnId=>{
+    const btn = el(btnId);
+    if(btn) btn.disabled = !canLink;
+  });
+  const anyLinked = [...selectedSliceIds].some(id=>{
+    const s = slices.find(x=>x.id === id);
+    return !!(s && getSliceLinkInfo(s));
+  });
+  const unlinkBtn = el('unlinkSlicesBtn');
+  if(unlinkBtn) unlinkBtn.disabled = !anyLinked;
   refreshSidebarSelectionStyles();
 }
 
@@ -3086,7 +3119,7 @@ document.addEventListener('keyup', (e)=>{
 });
 
 // ---- bestandsmenu: nieuw / opslaan / laden ----
-const APP_VERSION = 'v3.0.0';
+const APP_VERSION = 'v3.1.0';
 let activeTab = 'real';
 let lastSavedFilename = null;
 const DEFAULT_APP_TITLE = 'Untitled Project';
@@ -3260,7 +3293,8 @@ function installCanvasModel(data){
   let maxCanvasId = 0;
   canvases.forEach(c=>{
     if(!Array.isArray(c.slices)) c.slices = [];
-    c.slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); });
+    c.slices.forEach(s=>{ ensureSliceZoom(s); normalizeTestPatternFlags(s); ensureLinkFields(s); });
+    sanitizeLinkGroups(c.slices);
     maxCanvasId = Math.max(maxCanvasId, c.id);
   });
   const requestedNext = parseInt(d.nextCanvasId, 10);
@@ -3725,6 +3759,180 @@ function normalizeTestPatternFlags(slice){
     slice.testPatternHorizontal = false;
     slice.testPatternVertical = true;
   }
+}
+
+/* ---- slices koppelen: doorlopend kruis/rondje over een naad ---- */
+function ensureLinkFields(slice){
+  if(!slice) return;
+  slice.linkGroup = Math.max(0, Math.round(Number(slice.linkGroup) || 0));
+  slice.linkOrder = Math.max(0, Math.round(Number(slice.linkOrder) || 0));
+  if(slice.linkAxis !== 'v' && slice.linkAxis !== 'h') slice.linkAxis = 'h';
+  if(typeof slice.linkCollapsed !== 'boolean') slice.linkCollapsed = true;
+}
+
+function getSliceLinkInfo(slice, list){
+  if(!slice) return null;
+  const gid = Number(slice.linkGroup) || 0;
+  if(!gid) return null;
+  const all = Array.isArray(list) ? list : slices;
+  const members = all.filter(x=> (Number(x.linkGroup) || 0) === gid);
+  if(members.length < 2) return null;
+  members.sort((a,b)=> (Number(a.linkOrder) || 0) - (Number(b.linkOrder) || 0) || a.id - b.id);
+  const index = members.findIndex(m=>m.id === slice.id);
+  if(index < 0) return null;
+  const leader = members[0];
+  return { gid, members, leader, index, axis: leader.linkAxis === 'v' ? 'v' : 'h', count: members.length };
+}
+
+function nextLinkGroupId(list){
+  const all = Array.isArray(list) ? list : slices;
+  return all.reduce((m,s)=>Math.max(m, Number(s.linkGroup) || 0), 0) + 1;
+}
+
+/* De eerste slice in de groep is de "leider": cirkel/kruis-instellingen en
+   tekstkleur van de leider gelden voor de hele groep, zodat de markeringen
+   gegarandeerd op elkaar aansluiten. */
+function syncLinkGroupSettings(list){
+  const all = Array.isArray(list) ? list : slices;
+  const groups = {};
+  all.forEach(s=>{
+    ensureLinkFields(s);
+    const gid = Number(s.linkGroup) || 0;
+    if(!gid) return;
+    (groups[gid] = groups[gid] || []).push(s);
+  });
+  Object.keys(groups).forEach(key=>{
+    const members = groups[key];
+    if(members.length < 2){
+      members.forEach(s=>{ s.linkGroup = 0; s.linkOrder = 0; });
+      return;
+    }
+    members.sort((a,b)=> (Number(a.linkOrder) || 0) - (Number(b.linkOrder) || 0) || a.id - b.id);
+    const leader = members[0];
+    const axis = leader.linkAxis === 'v' ? 'v' : 'h';
+    members.forEach((s,i)=>{
+      s.linkOrder = i;
+      s.linkAxis = axis;
+      s.showCircle = !!leader.showCircle;
+      s.showCross = !!leader.showCross;
+      s.titleCropHorizontal = Number(leader.titleCropHorizontal) || 0;
+      s.titleCropVertical = Number(leader.titleCropVertical) || 0;
+      s.textColorPct = Number(leader.textColorPct) || 50;
+    });
+  });
+}
+
+function sanitizeLinkGroups(list){
+  const all = Array.isArray(list) ? list : slices;
+  all.forEach(ensureLinkFields);
+  syncLinkGroupSettings(all);
+  return all;
+}
+
+function linkSelectedSlices(axis){
+  const ids = [...selectedSliceIds];
+  if(ids.length < 2){
+    alert('Selecteer minimaal 2 slices om ze te koppelen (sleep een selectiekader op de compositie of gebruik Shift/Ctrl-klik in Stage).');
+    return;
+  }
+  readSliceInputs();
+  const members = ids.map(id=>slices.find(s=>s.id === id)).filter(Boolean);
+  if(members.length < 2) return;
+  const dir = axis === 'v' ? 'v' : 'h';
+  members.sort((a,b)=> dir === 'h'
+    ? ((a.posX - b.posX) || (a.posY - b.posY) || (a.id - b.id))
+    : ((a.posY - b.posY) || (a.posX - b.posX) || (a.id - b.id)));
+  const gid = nextLinkGroupId();
+  members.forEach((s,i)=>{
+    s.linkGroup = gid;
+    s.linkOrder = i;
+    s.linkAxis = dir;
+  });
+  const leader = members[0];
+  if(!members.some(s=>s.showCircle || s.showCross)){
+    leader.showCircle = true;
+    leader.showCross = true;
+  }
+  syncLinkGroupSettings();
+  renderSlices();
+  recalcAll();
+  syncStageLayoutWithSlices(false);
+  commitHistory();
+  updateSliceSelectionBar();
+}
+
+function unlinkSelectedSlices(){
+  if(selectedSliceIds.size === 0) return;
+  readSliceInputs();
+  let changed = false;
+  selectedSliceIds.forEach(id=>{
+    const s = slices.find(x=>x.id === id);
+    if(s && (Number(s.linkGroup) || 0)){
+      s.linkGroup = 0;
+      s.linkOrder = 0;
+      changed = true;
+    }
+  });
+  if(!changed) return;
+  syncLinkGroupSettings();
+  renderSlices();
+  recalcAll();
+  commitHistory();
+  updateSliceSelectionBar();
+}
+
+function unlinkLinkGroupOf(id){
+  const s = slices.find(x=>x.id === id);
+  if(!s) return;
+  const info = getSliceLinkInfo(s);
+  if(info){
+    info.members.forEach(m=>{ m.linkGroup = 0; m.linkOrder = 0; });
+  } else {
+    s.linkGroup = 0;
+    s.linkOrder = 0;
+  }
+  syncLinkGroupSettings();
+  renderSlices();
+  recalcAll();
+  commitHistory();
+  updateSliceSelectionBar();
+}
+
+function selectLinkGroupOf(id){
+  const s = slices.find(x=>x.id === id);
+  const info = getSliceLinkInfo(s);
+  if(!info) return;
+  selectedSliceIds = new Set(info.members.map(m=>m.id));
+  syncPrimarySelection();
+  renderComposition();
+  renderSlices();
+  updateSliceSelectionBar();
+  syncSidebarSelection();
+}
+
+function moveLinkOrder(id, delta){
+  const s = slices.find(x=>x.id === id);
+  const info = getSliceLinkInfo(s);
+  if(!info) return;
+  const target = info.index + (delta < 0 ? -1 : 1);
+  if(target < 0 || target >= info.members.length) return;
+  readSliceInputs();
+  const a = info.members[info.index];
+  const b = info.members[target];
+  const ao = a.linkOrder, bo = b.linkOrder;
+  a.linkOrder = bo;
+  b.linkOrder = ao;
+  syncLinkGroupSettings();
+  renderSlices();
+  recalcAll();
+  commitHistory();
+}
+
+function toggleLinkGroup(id){
+  const s = slices.find(x=>x.id === id);
+  if(!s) return;
+  s.linkCollapsed = !s.linkCollapsed;
+  renderSlices();
 }
 
 function ensureStageSize(slice){
@@ -4292,6 +4500,10 @@ function makeSlice(defaults){
     titleCropVertical: 0,
     showCircle: false,
     showCross: false,
+    linkGroup: 0,
+    linkOrder: 0,
+    linkAxis: 'h',
+    linkCollapsed: true,
     testPattern: false,
     testPatternType: 'none',
     testPatternSpeed: 5,
@@ -4341,6 +4553,7 @@ function removeSlice(id){
   selectedPanels = selectedPanels.filter(p=>p.sliceId!==id);
   if(selectedSliceIds.has(id)) selectedSliceIds.delete(id);
   syncPrimarySelection();
+  sanitizeLinkGroups();
   renderSlices();
   recalcAll();
   syncStageLayoutWithSlices(false);
@@ -4461,6 +4674,7 @@ function readSliceInputs(){
     const cropRightInput = c.querySelector('[data-f=cropRight]');
     if(cropRightInput) s.cropRight = Math.max(0, Math.min(2000, parseInt(cropRightInput.value)||0));
   });
+  syncLinkGroupSettings();
 }
 
 function stepPanelCount(id, field, delta){
@@ -4702,13 +4916,16 @@ function renderSlices(){
     ensureSliceZoom(s);
     const color = colorForSlice(s);
     const comp = computeSlice(s);
+    const link = getSliceLinkInfo(s);
+    const overlayLocked = !!(link && link.index !== 0);
     const panelInfo = (s.type==='slice' && s.mode==='panels') ? `<span>${s.panelsX}×${s.panelsY} panelen</span>` : '';
     return `
-    <div class="slice-card ${s.collapsed?'collapsed':''} ${selectedSliceIds.has(s.id)?'active-selected':''}" id="card-${s.id}" style="--slice-color:${color}">
+    <div class="slice-card ${s.collapsed?'collapsed':''} ${selectedSliceIds.has(s.id)?'active-selected':''} ${link?'linked':''}" id="card-${s.id}" style="--slice-color:${color}">
       <div class="slice-top">
         <button class="collapse-btn" onclick="toggleCollapse(${s.id})" title="${s.collapsed?'uitklappen':'inklappen'}">${s.collapsed?'▸':'▾'}</button>
         <span class="swatch"></span>
         <input type="text" data-f="name" value="${s.name}" oninput="recalcAll()">
+        ${link ? `<span class="link-badge" title="Gekoppeld in groep ${link.gid} · ${link.count} slices · ${link.axis==='v'?'verticaal':'horizontaal'}">🔗 ${link.index+1}/${link.count}</span>` : ''}
         <button class="remove-btn" onclick="removeSlice(${s.id})" title="verwijder">×</button>
       </div>
 
@@ -4751,6 +4968,31 @@ function renderSlices(){
             <label><input type="checkbox" data-f="testPatternHorizontal" ${s.testPatternHorizontal?'checked':''} onchange="recalcAll()"> Horizontaal</label>
             <label><input type="checkbox" data-f="testPatternVertical" ${s.testPatternVertical?'checked':''} onchange="recalcAll()"> Verticaal</label>
           </div>
+        </div>
+      </div>
+
+      <div class="properties-group">
+        <div class="properties-header" onclick="toggleLinkGroup(${s.id})">
+          <span class="properties-chevron">${s.linkCollapsed?'▸':'▾'}</span>
+          <span>Koppeling</span>
+          ${link ? `<span class="link-badge" style="margin-left:auto;">🔗 ${link.count}</span>` : ''}
+        </div>
+        <div class="properties-body" style="${s.linkCollapsed?'display:none;':''}">
+          ${link ? `
+          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${link.axis==='v'?'verticaal (boven → onder)':'horizontaal (links → rechts)'} · positie <b>${link.index+1}</b> van ${link.count}.</div>
+          <div class="link-order-row">
+            <button type="button" onclick="moveLinkOrder(${s.id},-1)" ${link.index===0?'disabled':''} title="vorige positie">◀</button>
+            <span class="link-order-pos">${link.index+1} / ${link.count}</span>
+            <button type="button" onclick="moveLinkOrder(${s.id},1)" ${link.index===link.count-1?'disabled':''} title="volgende positie">▶</button>
+            <button type="button" onclick="selectLinkGroupOf(${s.id})">Selecteer groep</button>
+            <button type="button" onclick="unlinkLinkGroupOf(${s.id})">Ontkoppel</button>
+          </div>
+          ${link.index!==0
+            ? `<div class="hint-input">Kruis en rondje worden bepaald door <b>${escapeHtmlText(link.leader.name)}</b>.</div>`
+            : `<div class="hint-input">Deze slice bepaalt het kruis en rondje voor de hele groep.</div>`}
+          ` : `
+          <div class="hint-input">Selecteer 2 of meer slices en klik op <b>Koppel ↔</b> of <b>Koppel ↕</b> in de balk boven de compositie. Het kruis en rondje lopen dan door over de naad tussen de slices.</div>
+          `}
         </div>
       </div>
 
@@ -4848,7 +5090,7 @@ function renderSlices(){
               </div>
               <div class="title-size-row">
                 <label>Cirkel horizontaal</label>
-                <input type="range" data-f="titleCropHorizontal" min="0" max="100" step="1" value="${s.titleCropHorizontal || 0}" ${s.showCircle ? '' : 'disabled'} oninput="el('titleCropHorizontalVal-${s.id}').textContent=this.value; recalcAll()">
+                <input type="range" data-f="titleCropHorizontal" min="0" max="100" step="1" value="${s.titleCropHorizontal || 0}" ${(s.showCircle && !overlayLocked) ? '' : 'disabled'} oninput="el('titleCropHorizontalVal-${s.id}').textContent=this.value; recalcAll()">
                 <span class="val" id="titleCropHorizontalVal-${s.id}" ondblclick="startInlineEdit(event,${s.id},'titleCropHorizontal',0,100)">${s.titleCropHorizontal || 0}</span>
                 <div class="stepper-btns-inline">
                   <button type="button" onclick="stepTitleCrop(${s.id},'titleCropHorizontal',1)">▲</button>
@@ -4858,7 +5100,7 @@ function renderSlices(){
               </div>
               <div class="title-size-row" style="margin-bottom:0;">
                 <label>Cirkel verticaal</label>
-                <input type="range" data-f="titleCropVertical" min="0" max="100" step="1" value="${s.titleCropVertical || 0}" ${s.showCircle ? '' : 'disabled'} oninput="el('titleCropVerticalVal-${s.id}').textContent=this.value; recalcAll()">
+                <input type="range" data-f="titleCropVertical" min="0" max="100" step="1" value="${s.titleCropVertical || 0}" ${(s.showCircle && !overlayLocked) ? '' : 'disabled'} oninput="el('titleCropVerticalVal-${s.id}').textContent=this.value; recalcAll()">
                 <span class="val" id="titleCropVerticalVal-${s.id}" ondblclick="startInlineEdit(event,${s.id},'titleCropVertical',0,100)">${s.titleCropVertical || 0}</span>
                 <div class="stepper-btns-inline">
                   <button type="button" onclick="stepTitleCrop(${s.id},'titleCropVertical',1)">▲</button>
@@ -4869,8 +5111,8 @@ function renderSlices(){
             </div>
           </div>
           <div class="overlay-row">
-            <label><input type="checkbox" data-f="showCircle" ${s.showCircle?'checked':''} onchange="recalcAll(); renderSlices();"> Cirkel</label>
-            <label><input type="checkbox" data-f="showCross" ${s.showCross?'checked':''} onchange="recalcAll()"> Kruis</label>
+            <label><input type="checkbox" data-f="showCircle" ${s.showCircle?'checked':''} ${overlayLocked?'disabled':''} onchange="recalcAll(); renderSlices();"> Cirkel</label>
+            <label><input type="checkbox" data-f="showCross" ${s.showCross?'checked':''} ${overlayLocked?'disabled':''} onchange="recalcAll(); renderSlices();"> Kruis</label>
             <label><input type="checkbox" data-f="roundedCorners" ${s.roundedCorners?'checked':''} onchange="recalcAll(); updatePanelPreviews(); renderSlices();"> Ronde hoeken</label>
           </div>
           <div class="overlay-row">
@@ -5134,35 +5376,91 @@ function occupiedClipRects(s, x, y, w, h){
 
 function overlayMarks(s, x, y, w, h, lineScale){
   const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
-  const markColor = sliceTextColor(s);
-  let out = '';
+  const link = getSliceLinkInfo(s);
+  const leader = link ? link.leader : s;
+  const showCircle = !!leader.showCircle;
+  const showCross = !!leader.showCross;
+  if(!showCircle && !showCross) return '';
+  const markColor = sliceTextColor(leader);
   const hasHoles = (s.type==='slice' && s.mode==='panels' && s.removedPanels && s.removedPanels.length>0);
+  const groupHasHoles = link ? link.members.some(m=>
+    m.type==='slice' && m.mode==='panels' && m.removedPanels && m.removedPanels.length>0
+  ) : hasHoles;
+
+  let out = '';
   let clipOpen = '', clipClose = '';
-  if(hasHoles && (s.showCircle || s.showCross)){
-    const clipId = 'occ-clip-' + (clipIdCounter++);
-    out += `<clipPath id="${clipId}">${occupiedClipRects(s, x, y, w, h)}</clipPath>`;
+  if((hasHoles || link) && (showCircle || showCross)){
+    const clipId = (link ? 'link-clip-' : 'occ-clip-') + (clipIdCounter++);
+    const clipRects = hasHoles
+      ? occupiedClipRects(s, x, y, w, h)
+      : `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}"/>`;
+    out += `<clipPath id="${clipId}">${clipRects}</clipPath>`;
     clipOpen = `<g clip-path="url(#${clipId})">`;
     clipClose = `</g>`;
   }
-  const cx = x + w/2, cy = y + h/2;
+
   let marks = '';
-  if(s.showCircle){
-    const r = Math.max(2, Math.min(w,h)/2 - 1);
-    const squeezeX = Math.max(0, Math.min(100, Number(s.titleCropHorizontal) || 0));
-    const squeezeY = Math.max(0, Math.min(100, Number(s.titleCropVertical) || 0));
-    const rx = Math.max(1, r * (1 - 0.95 * (squeezeX / 100)));
-    const ry = Math.max(1, r * (1 - 0.95 * (squeezeY / 100)));
-    marks += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="none" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
-  }
-  if(s.showCross){
-    if(!hasHoles){
-      marks += `<rect x="${x}" y="${y}" width="${Math.max(w-1,1)}" height="${Math.max(h-1,1)}" fill="none" stroke="${markColor}" stroke-width="${1*ls}" pointer-events="none"/>`;
+  if(link){
+    /* Gekoppelde slices vormen samen één virtueel vlak. Het kruis en de
+       cirkel worden op dat virtuele vlak berekend en per slice geclipt,
+       zodat ze over de fysieke naad heen doorlopen. */
+    const dims = link.members.map(m=>{
+      const c = computeSlice(m);
+      return { m, resX: c.resX, resY: c.resY, ox: 0, oy: 0 };
+    });
+    let cursor = 0, cross = 0;
+    dims.forEach(d=>{
+      if(link.axis === 'v'){
+        d.ox = 0; d.oy = cursor; cursor += d.resY; cross = Math.max(cross, d.resX);
+      } else {
+        d.ox = cursor; d.oy = 0; cursor += d.resX; cross = Math.max(cross, d.resY);
+      }
+    });
+    const cur = dims[link.index];
+    if(cur){
+      const scX = w / Math.max(1, cur.resX);
+      const scY = h / Math.max(1, cur.resY);
+      const gx = x - cur.ox * scX;
+      const gy = y - cur.oy * scY;
+      const gw = Math.max(1, (link.axis === 'v' ? cross : cursor) * scX);
+      const gh = Math.max(1, (link.axis === 'v' ? cursor : cross) * scY);
+      const cx = gx + gw/2, cy = gy + gh/2;
+      if(showCircle){
+        const r = Math.max(2, Math.min(gw, gh)/2 - 1);
+        const squeezeX = Math.max(0, Math.min(100, Number(leader.titleCropHorizontal) || 0));
+        const squeezeY = Math.max(0, Math.min(100, Number(leader.titleCropVertical) || 0));
+        const rx = Math.max(1, r * (1 - 0.95 * (squeezeX / 100)));
+        const ry = Math.max(1, r * (1 - 0.95 * (squeezeY / 100)));
+        marks += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="none" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+      }
+      if(showCross){
+        if(!groupHasHoles){
+          marks += `<rect x="${gx}" y="${gy}" width="${Math.max(gw-1,1)}" height="${Math.max(gh-1,1)}" fill="none" stroke="${markColor}" stroke-width="${1*ls}" pointer-events="none"/>`;
+        }
+        marks += `<line x1="${gx}" y1="${gy}" x2="${gx+gw}" y2="${gy+gh}" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+        marks += `<line x1="${gx+gw}" y1="${gy}" x2="${gx}" y2="${gy+gh}" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+      }
     }
-    marks += `<line x1="${x}" y1="${y}" x2="${x+w}" y2="${y+h}" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
-    marks += `<line x1="${x+w}" y1="${y}" x2="${x}" y2="${y+h}" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+  } else {
+    const cx = x + w/2, cy = y + h/2;
+    if(showCircle){
+      const r = Math.max(2, Math.min(w,h)/2 - 1);
+      const squeezeX = Math.max(0, Math.min(100, Number(leader.titleCropHorizontal) || 0));
+      const squeezeY = Math.max(0, Math.min(100, Number(leader.titleCropVertical) || 0));
+      const rx = Math.max(1, r * (1 - 0.95 * (squeezeX / 100)));
+      const ry = Math.max(1, r * (1 - 0.95 * (squeezeY / 100)));
+      marks += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="none" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+    }
+    if(showCross){
+      if(!hasHoles){
+        marks += `<rect x="${x}" y="${y}" width="${Math.max(w-1,1)}" height="${Math.max(h-1,1)}" fill="none" stroke="${markColor}" stroke-width="${1*ls}" pointer-events="none"/>`;
+      }
+      marks += `<line x1="${x}" y1="${y}" x2="${x+w}" y2="${y+h}" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+      marks += `<line x1="${x+w}" y1="${y}" x2="${x}" y2="${y+h}" stroke="${markColor}" stroke-width="${2*ls}" opacity="0.45" pointer-events="none"/>`;
+    }
   }
   out += clipOpen + marks + clipClose;
-  if(hasHoles && s.showCross){
+  if(!link && hasHoles && showCross){
     out += `<path d="${occupiedOutlinePath(s, x, y, w, h)}" stroke="${markColor}" stroke-width="${1*ls}" fill="none" pointer-events="none"/>`;
   }
   return out;
