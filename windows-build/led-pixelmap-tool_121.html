@@ -991,8 +991,8 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
               <span id="sliceSelectionName">geselecteerd</span>
               <button class="delete-btn" onclick="copySelectedSlice()" style="background:rgba(148,163,184,.12);border-color:var(--real);color:var(--real);" title="Ctrl+C">Kopieer</button>
               <button class="delete-btn" onclick="pasteSlice()" style="background:rgba(148,163,184,.12);border-color:var(--real);color:var(--real);" title="Ctrl+V">Plak</button>
-              <button class="link-btn" id="linkSlicesHBtn" onclick="linkSelectedSlices('h')" title="Koppel de geselecteerde slices: rij voor rij van links naar rechts, daarna een rij naar beneden; kruis en rondje lopen door over alle naden">Koppel ↔</button>
-              <button class="link-btn" id="linkSlicesVBtn" onclick="linkSelectedSlices('v')" title="Koppel de geselecteerde slices; de volgorde volgt de posities (rijen van links naar rechts, dan een rij naar beneden); kruis en rondje lopen door over alle naden">Koppel ↕</button>
+              <button class="link-btn" id="linkSlicesHBtn" onclick="linkSelectedSlices('h')" title="Koppel de geselecteerde slices virtueel in één rij, van links naar rechts. De volgorde volgt de leesvolgorde op de canvas (rij voor rij); de fysieke posities blijven ongewijzigd. Kruis en rondje lopen door over alle naden.">Koppel ↔</button>
+              <button class="link-btn" id="linkSlicesVBtn" onclick="linkSelectedSlices('v')" title="Koppel de geselecteerde slices virtueel in één kolom, van boven naar onder. De volgorde volgt de leesvolgorde op de canvas; de fysieke posities blijven ongewijzigd. Kruis en rondje lopen door over alle naden.">Koppel ↕</button>
               <button class="link-btn" id="unlinkSlicesBtn" onclick="unlinkSelectedSlices()" title="Ontkoppel de geselecteerde slices">Ontkoppel</button>
               <button class="delete-btn" onclick="removeSelectedSlices()" title="Delete">Verwijder</button>
               <button class="clear-btn" onclick="clearSliceSelection()" title="selectie wissen">×</button>
@@ -4022,19 +4022,21 @@ function normalizeLinkVirtual(virtual){
   return {
     w, h,
     rows: Math.max(1, Math.round(Number(virtual.rows) || 1)),
-    cols: Math.max(1, Math.round(Number(virtual.cols) || 1))
+    cols: Math.max(1, Math.round(Number(virtual.cols) || 1)),
+    mode: (virtual.mode === 'row' || virtual.mode === 'col' || virtual.mode === 'grid') ? virtual.mode : null
   };
 }
 
 /* Leg de huidige indeling vast op alle slices van de groep. */
-function captureLinkLayout(members, layoutInfo){
+function captureLinkLayout(members, layoutInfo, mode){
   if(!Array.isArray(members) || members.length < 2) return null;
-  const info = layoutInfo || buildLinkLayout(members);
+  const info = layoutInfo || buildLinkLayout(members, mode);
+  const finalMode = info.mode || mode || 'row';
   info.layout.forEach(slot=>{
     const m = slot.m;
     if(!m) return;
     m.linkSlot = { row: slot.row, col: slot.col, ox: slot.ox, oy: slot.oy, resX: slot.resX, resY: slot.resY };
-    m.linkVirtual = { w: info.virtualW, h: info.virtualH, rows: info.rowCount, cols: info.colCount };
+    m.linkVirtual = { w: info.virtualW, h: info.virtualH, rows: info.rowCount, cols: info.colCount, mode: finalMode };
   });
   return info;
 }
@@ -4065,9 +4067,10 @@ function frozenLinkLayout(members){
   layout.forEach(slot=>{ rowSizes[slot.row] = (rowSizes[slot.row] || 0) + 1; });
   const filled = [];
   for(let i=0;i<rowCount;i++) filled.push(rowSizes[i] || 0);
+  const mode = entries.reduce((mx,e)=> mx || e.virt.mode || null, null);
   return {
     layout, rowSizes: filled, rowCount, colCount,
-    virtualW, virtualH, frozen: true
+    virtualW, virtualH, mode, frozen: true
   };
 }
 
@@ -4084,7 +4087,8 @@ function getSliceLinkInfo(slice, list){
   let layoutInfo = frozenLinkLayout(members);
   const wasFrozen = !!layoutInfo;
   if(!layoutInfo){
-    layoutInfo = captureLinkLayout(members);
+    const defaultMode = (members.some(m=> m.linkAxis === 'v')) ? 'col' : 'row';
+    layoutInfo = captureLinkLayout(members, null, defaultMode);
   }
   if(!layoutInfo) return null;
   const ordered = layoutInfo.layout.map(x=> x.m);
@@ -4101,6 +4105,7 @@ function getSliceLinkInfo(slice, list){
     colCount: layoutInfo.colCount,
     virtualW: layoutInfo.virtualW,
     virtualH: layoutInfo.virtualH,
+    mode: layoutInfo.mode || 'row',
     frozen: wasFrozen,
     slot,
     row: slot ? slot.row : 0,
@@ -4138,12 +4143,58 @@ function groupLinkRows(members){
   return rows;
 }
 
-/* Bouw het virtuele vlak rechtstreeks uit de posities op de pixelmap:
-   rij voor rij van boven naar beneden, binnen elke rij van links naar
-   rechts. Zo komt slice 4 automatisch onder slice 1 en loopt de koppeling
-   nooit door naast slice 3. */
-function buildLinkLayout(members){
+/* Bouw het virtuele vlak. De volgorde van de slices is altijd de leesvolgorde
+   van de pixelmap (rij voor rij van boven naar beneden, binnen een rij van
+   links naar rechts). De gekozen modus bepaalt alleen hoe ze virtueel worden
+   neergezet:
+   - 'row'  : alle slices naast elkaar in één rij (horizontaal koppelen);
+   - 'col'  : alle slices onder elkaar in één kolom (verticaal koppelen);
+   - 'grid' : rijen en kolommen zoals ze fysiek liggen (oude opstellingen).
+   De fysieke posities op de canvas worden nooit aangepast. */
+function buildLinkLayout(members, mode){
+  const layoutMode = (mode === 'grid') ? 'grid' : (mode === 'col' ? 'col' : 'row');
   const rows = groupLinkRows(members);
+  const ordered = [];
+  rows.forEach(r=> r.members.forEach(it=> ordered.push(it)));
+
+  if(layoutMode === 'row'){
+    const layout = [];
+    let cursorX = 0, virtualH = 1;
+    ordered.forEach((it, i)=>{
+      layout.push({ m: it.m, ox: cursorX, oy: 0, resX: it.c.resX, resY: it.c.resY, row: 0, col: i });
+      cursorX += it.c.resX;
+      virtualH = Math.max(virtualH, it.c.resY);
+    });
+    return {
+      layout,
+      rowSizes: [ordered.length],
+      rowCount: 1,
+      colCount: Math.max(1, ordered.length),
+      virtualW: Math.max(1, cursorX),
+      virtualH: Math.max(1, virtualH),
+      mode: 'row'
+    };
+  }
+
+  if(layoutMode === 'col'){
+    const layout = [];
+    let cursorY = 0, virtualW = 1;
+    ordered.forEach((it, i)=>{
+      layout.push({ m: it.m, ox: 0, oy: cursorY, resX: it.c.resX, resY: it.c.resY, row: i, col: 0 });
+      cursorY += it.c.resY;
+      virtualW = Math.max(virtualW, it.c.resX);
+    });
+    return {
+      layout,
+      rowSizes: ordered.map(()=>1),
+      rowCount: Math.max(1, ordered.length),
+      colCount: 1,
+      virtualW: Math.max(1, virtualW),
+      virtualH: Math.max(1, cursorY),
+      mode: 'col'
+    };
+  }
+
   const layout = [];
   let cursorY = 0, virtualW = 1;
   rows.forEach((row, ri)=>{
@@ -4163,7 +4214,8 @@ function buildLinkLayout(members){
     rowCount: Math.max(1, rowSizes.length),
     colCount: rowSizes.reduce((m,n)=> Math.max(m,n), 1),
     virtualW: Math.max(1, virtualW),
-    virtualH: Math.max(1, cursorY)
+    virtualH: Math.max(1, cursorY),
+    mode: 'grid'
   };
 }
 
@@ -4196,9 +4248,9 @@ function syncLinkGroupSettings(list){
       });
       return;
     }
-    /* De leider is de slice linksboven in de vastgelegde virtuele indeling.
+    /* De leider is de eerste slice in de vastgelegde virtuele indeling.
        Zo blijft de koppeling stabiel als er fysiek een slice verplaatst. */
-    const frozen = frozenLinkLayout(members);
+    let frozen = frozenLinkLayout(members);
     let ordered;
     if(frozen){
       ordered = frozen.layout.map(x=> x.m);
@@ -4208,6 +4260,14 @@ function syncLinkGroupSettings(list){
       rows.forEach(r=> r.members.forEach(it=> ordered.push(it.m)));
     }
     const leader = ordered[0];
+    /* Een vastgelegde indeling van vóór de rij/kolom-keuze heeft nog geen
+       modus. Die zetten we eenmalig om naar één rij (horizontaal) of één
+       kolom (verticaal), zodat ook bestaande groepen meteen kloppen. */
+    if(frozen && !frozen.mode){
+      captureLinkLayout(members, null, leader.linkAxis === 'v' ? 'col' : 'row');
+      frozen = frozenLinkLayout(members);
+      ordered = frozen ? frozen.layout.map(x=> x.m) : ordered;
+    }
     const axis = leader.linkAxis === 'v' ? 'v' : 'h';
     ordered.forEach((s,i)=>{
       s.linkOrder = i;
@@ -4240,7 +4300,12 @@ function linkSelectedSlices(axis){
   const rows = groupLinkRows(members);
   const ordered = [];
   rows.forEach(r=> r.members.forEach(it=> ordered.push(it.m)));
-  const dir = (rows.length > 1 && rows.every(r=> r.members.length === 1)) ? 'v' : 'h';
+  /* Horizontaal koppelen = één virtuele rij van links naar rechts;
+     verticaal koppelen = één virtuele kolom van boven naar onder. De
+     volgorde volgt de leesvolgorde op de pixelmap, de posities blijven
+     ongewijzigd. */
+  const mode = axis === 'v' ? 'col' : 'row';
+  const dir = axis === 'v' ? 'v' : 'h';
   const gid = nextLinkGroupId();
   ordered.forEach((s,i)=>{
     s.linkGroup = gid;
@@ -4249,7 +4314,7 @@ function linkSelectedSlices(axis){
   });
   /* Indeling nu vastleggen: vanaf dit moment bepaalt de fysieke positie
      niet meer hoe de slices virtueel naast/onder elkaar staan. */
-  captureLinkLayout(members);
+  captureLinkLayout(members, null, mode);
   if(!members.some(s=>s.showCircle || s.showCross)){
     members.forEach(s=>{
       s.showCircle = true;
@@ -4295,7 +4360,8 @@ function recaptureLinkLayoutOf(id){
   readSliceInputs();
   const members = slices.filter(x=> (Number(x.linkGroup) || 0) === gid);
   if(members.length < 2) return;
-  captureLinkLayout(members);
+  const info = getSliceLinkInfo(s);
+  captureLinkLayout(members, null, info ? info.mode : 'row');
   syncLinkGroupSettings();
   renderSlices();
   recalcAll();
@@ -5324,13 +5390,11 @@ function renderSlices(){
     const comp = computeSlice(s);
     const link = getSliceLinkInfo(s);
     const linkLayoutDesc = link
-      ? (link.rowCount > 1 && link.colCount > 1
-          ? `${link.colCount} kolommen × ${link.rowCount} rijen`
-          : link.colCount > 1
-            ? 'horizontaal (links → rechts)'
-            : link.rowCount > 1
-              ? 'verticaal (boven → onder)'
-              : '1 slice')
+      ? (link.mode === 'row'
+          ? `1 rij · ${link.count} naast elkaar`
+          : link.mode === 'col'
+            ? `1 kolom · ${link.count} boven elkaar`
+            : `${link.colCount} kolommen × ${link.rowCount} rijen`)
       : '';
     const overlayLocked = !!(link && link.index !== 0);
     const linkCircleOn = link ? link.members.some(m=>!!m.showCircle) : !!s.showCircle;
@@ -5416,7 +5480,7 @@ function renderSlices(){
             ? `<div class="hint-input">De cirkelvorm wordt bepaald door <b>${escapeHtmlText(link.leader.name)}</b>. Cirkel, kruis en tekstkleur stel je per slice in; zo lopen ze samen door over de naad.</div>`
             : `<div class="hint-input">Deze slice bepaalt de cirkelvorm voor de hele groep. Cirkel, kruis en tekstkleur stel je per slice in; zo lopen ze samen door over de naad.</div>`}
           ` : `
-          <div class="hint-input">Selecteer 2 of meer slices en klik op <b>Koppel ↔</b> of <b>Koppel ↕</b> in de balk boven de compositie. Het kruis en rondje lopen dan door over de naad tussen de slices.</div>
+          <div class="hint-input">Selecteer 2 of meer slices en klik op <b>Koppel ↔</b> (één virtuele rij, links → rechts) of <b>Koppel ↕</b> (één virtuele kolom, boven → onder) in de balk boven de compositie. De slices houden hun positie op de canvas; het kruis en rondje lopen door over de naden.</div>
           `}
         </div>
       </div>

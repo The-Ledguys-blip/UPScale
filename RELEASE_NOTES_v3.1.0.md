@@ -8,12 +8,12 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 
 - **Tab in het objecten-menu**: met Tab ga je direct naar de invulbare velden (naam, R/G/B, positie, resolutie, checkboxes). De ▲/▼-stapknoppen, schuifbalken en icoon-knoppen worden overgeslagen, zodat je snel door de gegevens heen tabt. Alles blijft gewoon met de muis bedienbaar.
 - **Live Output vloeiend met meerdere uitgangen**: elk live-venster krijgt alleen nog een nieuw beeld als zijn eigen canvas echt verandert. Bij 1, 2 en 4 live outputs blijven de vensters op 60 fps en blijft ook de hoofdapp op 60 fps, ook tijdens het slepen van een slice. Lopende testpatroon-animaties worden bij een update niet meer gereset, maar pakken de beweging op waar ze waren.
-- **Slice-koppeling in rijen**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie. Het virtuele vlak volgt exact de werkelijke posities op de pixelmap: rijen van boven naar beneden, binnen een rij van links naar rechts. Staan er 3 slices naast elkaar en 3 daaronder, dan komt slice 4 dus onder slice 1 (niet naast slice 3) en loopt de koppeling rij voor rij door. Dit geldt ook voor groepen die in een eerdere versie zijn gekoppeld. Cirkel en kruis lopen over alle naden heen door.
+- **Slice-koppeling**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie. **Koppel ↔** zet alle geselecteerde slices virtueel in één rij van links naar rechts; **Koppel ↕** zet ze in één kolom van boven naar onder. De volgorde volgt de leesvolgorde op de canvas (rij voor rij, links → rechts), maar de fysieke posities op de canvas blijven precies staan. Zo wordt een 3×2-raster bij horizontaal koppelen één virtueel vlak van 1×6, terwijl de slices op de canvas in hun 3×2-opstelling blijven liggen. Cirkel en kruis lopen over alle naden heen door.
 - **Virtuele indeling vastgezet**: op het moment van koppelen wordt de virtuele plaats van elke slice vastgelegd (rij, kolom, offset en resolutie). Verplaats je daarna een slice op de pixelmap, dan blijft het virtuele beeld gelijk: de slice behoudt zijn eigen deel van het virtuele vlak en alleen de fysieke positie verandert. Met **Herbereken indeling** leg je de indeling opnieuw vast op basis van de huidige posities.
 - **Doorlopend kruis en rondje**: markeringen worden op het virtuele vlak van de hele groep berekend en per slice geclipt, zodat ze exact op de naad aansluiten.
 - **Koppeling-sectie per slice**: badge met positie (bijv. 🔗 2/3), rij/kolom in het virtuele vlak, **Selecteer groep**, **Herbereken indeling** en **Ontkoppel**.
 - **Leider bepaalt de cirkelvorm**: de eerste slice in de groep bepaalt de cirkelvervorming (zodat de vorm op de naad aansluit). Cirkel, kruis en tekstkleur (zwart/wit) blijven **per slice** instelbaar en werken gewoon door in een gekoppelde groep.
-- **Automatische volgorde**: bij koppelen wordt de selectie rij voor rij op positie gesorteerd (boven → beneden, links → rechts) en daarna vastgezet.
+- **Automatische volgorde**: bij koppelen wordt de selectie in leesvolgorde gesorteerd (boven → beneden, links → rechts) en daarna vastgezet.
 - **Live Output pixel-per-pixel**: de live-uitgang toont nu de echte canvasresolutie 1:1 vanaf 0,0 (canvaspixel = uitvoerpixel), zonder de geschaalde 1300×640-overview en zonder CSS-schaling. Is de canvas groter dan het scherm, dan worden de buitenste pixels afgeknipt.
 - **RGB-waarden per object**: onder de kleur-slider staan drie velden met de exacte R/G/B-waarden (0–255). Je kunt ze bewerken, met de kopieerknop kopiëren en met de plakknop direct op een ander object toepassen (of handmatig plakken als `r, g, b`), zodat de kleur exact gelijk wordt.
 - **Bevestiging bij bestaand exportbestand**: als je 1:1 + Scaled Output exporteert en er bestaat al een PNG met dezelfde naam, vraagt de app eerst om bevestiging met **Annuleren** of **Overschrijven**. Er wordt nooit stilzwijgend overschreven of automatisch hernoemd.
@@ -63,7 +63,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Gekoppelde slice is los te verplaatsen en snapt daarbij
 - [x] Snapt de hele groep als één object wanneer de groep geselecteerd is
 - [x] Pijltjestoetsen verplaatsen de geselecteerde slices (groep bij groep-selectie)
-- [x] Koppelvolgorde volgt de pixelmap: 4 komt onder 1, niet naast 3
+- [x] Horizontaal koppelen: alle geselecteerde slices virtueel in één rij, posities op de canvas blijven staan
 - [x] Virtuele indeling blijft vast bij verplaatsen van een gekoppelde slice
 - [x] Knop **Herbereken indeling** om de virtuele indeling opnieuw vast te leggen
 - [x] 2×3-koppeling vormt één virtueel vlak met doorlopende cirkel/kruis
