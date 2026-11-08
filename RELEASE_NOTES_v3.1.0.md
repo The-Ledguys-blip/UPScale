@@ -6,6 +6,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 
 ## What's New
 
+- **Tab in het objecten-menu**: met Tab ga je direct naar de invulbare velden (naam, R/G/B, positie, resolutie, checkboxes). De ▲/▼-stapknoppen, schuifbalken en icoon-knoppen worden overgeslagen, zodat je snel door de gegevens heen tabt. Alles blijft gewoon met de muis bedienbaar.
 - **Live Output vloeiend met meerdere uitgangen**: elk live-venster krijgt alleen nog een nieuw beeld als zijn eigen canvas echt verandert. Bij 1, 2 en 4 live outputs blijven de vensters op 60 fps en blijft ook de hoofdapp op 60 fps, ook tijdens het slepen van een slice. Lopende testpatroon-animaties worden bij een update niet meer gereset, maar pakken de beweging op waar ze waren.
 - **Slice-koppeling (horizontaal/verticaal)**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie.
 - **Doorlopend kruis en rondje**: markeringen worden op het virtuele vlak van de hele groep berekend en per slice geclipt, zodat ze exact op de naad aansluiten.
@@ -66,6 +67,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] 1, 2 en 4 live outputs blijven op 60 fps
 - [x] Hoofdapp blijft op 60 fps tijdens slepen met 4 live outputs
 - [x] Testpatroon-animatie loopt door in live output tijdens updates
+- [x] Tab in objecten-menu slaat pijltjes, sliders en knoppen over
 - [x] RGB-velden tonen de exacte waarden en zijn bewerkbaar
 - [x] Kopieer- en plakknop voor exacte objectkleur werken
 - [x] Gekopieerde kleur plakken als 'r, g, b' werkt in een ander object

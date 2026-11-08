@@ -5473,6 +5473,19 @@ function renderSlices(){
   }).join('');
   updatePanelPreviews();
   refreshSidebarSelectionStyles();
+  applySliceTabOrder();
+}
+
+/* Houd de Tab-volgorde in het objecten-menu gericht op invoervelden.
+   Schuifbalken en knoppen (▲/▼, reset, verwijderen, kopiëren, koppelen)
+   slaan we met Tab over, zodat je direct van het ene invulbare veld naar het
+   volgende gaat. Alle knoppen en sliders blijven gewoon met de muis werken. */
+function applySliceTabOrder(){
+  const list = el('slicesList');
+  if(!list) return;
+  list.querySelectorAll('.slice-card input[type=range], .slice-card button').forEach(node=>{
+    node.tabIndex = -1;
+  });
 }
 
 function toggleCollapse(id){
