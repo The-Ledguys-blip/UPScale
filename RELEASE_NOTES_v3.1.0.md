@@ -12,7 +12,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - **Leider bepaalt de cirkelvorm**: de eerste slice in de groep bepaalt de cirkelvervorming (zodat de vorm op de naad aansluit). Cirkel, kruis en tekstkleur (zwart/wit) blijven **per slice** instelbaar en werken gewoon door in een gekoppelde groep.
 - **Automatische volgorde**: bij koppelen wordt horizontaal gesorteerd op X en verticaal op Y; daarna handmatig aan te passen.
 - **Live Output pixel-per-pixel**: de live-uitgang toont nu de echte canvasresolutie 1:1 vanaf 0,0 (canvaspixel = uitvoerpixel), zonder de geschaalde 1300×640-overview en zonder CSS-schaling. Is de canvas groter dan het scherm, dan worden de buitenste pixels afgeknipt.
-- **RGB-waarden per object**: onder de kleur-slider staan drie velden met de exacte R/G/B-waarden (0–255). Je kunt ze bewerken of met de kopieerknop als `r, g, b` kopiëren en in een ander object plakken, zodat de kleur exact gelijk wordt.
+- **RGB-waarden per object**: onder de kleur-slider staan drie velden met de exacte R/G/B-waarden (0–255). Je kunt ze bewerken, met de kopieerknop kopiëren en met de plakknop direct op een ander object toepassen (of handmatig plakken als `r, g, b`), zodat de kleur exact gelijk wordt.
 - **Los verplaatsen of als groep**: een gekoppelde slice kun je gewoon individueel slepen en snappen. Selecteer je de hele groep (Shift+klik of **Selecteer groep**), dan verplaatst en snapt de groep als één object op andere slices en de canvas.
 - **Shift+klik multi-select**: houd Shift (of Cmd/Ctrl) ingedrukt en klik slices aan of uit in de 1:1-weergave en Stage; de selectiebalk en koppel-knoppen volgen direct.
 - **Duurzaam**: koppeling wordt opgeslagen in project/autosave, meegenomen in undo/redo, en opgeruimd bij verwijderen of plakken.
@@ -61,6 +61,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Live-uitgang toont 1:1 canvasresolutie vanaf 0,0 (geen overview/schaling)
 - [x] Live-router per canvas blijft werken
 - [x] RGB-velden tonen de exacte waarden en zijn bewerkbaar
+- [x] Kopieer- en plakknop voor exacte objectkleur werken
 - [x] Gekopieerde kleur plakken als 'r, g, b' werkt in een ander object
 - [x] Kleur en RGB blijven bewaard na herladen
 - [x] Persistentie na herladen (autosave)
