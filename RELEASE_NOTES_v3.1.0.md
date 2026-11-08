@@ -9,7 +9,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - **Slice-koppeling (horizontaal/verticaal)**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie.
 - **Doorlopend kruis en rondje**: markeringen worden op het virtuele vlak van de hele groep berekend en per slice geclipt, zodat ze exact op de naad aansluiten.
 - **Koppeling-sectie per slice**: badge met positie (bijv. 🔗 2/3), uitleg, volgorde aanpassen met ◀/▶, groep selecteren en ontkoppelen.
-- **Leider bepaalt de groep**: de eerste slice in de groep bepaalt cirkel, kruis, cirkelvervorming en tekstkleur voor alle leden. Niet-leiders tonen deze controls disabled.
+- **Leider bepaalt de cirkelvorm**: de eerste slice in de groep bepaalt de cirkelvervorming (zodat de vorm op de naad aansluit). Cirkel, kruis en tekstkleur (zwart/wit) blijven **per slice** instelbaar en werken gewoon door in een gekoppelde groep.
 - **Automatische volgorde**: bij koppelen wordt horizontaal gesorteerd op X en verticaal op Y; daarna handmatig aan te passen.
 - **Duurzaam**: koppeling wordt opgeslagen in project/autosave, meegenomen in undo/redo, en opgeruimd bij verwijderen of plakken.
 
@@ -45,7 +45,9 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Horizontaal koppelen: cirkel en kruis lopen exact door over de verticale naad
 - [x] Verticaal koppelen: cirkel en kruis lopen exact door over de horizontale naad
 - [x] Markeringen per slice geclipt op eigen rechthoek
-- [x] Leider-instellingen (cirkel/kruis/tekstkleur) propageren naar alle groepsleden
+- [x] Cirkel/kruis-checkboxen werken per slice, ook binnen een koppeling
+- [x] Tekstkleur zwart/wit werkt per slice, ook binnen een koppeling
+- [x] Cirkelvorm (vervorming) wordt door de leider bepaald
 - [x] Badge, status en disabled controls in de slice-kaarten
 - [x] Persistentie na herladen (autosave)
 - [x] Groep wordt opgeheven bij verwijderen van een lid

@@ -3789,9 +3789,10 @@ function nextLinkGroupId(list){
   return all.reduce((m,s)=>Math.max(m, Number(s.linkGroup) || 0), 0) + 1;
 }
 
-/* De eerste slice in de groep is de "leider": cirkel/kruis-instellingen en
-   tekstkleur van de leider gelden voor de hele groep, zodat de markeringen
-   gegarandeerd op elkaar aansluiten. */
+/* De eerste slice in de groep is de "leider". Alleen de cirkelvorm
+   (vervorming) wordt van de leider overgenomen, zodat de markeringen op de
+   naad op elkaar aansluiten. Cirkel, kruis en tekstkleur blijven per slice
+   instelbaar. */
 function syncLinkGroupSettings(list){
   const all = Array.isArray(list) ? list : slices;
   const groups = {};
@@ -3813,11 +3814,8 @@ function syncLinkGroupSettings(list){
     members.forEach((s,i)=>{
       s.linkOrder = i;
       s.linkAxis = axis;
-      s.showCircle = !!leader.showCircle;
-      s.showCross = !!leader.showCross;
       s.titleCropHorizontal = Number(leader.titleCropHorizontal) || 0;
       s.titleCropVertical = Number(leader.titleCropVertical) || 0;
-      s.textColorPct = Number(leader.textColorPct) || 50;
     });
   });
 }
@@ -3848,10 +3846,11 @@ function linkSelectedSlices(axis){
     s.linkOrder = i;
     s.linkAxis = dir;
   });
-  const leader = members[0];
   if(!members.some(s=>s.showCircle || s.showCross)){
-    leader.showCircle = true;
-    leader.showCross = true;
+    members.forEach(s=>{
+      s.showCircle = true;
+      s.showCross = true;
+    });
   }
   syncLinkGroupSettings();
   renderSlices();
@@ -4918,6 +4917,7 @@ function renderSlices(){
     const comp = computeSlice(s);
     const link = getSliceLinkInfo(s);
     const overlayLocked = !!(link && link.index !== 0);
+    const linkCircleOn = link ? link.members.some(m=>!!m.showCircle) : !!s.showCircle;
     const panelInfo = (s.type==='slice' && s.mode==='panels') ? `<span>${s.panelsX}×${s.panelsY} panelen</span>` : '';
     return `
     <div class="slice-card ${s.collapsed?'collapsed':''} ${selectedSliceIds.has(s.id)?'active-selected':''} ${link?'linked':''}" id="card-${s.id}" style="--slice-color:${color}">
@@ -4988,8 +4988,8 @@ function renderSlices(){
             <button type="button" onclick="unlinkLinkGroupOf(${s.id})">Ontkoppel</button>
           </div>
           ${link.index!==0
-            ? `<div class="hint-input">Kruis en rondje worden bepaald door <b>${escapeHtmlText(link.leader.name)}</b>.</div>`
-            : `<div class="hint-input">Deze slice bepaalt het kruis en rondje voor de hele groep.</div>`}
+            ? `<div class="hint-input">De cirkelvorm wordt bepaald door <b>${escapeHtmlText(link.leader.name)}</b>. Cirkel, kruis en tekstkleur stel je per slice in; zo lopen ze samen door over de naad.</div>`
+            : `<div class="hint-input">Deze slice bepaalt de cirkelvorm voor de hele groep. Cirkel, kruis en tekstkleur stel je per slice in; zo lopen ze samen door over de naad.</div>`}
           ` : `
           <div class="hint-input">Selecteer 2 of meer slices en klik op <b>Koppel ↔</b> of <b>Koppel ↕</b> in de balk boven de compositie. Het kruis en rondje lopen dan door over de naad tussen de slices.</div>
           `}
@@ -5090,7 +5090,7 @@ function renderSlices(){
               </div>
               <div class="title-size-row">
                 <label>Cirkel horizontaal</label>
-                <input type="range" data-f="titleCropHorizontal" min="0" max="100" step="1" value="${s.titleCropHorizontal || 0}" ${(s.showCircle && !overlayLocked) ? '' : 'disabled'} oninput="el('titleCropHorizontalVal-${s.id}').textContent=this.value; recalcAll()">
+                <input type="range" data-f="titleCropHorizontal" min="0" max="100" step="1" value="${s.titleCropHorizontal || 0}" ${(linkCircleOn && !overlayLocked) ? '' : 'disabled'} oninput="el('titleCropHorizontalVal-${s.id}').textContent=this.value; recalcAll()">
                 <span class="val" id="titleCropHorizontalVal-${s.id}" ondblclick="startInlineEdit(event,${s.id},'titleCropHorizontal',0,100)">${s.titleCropHorizontal || 0}</span>
                 <div class="stepper-btns-inline">
                   <button type="button" onclick="stepTitleCrop(${s.id},'titleCropHorizontal',1)">▲</button>
@@ -5100,7 +5100,7 @@ function renderSlices(){
               </div>
               <div class="title-size-row" style="margin-bottom:0;">
                 <label>Cirkel verticaal</label>
-                <input type="range" data-f="titleCropVertical" min="0" max="100" step="1" value="${s.titleCropVertical || 0}" ${(s.showCircle && !overlayLocked) ? '' : 'disabled'} oninput="el('titleCropVerticalVal-${s.id}').textContent=this.value; recalcAll()">
+                <input type="range" data-f="titleCropVertical" min="0" max="100" step="1" value="${s.titleCropVertical || 0}" ${(linkCircleOn && !overlayLocked) ? '' : 'disabled'} oninput="el('titleCropVerticalVal-${s.id}').textContent=this.value; recalcAll()">
                 <span class="val" id="titleCropVerticalVal-${s.id}" ondblclick="startInlineEdit(event,${s.id},'titleCropVertical',0,100)">${s.titleCropVertical || 0}</span>
                 <div class="stepper-btns-inline">
                   <button type="button" onclick="stepTitleCrop(${s.id},'titleCropVertical',1)">▲</button>
@@ -5111,8 +5111,8 @@ function renderSlices(){
             </div>
           </div>
           <div class="overlay-row">
-            <label><input type="checkbox" data-f="showCircle" ${s.showCircle?'checked':''} ${overlayLocked?'disabled':''} onchange="recalcAll(); renderSlices();"> Cirkel</label>
-            <label><input type="checkbox" data-f="showCross" ${s.showCross?'checked':''} ${overlayLocked?'disabled':''} onchange="recalcAll(); renderSlices();"> Kruis</label>
+            <label><input type="checkbox" data-f="showCircle" ${s.showCircle?'checked':''} onchange="recalcAll(); renderSlices();"> Cirkel</label>
+            <label><input type="checkbox" data-f="showCross" ${s.showCross?'checked':''} onchange="recalcAll(); renderSlices();"> Kruis</label>
             <label><input type="checkbox" data-f="roundedCorners" ${s.roundedCorners?'checked':''} onchange="recalcAll(); updatePanelPreviews(); renderSlices();"> Ronde hoeken</label>
           </div>
           <div class="overlay-row">
@@ -5378,10 +5378,10 @@ function overlayMarks(s, x, y, w, h, lineScale){
   const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
   const link = getSliceLinkInfo(s);
   const leader = link ? link.leader : s;
-  const showCircle = !!leader.showCircle;
-  const showCross = !!leader.showCross;
+  const showCircle = !!s.showCircle;
+  const showCross = !!s.showCross;
   if(!showCircle && !showCross) return '';
-  const markColor = sliceTextColor(leader);
+  const markColor = sliceTextColor(s);
   const hasHoles = (s.type==='slice' && s.mode==='panels' && s.removedPanels && s.removedPanels.length>0);
   const groupHasHoles = link ? link.members.some(m=>
     m.type==='slice' && m.mode==='panels' && m.removedPanels && m.removedPanels.length>0
