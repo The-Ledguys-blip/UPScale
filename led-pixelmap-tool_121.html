@@ -996,7 +996,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
             </div>
           </div>
           <div class="legend" id="realLegend"></div>
-          <div class="note">Sleep een slice om te verplaatsen — randen magnetiseren op andere slices en de canvas. Sleep op de lege achtergrond om een selectiekader te trekken en meerdere slices tegelijk te selecteren (dan te verplaatsen met de muis of de pijltjestoetsen). <b>Shift</b> + klik op een slice om die aan de selectie toe te voegen of eruit te halen. Gekoppelde slices verplaatsen en snappen als één groep. Houd <b>spatie</b> ingedrukt en sleep om te pannen (hand-tool). <b>Ctrl</b> + dubbelklik op een paneel om het te verwijderen of terug te zetten. <b>Ctrl+Shift</b> + klik om meerdere panelen te selecteren. <b>Pinch</b> (2 vingers uit elkaar op het trackpad) zoomt in/uit.</div>
+          <div class="note">Sleep een slice om te verplaatsen — randen magnetiseren op andere slices en de canvas. Sleep op de lege achtergrond om een selectiekader te trekken en meerdere slices tegelijk te selecteren (dan te verplaatsen met de muis of de pijltjestoetsen). <b>Shift</b> + klik op een slice om die aan de selectie toe te voegen of eruit te halen. Een gekoppelde slice kun je gewoon los verplaatsen; selecteer de hele groep (bijv. via <b>Selecteer groep</b>) om die als één geheel te verplaatsen en te snappen. Houd <b>spatie</b> ingedrukt en sleep om te pannen (hand-tool). <b>Ctrl</b> + dubbelklik op een paneel om het te verwijderen of terug te zetten. <b>Ctrl+Shift</b> + klik om meerdere panelen te selecteren. <b>Pinch</b> (2 vingers uit elkaar op het trackpad) zoomt in/uit.</div>
         </div>
       </div>
     </div>
@@ -2606,13 +2606,7 @@ document.addEventListener('keydown', (e)=>{
     if(e.key==='ArrowLeft') dx = -step;
     if(e.key==='ArrowRight') dx = step;
     const moveStage = activeTab === 'stage';
-    const moveIds = new Set(selectedSliceIds);
     selectedSliceIds.forEach(id=>{
-      const s = slices.find(x=>x.id===id);
-      const info = getSliceLinkInfo(s);
-      if(info) info.members.forEach(m=>moveIds.add(m.id));
-    });
-    moveIds.forEach(id=>{
       const s = slices.find(x=>x.id===id);
       if(!s) return;
       if(moveStage){
@@ -3737,13 +3731,10 @@ function startDrag(evt, id){
   if(!s) return;
   const comp = computeSlice(s);
 
-  /* Gekoppelde slices gedragen zich als één object: sleep je er één, dan
-     verhuist de hele groep mee en snapt de groep als geheel. */
-  const baseIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id];
-  const groupIdSet = new Set(baseIds);
-  const linkInfo = getSliceLinkInfo(s);
-  if(linkInfo) linkInfo.members.forEach(m=>groupIdSet.add(m.id));
-  const groupIds = [...groupIdSet];
+  /* Sleep je één slice, dan verplaatst alleen die slice. Selecteer je
+     meerdere slices (of de hele koppelgroep via "Selecteer groep"), dan
+     verhuist de selectie als één geheel en snapt de groep als geheel. */
+  const groupIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id];
   const groupStart = {};
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   groupIds.forEach(gid=>{
@@ -4121,10 +4112,7 @@ function startStageDrag(evt, id){
   if(!target) return;
   ensureStagePos(target);
 
-  const groupIdSet = new Set((selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id]);
-  const linkInfo = getSliceLinkInfo(target);
-  if(linkInfo) linkInfo.members.forEach(m=>groupIdSet.add(m.id));
-  const groupIds = [...groupIdSet];
+  const groupIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id];
   const groupStart = {};
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   groupIds.forEach(gid=>{
