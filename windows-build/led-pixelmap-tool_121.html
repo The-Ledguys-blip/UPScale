@@ -864,7 +864,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
         </div>
       </div>
     </div>
-    <input type="file" id="projectLoadInput" accept="application/json,.json" style="display:none" onchange="handleLoadProject(event)">
+    <input type="file" id="projectLoadInput" accept=".up,.json,application/json" style="display:none" onchange="handleLoadProject(event)">
   </div>
 
 <div class="settings-popup" id="realSettingsBar">
@@ -3321,11 +3321,22 @@ const APP_VERSION = 'v3.1.0';
 let activeTab = 'real';
 let lastSavedFilename = null;
 const DEFAULT_APP_TITLE = 'Untitled Project';
+const PROJECT_EXT = '.UP';
+const PROJECT_EXT_RE = /\.(?:up|json)$/i;
+
+function projectDisplayName(name){
+  return name ? String(name).replace(PROJECT_EXT_RE, '') : DEFAULT_APP_TITLE;
+}
+
+function normalizeProjectFilename(name){
+  const base = projectDisplayName(name).trim();
+  return (base || 'pixelmap-project') + PROJECT_EXT;
+}
 
 function updateHeaderTitle(){
   const h1 = el('appTitle');
   if(!h1) return;
-  const displayName = lastSavedFilename ? lastSavedFilename.replace(/\.json$/i, '') : DEFAULT_APP_TITLE;
+  const displayName = projectDisplayName(lastSavedFilename);
   h1.textContent = displayName;
   
   // Update document title - this may be reflected in the window title bar
@@ -3713,7 +3724,7 @@ function serializeProject(){
 
 function downloadProjectFile(filename){
   const data = serializeProject();
-  const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+  const blob = new Blob([JSON.stringify(data)], {type:'application/octet-stream'});
   const link = document.createElement('a');
   link.download = filename;
   link.href = URL.createObjectURL(blob);
@@ -3730,10 +3741,10 @@ function saveProject(){
 }
 
 function saveProjectAs(){
-  const suggestion = lastSavedFilename ? lastSavedFilename.replace(/\.json$/,'') : 'pixelmap-project';
-  const name = prompt('Bestandsnaam:', suggestion);
-  if(!name) return;
-  const filename = name.toLowerCase().endsWith('.json') ? name : name + '.json';
+  const suggestion = projectDisplayName(lastSavedFilename);
+  const name = prompt('Bestandsnaam (.UP):', suggestion);
+  if(!name || !name.trim()) return;
+  const filename = normalizeProjectFilename(name);
   lastSavedFilename = filename;
   updateHeaderTitle();
   downloadProjectFile(filename);
@@ -3802,10 +3813,10 @@ function handleLoadProject(evt){
     try{
       const data = JSON.parse(e.target.result);
       restoreProject(data);
-      lastSavedFilename = file.name;
+      lastSavedFilename = normalizeProjectFilename(file.name);
       updateHeaderTitle();
     }catch(err){
-      alert('Kon dit bestand niet laden — is het een geldig projectbestand?');
+      alert('Kon dit bestand niet laden — is het een geldig UPScale-projectbestand (.UP)?');
     }
   };
   reader.readAsText(file);
@@ -7508,7 +7519,7 @@ function exportStagePNG(){
 
   if(btn) btn.disabled = true;
   const svg = buildStageLayoutSVGString(comp, stage, w, h);
-  const projectName = lastSavedFilename ? lastSavedFilename.replace(/\.json$/i, '') : DEFAULT_APP_TITLE;
+  const projectName = projectDisplayName(lastSavedFilename);
   const filename = `${projectName}-Stage Layout Export.png`;
 
   rasterizeSVGToPNG(svg, w, h, filename, (ok)=>{
@@ -7721,7 +7732,7 @@ async function exportScaledPNG(){
   }
 
   // Always use a project name (saved or default) in filenames
-  const projectName = lastSavedFilename ? lastSavedFilename.replace(/\.json$/i, '') : DEFAULT_APP_TITLE;
+  const projectName = projectDisplayName(lastSavedFilename);
   const filename1 = `${projectName}-1-1.png`;
   const filename2 = `${projectName}-scaled-output.png`;
 

@@ -51,6 +51,13 @@ def sanitize_path_component(value: str, fallback: str = "export") -> str:
     return cleaned or fallback
 
 
+def project_display_name(value, fallback: str = "Untitled Project") -> str:
+    """Strip the UPScale project extension (.UP) or legacy .json from a name."""
+    name = str(value or "").strip()
+    name = re.sub(r'\.(?:json|up)$', '', name, flags=re.IGNORECASE).strip()
+    return name or fallback
+
+
 def _config_file_path() -> Path:
     if sys.platform.startswith("win"):
         base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
@@ -555,7 +562,7 @@ class MainWindow(QMainWindow):
     def _update_title_from_js(self, project_name) -> None:
         """Update the window title based on JavaScript result."""
         try:
-            clean_name = str(project_name).replace('.json', '').replace('.JSON', '').strip() if project_name else 'Untitled Project'
+            clean_name = project_display_name(project_name)
             new_title = f"UPScale — {clean_name}"
             if self.windowTitle() != new_title:
                 self.setWindowTitle(new_title)
@@ -968,7 +975,7 @@ class MainWindow(QMainWindow):
             def set_session_name(self, name: str) -> str:
                 """Update the app window title with the session name."""
                 try:
-                    clean_name = name.replace('.json', '').replace('.JSON', '').strip() if name else None
+                    clean_name = project_display_name(name, fallback="") or None
                     main_window.session_name = clean_name
                     # Always update title if we have a name (even default names like "Untitled Project")
                     if clean_name:
@@ -989,7 +996,7 @@ class MainWindow(QMainWindow):
                     if not timestamp or not re.match(r'^\d{8}_\d{6}$', timestamp):
                         return False
                     # Clean project name for folder
-                    clean_project = project_name.replace('.json', '').replace('.JSON', '').strip() if project_name else 'export'
+                    clean_project = project_display_name(project_name, fallback='export')
                     clean_project = sanitize_path_component(clean_project, fallback='export')
                     folder_name = f"UPScale-export-{clean_project}-{timestamp}"
                     target_dir = downloads_dir / folder_name
