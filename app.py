@@ -931,13 +931,37 @@ class MainWindow(QMainWindow):
         # auto-trigger export for testing when environment variable is set
         if os.environ.get('UPSCAPE_AUTO_EXPORT') == '1':
             try:
-                self.web_view.page().runJavaScript('exportScaledPNG();')
+                self.web_view.page().runJavaScript(
+                    'window.__upscaleSkipOverwritePrompt=true; exportScaledPNG();'
+                )
             except Exception:
                 pass
 
     def _make_bridge(self):
         downloads_dir = get_downloads_dir()
         main_window = self
+
+        def export_target(filename: str) -> Path:
+            """Resolve the destination path used for generated PNG exports.
+
+            Must stay in sync with the filename scheme used by exportScaledPNG()
+            (PROJECT-1-1.png and PROJECT-scaled-output.png).
+            """
+            clean = (filename or '').strip() or 'export.png'
+            target = downloads_dir / clean
+            try:
+                project_name = ''
+                if clean.endswith('-1-1.png'):
+                    project_name = sanitize_path_component(clean[:-8])
+                elif clean.endswith('-scaled-output.png'):
+                    project_name = sanitize_path_component(clean[:-18])
+                elif '-' in clean:
+                    project_name = sanitize_path_component(clean.rsplit('.', 1)[0])
+                if project_name:
+                    target = downloads_dir / f"UPScale-export-{project_name}" / clean
+            except Exception:
+                LOGGER.exception("export_target resolve failed for %s", filename)
+            return target
 
         class Bridge(QObject):
             @Slot(str, result=str)
@@ -976,30 +1000,21 @@ class MainWindow(QMainWindow):
                     LOGGER.exception("prepare_export failed: %s", e)
                     return False
 
+            @Slot(str, result=bool)
+            def file_exists(self, filename: str) -> bool:
+                """Return True when an export with this name already exists."""
+                try:
+                    return export_target(filename).exists()
+                except Exception:
+                    LOGGER.exception("file_exists failed for %s", filename)
+                    return False
+
             @Slot(str, str, result=bool)
             def save_file(self, filename: str, b64data: str) -> bool:
                 try:
                     data = base64.b64decode(b64data)
-                    # Parse filename format: PROJECTNAME-1-1.png or PROJECTNAME-scaled-output.png
-                    # Extract project name by removing the file type suffix
-                    target = downloads_dir / filename
-                    
-                    if '-' in filename:
-                        # Check if filename ends with -1-1.png or -scaled-output.png
-                        if filename.endswith('-1-1.png'):
-                            project_name = sanitize_path_component(filename[:-8])  # Remove '-1-1.png'
-                        elif filename.endswith('-scaled-output.png'):
-                            project_name = sanitize_path_component(filename[:-18])  # Remove '-scaled-output.png'
-                        else:
-                            project_name = sanitize_path_component(filename.rsplit('.', 1)[0])  # Fallback: remove extension
-                        
-                        if project_name:
-                            folder_name = f"UPScale-export-{project_name}"
-                            target_dir = downloads_dir / folder_name
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            target = target_dir / filename
-                            LOGGER.info("save_file target folder %s", folder_name)
-                    
+                    target = export_target(filename)
+                    target.parent.mkdir(parents=True, exist_ok=True)
                     LOGGER.info("save_file writing %s", target)
                     with open(target, 'wb') as f:
                         f.write(data)

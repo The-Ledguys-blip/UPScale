@@ -372,6 +372,15 @@
   .crop-actions{display:flex;gap:8px;}
   .crop-canvas-wrap{flex:1;background:#000;display:flex;align-items:center;justify-content:center;position:relative;}
   .crop-canvas{max-width:100%;max-height:100%;display:block;cursor:crosshair;}
+  .export-conflict-shell{width:min(430px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 80px -20px rgba(0,0,0,.85);overflow:hidden;}
+  .export-conflict-head{padding:13px 15px;border-bottom:1px solid var(--line-soft);}
+  .export-conflict-head h3{margin:0;font-size:13px;font-weight:600;color:var(--text);}
+  .export-conflict-body{padding:14px 15px;}
+  .export-conflict-body p{margin:0 0 8px;font-size:12.5px;color:var(--text-dim);line-height:1.5;}
+  .export-conflict-body p:last-child{margin:0;}
+  .export-conflict-body ul{margin:0 0 10px;padding-left:18px;max-height:150px;overflow:auto;}
+  .export-conflict-body li{font-family:var(--font-mono);font-size:11.5px;color:var(--text);word-break:break-all;margin:2px 0;}
+  .export-conflict-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 15px;border-top:1px solid var(--line-soft);background:var(--panel-2);}
   .stage-svg-wrap{position:relative;width:100%;aspect-ratio:1300/640;}
   .stage-svg-wrap svg{width:100%;height:auto;display:block;touch-action:none;}
 </style>
@@ -1432,6 +1441,23 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
     </div>
     <div class="crop-canvas-wrap">
       <canvas id="stageCropCanvas" class="crop-canvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="crop-modal" id="exportConflictModal">
+  <div class="export-conflict-shell" role="dialog" aria-modal="true" aria-labelledby="exportConflictTitle">
+    <div class="export-conflict-head">
+      <h3 id="exportConflictTitle">Bestand bestaat al</h3>
+    </div>
+    <div class="export-conflict-body">
+      <p>Er bestaat al een bestand met dezelfde naam:</p>
+      <ul id="exportConflictList"></ul>
+      <p>Wil je het bestaande bestand overschrijven? Kies <b>Annuleren</b> om niets te wijzigen.</p>
+    </div>
+    <div class="export-conflict-actions">
+      <button type="button" class="stage-btn" id="exportCancelBtn" onclick="resolveExportConflict('cancel')">Annuleren</button>
+      <button type="button" class="stage-btn stage-btn-accent" id="exportOverwriteBtn" onclick="resolveExportConflict('overwrite')">Overschrijven</button>
     </div>
   </div>
 </div>
@@ -7227,7 +7253,69 @@ function rasterizeSVGToPNG(svgString, w, h, filename, onDone){
   img.src = url;
 }
 
-function exportScaledPNG(){
+function pyBridgeReady(timeoutMs){
+  if(window.py) return Promise.resolve(true);
+  if(typeof qt === 'undefined' || !qt.webChannelTransport) return Promise.resolve(false);
+  return new Promise(resolve=>{
+    const start = Date.now();
+    const limit = timeoutMs || 1500;
+    const tick = ()=>{
+      if(window.py){ resolve(true); return; }
+      if(Date.now() - start >= limit){ resolve(false); return; }
+      setTimeout(tick, 40);
+    };
+    tick();
+  });
+}
+
+function callPy(method, args){
+  return new Promise(resolve=>{
+    const fn = window.py && window.py[method];
+    if(typeof fn !== 'function'){ resolve(undefined); return; }
+    let settled = false;
+    const done = (value)=>{ if(!settled){ settled = true; resolve(value); } };
+    try{
+      const ret = fn.apply(window.py, (args || []).concat([done]));
+      if(ret !== undefined) done(ret);
+    }catch(e){ done(undefined); }
+  });
+}
+
+function exportFileNameExists(filename){
+  return callPy('file_exists', [filename]).then(v=>!!v).catch(()=>false);
+}
+
+let exportConflictResolve = null;
+
+function askExportOverwrite(filenames){
+  return new Promise(resolve=>{
+    const modal = el('exportConflictModal');
+    const list = el('exportConflictList');
+    if(!modal || !list){ resolve('overwrite'); return; }
+    list.innerHTML = filenames.map(n=>'<li>'+escapeHtmlText(n)+'</li>').join('');
+    exportConflictResolve = resolve;
+    modal.classList.add('open');
+    const cancel = el('exportCancelBtn');
+    if(cancel && cancel.focus){ try{ cancel.focus(); }catch(e){} }
+  });
+}
+
+function resolveExportConflict(choice){
+  const modal = el('exportConflictModal');
+  if(modal) modal.classList.remove('open');
+  const resolve = exportConflictResolve;
+  exportConflictResolve = null;
+  if(resolve) resolve(choice === 'overwrite' ? 'overwrite' : 'cancel');
+}
+
+window.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && exportConflictResolve){
+    e.preventDefault();
+    resolveExportConflict('cancel');
+  }
+});
+
+async function exportScaledPNG(){
   const btn = document.querySelector('.export-btn');
   const hint = el('exportHint');
   const comp = getComposition();
@@ -7260,9 +7348,34 @@ function exportScaledPNG(){
 
   // Always use a project name (saved or default) in filenames
   const projectName = lastSavedFilename ? lastSavedFilename.replace(/\.json$/i, '') : DEFAULT_APP_TITLE;
-  console.log('[EXPORT] projectName:', projectName);
   const filename1 = `${projectName}-1-1.png`;
   const filename2 = `${projectName}-scaled-output.png`;
+
+  /* In de desktop-app kunnen we controleren of het doelbestand al bestaat.
+     Zo ja: nooit stilzwijgend overschrijven, maar eerst Cancel/Overschrijven
+     vragen. In een gewone browser is dit niet betrouwbaar vast te stellen. */
+  const bridgeReady = await pyBridgeReady(1500);
+  if(bridgeReady && !window.__upscaleSkipOverwritePrompt){
+    const exists = await Promise.all([
+      exportFileNameExists(filename1),
+      exportFileNameExists(filename2)
+    ]);
+    const conflicts = [];
+    if(exists[0]) conflicts.push(filename1);
+    if(exists[1]) conflicts.push(filename2);
+    if(conflicts.length){
+      if(hint) hint.textContent = 'Wachten op bevestiging…';
+      const choice = await askExportOverwrite(conflicts);
+      if(choice !== 'overwrite'){
+        if(btn) btn.disabled = false;
+        if(hint) hint.textContent = 'Export geannuleerd — bestaande bestanden zijn niet gewijzigd.';
+        return;
+      }
+      if(hint) hint.textContent = 'Bezig met overschrijven…';
+    }
+  }
+
+  console.log('[EXPORT] projectName:', projectName);
   console.log('[EXPORT] filename1:', filename1);
   console.log('[EXPORT] filename2:', filename2);
 
