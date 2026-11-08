@@ -2868,6 +2868,8 @@ function pasteSlice(){
     clone.removedPanels = clone.removedPanels || [];
     clone.linkGroup = 0;
     clone.linkOrder = 0;
+    delete clone.linkSlot;
+    delete clone.linkVirtual;
     clone.hue = pickAvailableHue();
     slices.push(clone);
     newIds.push(clone.id);
@@ -3981,6 +3983,92 @@ function ensureLinkFields(slice){
   slice.linkOrder = Math.max(0, Math.round(Number(slice.linkOrder) || 0));
   if(slice.linkAxis !== 'v' && slice.linkAxis !== 'h') slice.linkAxis = 'h';
   if(typeof slice.linkCollapsed !== 'boolean') slice.linkCollapsed = true;
+  if(!slice.linkGroup){
+    delete slice.linkSlot;
+    delete slice.linkVirtual;
+    return;
+  }
+  slice.linkSlot = normalizeLinkSlot(slice.linkSlot);
+  slice.linkVirtual = normalizeLinkVirtual(slice.linkVirtual);
+  if(!slice.linkSlot || !slice.linkVirtual){
+    delete slice.linkSlot;
+    delete slice.linkVirtual;
+  }
+}
+
+/* De virtuele plaats van een slice binnen de koppelgroep. Deze wordt op het
+   moment van koppelen vastgelegd en daarna niet meer uit de fysieke posities
+   herberekend: een slice verplaatsen op de pixelmap verandert het virtuele
+   beeld (rij/kolom en de doorlopende cirkel/kruis) dus niet meer. */
+function normalizeLinkSlot(slot){
+  if(!slot || typeof slot !== 'object') return null;
+  const resX = Math.round(Number(slot.resX));
+  const resY = Math.round(Number(slot.resY));
+  if(!(resX > 0) || !(resY > 0)) return null;
+  return {
+    row: Math.max(0, Math.round(Number(slot.row) || 0)),
+    col: Math.max(0, Math.round(Number(slot.col) || 0)),
+    ox: Math.max(0, Math.round(Number(slot.ox) || 0)),
+    oy: Math.max(0, Math.round(Number(slot.oy) || 0)),
+    resX, resY
+  };
+}
+
+function normalizeLinkVirtual(virtual){
+  if(!virtual || typeof virtual !== 'object') return null;
+  const w = Math.round(Number(virtual.w));
+  const h = Math.round(Number(virtual.h));
+  if(!(w > 0) || !(h > 0)) return null;
+  return {
+    w, h,
+    rows: Math.max(1, Math.round(Number(virtual.rows) || 1)),
+    cols: Math.max(1, Math.round(Number(virtual.cols) || 1))
+  };
+}
+
+/* Leg de huidige indeling vast op alle slices van de groep. */
+function captureLinkLayout(members, layoutInfo){
+  if(!Array.isArray(members) || members.length < 2) return null;
+  const info = layoutInfo || buildLinkLayout(members);
+  info.layout.forEach(slot=>{
+    const m = slot.m;
+    if(!m) return;
+    m.linkSlot = { row: slot.row, col: slot.col, ox: slot.ox, oy: slot.oy, resX: slot.resX, resY: slot.resY };
+    m.linkVirtual = { w: info.virtualW, h: info.virtualH, rows: info.rowCount, cols: info.colCount };
+  });
+  return info;
+}
+
+/* Lees de vastgelegde indeling terug. Geeft null zolang er nog geen
+   volledige indeling is vastgelegd (bijv. een project uit een eerdere
+   versie); de aanroeper legt hem dan eenmalig vast. */
+function frozenLinkLayout(members){
+  if(!Array.isArray(members) || members.length < 2) return null;
+  const entries = [];
+  for(let i=0;i<members.length;i++){
+    const m = members[i];
+    const slot = normalizeLinkSlot(m && m.linkSlot);
+    const virt = normalizeLinkVirtual(m && m.linkVirtual);
+    if(!slot || !virt) return null;
+    entries.push({ m, slot, virt });
+  }
+  entries.sort((a,b)=> (a.slot.row - b.slot.row) || (a.slot.col - b.slot.col) || (a.m.id - b.m.id));
+  const layout = entries.map(e=>({
+    m: e.m, ox: e.slot.ox, oy: e.slot.oy, row: e.slot.row, col: e.slot.col,
+    resX: e.slot.resX, resY: e.slot.resY
+  }));
+  const virtualW = entries.reduce((mx,e)=> Math.max(mx, e.virt.w), 1);
+  const virtualH = entries.reduce((mx,e)=> Math.max(mx, e.virt.h), 1);
+  const rowCount = entries.reduce((mx,e)=> Math.max(mx, e.virt.rows, e.slot.row + 1), 1);
+  const colCount = entries.reduce((mx,e)=> Math.max(mx, e.virt.cols, e.slot.col + 1), 1);
+  const rowSizes = [];
+  layout.forEach(slot=>{ rowSizes[slot.row] = (rowSizes[slot.row] || 0) + 1; });
+  const filled = [];
+  for(let i=0;i<rowCount;i++) filled.push(rowSizes[i] || 0);
+  return {
+    layout, rowSizes: filled, rowCount, colCount,
+    virtualW, virtualH, frozen: true
+  };
 }
 
 function getSliceLinkInfo(slice, list){
@@ -3990,18 +4078,22 @@ function getSliceLinkInfo(slice, list){
   const all = Array.isArray(list) ? list : slices;
   const members = all.filter(x=> (Number(x.linkGroup) || 0) === gid);
   if(members.length < 2) return null;
-  /* De indeling volgt altijd de werkelijke posities op de pixelmap:
-     rijen van boven naar beneden, binnen een rij van links naar rechts.
-     De opgeslagen linkOrder doet hier niet meer aan mee, zodat ook een
-     groep die in een eerdere versie is gekoppeld meteen goed staat. */
-  const layoutInfo = buildLinkLayout(members);
-  const physical = layoutInfo.layout.map(x=> x.m);
+  /* Gebruik de indeling die bij het koppelen is vastgelegd. Alleen als die
+     er nog niet is (oud project of eerste keer) wordt hij nu berekend en
+     vastgelegd. Verplaatsen van een slice laat de indeling daarna met rust. */
+  let layoutInfo = frozenLinkLayout(members);
+  const wasFrozen = !!layoutInfo;
+  if(!layoutInfo){
+    layoutInfo = captureLinkLayout(members);
+  }
+  if(!layoutInfo) return null;
+  const ordered = layoutInfo.layout.map(x=> x.m);
   const index = layoutInfo.layout.findIndex(x=> x.m.id === slice.id);
   if(index < 0) return null;
-  const leader = physical[0];
+  const leader = ordered[0];
   const slot = layoutInfo.layout[index] || null;
   return {
-    gid, members: physical, leader, index, count: physical.length,
+    gid, members: ordered, leader, index, count: ordered.length,
     axis: leader.linkAxis === 'v' ? 'v' : 'h',
     layout: layoutInfo.layout,
     rowSizes: layoutInfo.rowSizes,
@@ -4009,6 +4101,7 @@ function getSliceLinkInfo(slice, list){
     colCount: layoutInfo.colCount,
     virtualW: layoutInfo.virtualW,
     virtualH: layoutInfo.virtualH,
+    frozen: wasFrozen,
     slot,
     row: slot ? slot.row : 0,
     col: slot ? slot.col : 0
@@ -4095,12 +4188,25 @@ function syncLinkGroupSettings(list){
   Object.keys(groups).forEach(key=>{
     const members = groups[key];
     if(members.length < 2){
-      members.forEach(s=>{ s.linkGroup = 0; s.linkOrder = 0; });
+      members.forEach(s=>{
+        s.linkGroup = 0;
+        s.linkOrder = 0;
+        delete s.linkSlot;
+        delete s.linkVirtual;
+      });
       return;
     }
-    const rows = groupLinkRows(members);
-    const ordered = [];
-    rows.forEach(r=> r.members.forEach(it=> ordered.push(it.m)));
+    /* De leider is de slice linksboven in de vastgelegde virtuele indeling.
+       Zo blijft de koppeling stabiel als er fysiek een slice verplaatst. */
+    const frozen = frozenLinkLayout(members);
+    let ordered;
+    if(frozen){
+      ordered = frozen.layout.map(x=> x.m);
+    } else {
+      const rows = groupLinkRows(members);
+      ordered = [];
+      rows.forEach(r=> r.members.forEach(it=> ordered.push(it.m)));
+    }
     const leader = ordered[0];
     const axis = leader.linkAxis === 'v' ? 'v' : 'h';
     ordered.forEach((s,i)=>{
@@ -4141,6 +4247,9 @@ function linkSelectedSlices(axis){
     s.linkOrder = i;
     s.linkAxis = dir;
   });
+  /* Indeling nu vastleggen: vanaf dit moment bepaalt de fysieke positie
+     niet meer hoe de slices virtueel naast/onder elkaar staan. */
+  captureLinkLayout(members);
   if(!members.some(s=>s.showCircle || s.showCross)){
     members.forEach(s=>{
       s.showCircle = true;
@@ -4168,6 +4277,25 @@ function unlinkSelectedSlices(){
     }
   });
   if(!changed) return;
+  syncLinkGroupSettings();
+  renderSlices();
+  recalcAll();
+  commitHistory();
+  updateSliceSelectionBar();
+}
+
+/* Leg de virtuele indeling opnieuw vast op basis van de huidige fysieke
+   posities. Handig als je de slices eerst hebt verplaatst en daarna wilt
+   dat het virtuele beeld de nieuwe opstelling volgt. */
+function recaptureLinkLayoutOf(id){
+  const s = slices.find(x=>x.id === id);
+  if(!s) return;
+  const gid = Number(s.linkGroup) || 0;
+  if(!gid) return;
+  readSliceInputs();
+  const members = slices.filter(x=> (Number(x.linkGroup) || 0) === gid);
+  if(members.length < 2) return;
+  captureLinkLayout(members);
   syncLinkGroupSettings();
   renderSlices();
   recalcAll();
@@ -5196,9 +5324,13 @@ function renderSlices(){
     const comp = computeSlice(s);
     const link = getSliceLinkInfo(s);
     const linkLayoutDesc = link
-      ? (link.rowCount > 1
+      ? (link.rowCount > 1 && link.colCount > 1
           ? `${link.colCount} kolommen × ${link.rowCount} rijen`
-          : 'horizontaal (links → rechts)')
+          : link.colCount > 1
+            ? 'horizontaal (links → rechts)'
+            : link.rowCount > 1
+              ? 'verticaal (boven → onder)'
+              : '1 slice')
       : '';
     const overlayLocked = !!(link && link.index !== 0);
     const linkCircleOn = link ? link.members.some(m=>!!m.showCircle) : !!s.showCircle;
@@ -5273,10 +5405,11 @@ function renderSlices(){
         </div>
         <div class="properties-body" style="${s.linkCollapsed?'display:none;':''}">
           ${link ? `
-          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${linkLayoutDesc} · rij <b>${link.row+1}</b>, kolom <b>${link.col+1}</b>.</div>
+          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${linkLayoutDesc} · rij <b>${link.row+1}</b>, kolom <b>${link.col+1}</b>.<br>De virtuele indeling is vastgezet: een slice verplaatsen verandert het virtuele beeld niet.</div>
           <div class="link-order-row">
             <span class="link-order-pos">rij ${link.row+1} · kolom ${link.col+1}</span>
             <button type="button" onclick="selectLinkGroupOf(${s.id})">Selecteer groep</button>
+            <button type="button" onclick="recaptureLinkLayoutOf(${s.id})" title="Leg de virtuele indeling opnieuw vast op basis van de huidige posities">Herbereken indeling</button>
             <button type="button" onclick="unlinkLinkGroupOf(${s.id})">Ontkoppel</button>
           </div>
           ${link.index!==0
