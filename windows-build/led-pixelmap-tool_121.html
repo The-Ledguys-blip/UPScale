@@ -3027,7 +3027,9 @@ function syncSidebarSelection(){
   }
   if(selectedSliceIds.size === 1){
     const card = el('card-'+selectedSliceId);
-    if(card) card.scrollIntoView({behavior:'auto', block:'nearest'});
+    /* Zet de geselecteerde slice bovenaan de lijst, zodat de bijbehorende
+       properties direct zichtbaar zijn na een klik op de canvas/Stage. */
+    if(card) card.scrollIntoView({behavior:'auto', block:'start'});
   }
 }
 let lastRealScale = 1;

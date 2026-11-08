@@ -6,6 +6,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 
 ## What's New
 
+- **Slice selecteren op de canvas**: klik je een slice aan in de 1:1-compositie, dan scrolt de slicelijst automatisch naar die slice en komt zijn properties bovenaan de lijst te staan. Zo zie je meteen de juiste velden zonder zelf te zoeken.
 - **Tab in het objecten-menu**: met Tab ga je direct naar de invulbare velden (naam, R/G/B, positie, resolutie, checkboxes). De ▲/▼-stapknoppen, schuifbalken en icoon-knoppen worden overgeslagen, zodat je snel door de gegevens heen tabt. Alles blijft gewoon met de muis bedienbaar.
 - **Live Output vloeiend met meerdere uitgangen**: elk live-venster krijgt alleen nog een nieuw beeld als zijn eigen canvas echt verandert. Bij 1, 2 en 4 live outputs blijven de vensters op 60 fps en blijft ook de hoofdapp op 60 fps, ook tijdens het slepen van een slice. Lopende testpatroon-animaties worden bij een update niet meer gereset, maar pakken de beweging op waar ze waren.
 - **Slice actief/inactief**: naast de naam van elke slice staat een rond actief-balletje. Uitvinken maakt de slice grijs, verbergt hem uit het canvas, de Stage, de live-uitgang en de export, en vergrendelt alle bediening (velden, knoppen, slepen en pijltjestoetsen) tot je hem weer aanvinkt. Zo bescherm je een scherm tijdelijk tegen aanpassingen zonder het te verwijderen.
@@ -91,6 +92,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Colorbars 100% diagonaal beweegt naadloos naar beneden
 - [x] Testmode verbergt cirkel, kruis, naam, positie, resolutie en paneelaantal in canvas, Stage, Overview, live en export
 - [x] Testmode werkt ook binnen een gekoppelde groep, zonder markeringen over het patroon
+- [x] Klik op een slice in de canvas scrolt de slicelijst naar die slice, met de properties bovenaan
 - [x] Bestaande colorbars (verticaal/horizontaal) werken ongewijzigd
 - [x] Persistentie na herladen (autosave)
 - [x] Groep wordt opgeheven bij verwijderen van een lid
