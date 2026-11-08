@@ -991,8 +991,8 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
               <span id="sliceSelectionName">geselecteerd</span>
               <button class="delete-btn" onclick="copySelectedSlice()" style="background:rgba(148,163,184,.12);border-color:var(--real);color:var(--real);" title="Ctrl+C">Kopieer</button>
               <button class="delete-btn" onclick="pasteSlice()" style="background:rgba(148,163,184,.12);border-color:var(--real);color:var(--real);" title="Ctrl+V">Plak</button>
-              <button class="link-btn" id="linkSlicesHBtn" onclick="linkSelectedSlices('h')" title="Koppel de geselecteerde slices horizontaal (links → rechts); kruis en rondje lopen door over de naad">Koppel ↔</button>
-              <button class="link-btn" id="linkSlicesVBtn" onclick="linkSelectedSlices('v')" title="Koppel de geselecteerde slices verticaal (boven → onder); kruis en rondje lopen door over de naad">Koppel ↕</button>
+              <button class="link-btn" id="linkSlicesHBtn" onclick="linkSelectedSlices('h')" title="Koppel de geselecteerde slices: rij voor rij van links naar rechts, daarna een rij naar beneden; kruis en rondje lopen door over alle naden">Koppel ↔</button>
+              <button class="link-btn" id="linkSlicesVBtn" onclick="linkSelectedSlices('v')" title="Koppel de geselecteerde slices; de volgorde volgt de posities (rijen van links naar rechts, dan een rij naar beneden); kruis en rondje lopen door over alle naden">Koppel ↕</button>
               <button class="link-btn" id="unlinkSlicesBtn" onclick="unlinkSelectedSlices()" title="Ontkoppel de geselecteerde slices">Ontkoppel</button>
               <button class="delete-btn" onclick="removeSelectedSlices()" title="Delete">Verwijder</button>
               <button class="clear-btn" onclick="clearSliceSelection()" title="selectie wissen">×</button>
@@ -3994,7 +3994,91 @@ function getSliceLinkInfo(slice, list){
   const index = members.findIndex(m=>m.id === slice.id);
   if(index < 0) return null;
   const leader = members[0];
-  return { gid, members, leader, index, axis: leader.linkAxis === 'v' ? 'v' : 'h', count: members.length };
+  const layoutInfo = buildLinkLayout(members);
+  const slot = layoutInfo.layout[index] || null;
+  return {
+    gid, members, leader, index, count: members.length,
+    axis: leader.linkAxis === 'v' ? 'v' : 'h',
+    layout: layoutInfo.layout,
+    rowSizes: layoutInfo.rowSizes,
+    rowCount: layoutInfo.rowCount,
+    colCount: layoutInfo.colCount,
+    virtualW: layoutInfo.virtualW,
+    virtualH: layoutInfo.virtualH,
+    slot,
+    row: slot ? slot.row : 0,
+    col: slot ? slot.col : 0
+  };
+}
+
+/* Groepeer de geselecteerde slices in rijen op basis van hun werkelijke
+   Y-posities. Slices die verticaal (grotendeels) overlappen horen bij
+   dezelfde rij; binnen een rij sorteren we van links naar rechts. */
+function groupLinkRows(members){
+  const items = members.map(m=>({ m: m, c: computeSlice(m) }))
+    .sort((a,b)=> (a.m.posY - b.m.posY) || (a.m.posX - b.m.posX) || (a.m.id - b.m.id));
+  const rows = [];
+  items.forEach(it=>{
+    const top = Number(it.m.posY) || 0;
+    const bottom = top + it.c.resY;
+    let row = null;
+    for(let i=rows.length-1;i>=0;i--){
+      const r = rows[i];
+      const rBottom = r.y + r.h;
+      const overlap = Math.min(rBottom, bottom) - Math.max(r.y, top);
+      if(overlap > 0.5 * Math.min(r.h, it.c.resY)){ row = r; break; }
+    }
+    if(!row){
+      row = { y: top, h: it.c.resY, members: [] };
+      rows.push(row);
+    }
+    row.members.push(it);
+    row.y = Math.min(row.y, top);
+    row.h = Math.max(row.h, bottom - row.y);
+  });
+  rows.sort((a,b)=> a.y - b.y);
+  rows.forEach(r=> r.members.sort((a,b)=> (a.m.posX - b.m.posX) || (a.m.id - b.m.id)));
+  return rows;
+}
+
+/* Bouw het virtuele vlak: rij voor rij van boven naar beneden, binnen elke
+   rij van links naar rechts. Zo loopt de koppeling vanaf 0,0 naar rechts en
+   gaat daarna een rij naar beneden, weer vanaf links. */
+function buildLinkLayout(members){
+  const ordered = members.slice().sort((a,b)=>
+    (Number(a.linkOrder) || 0) - (Number(b.linkOrder) || 0) || (a.id - b.id));
+  const rows = groupLinkRows(ordered);
+  const rowSizes = rows.map(r=> r.members.length);
+  const layout = [];
+  let cursorY = 0, virtualW = 1, k = 0;
+  rowSizes.forEach((size, ri)=>{
+    let cursorX = 0, rowH = 1;
+    for(let ci=0;ci<size;ci++){
+      const m = ordered[k++];
+      if(!m) break;
+      const c = computeSlice(m);
+      layout.push({ m, ox: cursorX, oy: cursorY, resX: c.resX, resY: c.resY, row: ri, col: ci });
+      cursorX += c.resX;
+      rowH = Math.max(rowH, c.resY);
+    }
+    virtualW = Math.max(virtualW, cursorX);
+    cursorY += rowH;
+  });
+  while(k < ordered.length){
+    const m = ordered[k++];
+    const c = computeSlice(m);
+    layout.push({ m, ox: 0, oy: cursorY, resX: c.resX, resY: c.resY, row: rowSizes.length, col: 0 });
+    virtualW = Math.max(virtualW, c.resX);
+    cursorY += c.resY;
+  }
+  return {
+    layout,
+    rowSizes,
+    rowCount: Math.max(1, rowSizes.length),
+    colCount: rowSizes.reduce((m,n)=> Math.max(m,n), 1),
+    virtualW: Math.max(1, virtualW),
+    virtualH: Math.max(1, cursorY)
+  };
 }
 
 function nextLinkGroupId(list){
@@ -4049,12 +4133,15 @@ function linkSelectedSlices(axis){
   readSliceInputs();
   const members = ids.map(id=>slices.find(s=>s.id === id)).filter(Boolean);
   if(members.length < 2) return;
-  const dir = axis === 'v' ? 'v' : 'h';
-  members.sort((a,b)=> dir === 'h'
-    ? ((a.posX - b.posX) || (a.posY - b.posY) || (a.id - b.id))
-    : ((a.posY - b.posY) || (a.posX - b.posX) || (a.id - b.id)));
+  /* Volgorde: rij voor rij, van boven naar beneden; binnen een rij van
+     links naar rechts. Zo begint de koppeling linksboven (0,0), loopt naar
+     rechts en gaat daarna een rij naar beneden, weer vanaf links. */
+  const rows = groupLinkRows(members);
+  const ordered = [];
+  rows.forEach(r=> r.members.forEach(it=> ordered.push(it.m)));
+  const dir = (rows.length > 1 && rows.every(r=> r.members.length === 1)) ? 'v' : 'h';
   const gid = nextLinkGroupId();
-  members.forEach((s,i)=>{
+  ordered.forEach((s,i)=>{
     s.linkGroup = gid;
     s.linkOrder = i;
     s.linkAxis = dir;
@@ -5131,6 +5218,11 @@ function renderSlices(){
     const color = colorForSlice(s);
     const comp = computeSlice(s);
     const link = getSliceLinkInfo(s);
+    const linkLayoutDesc = link
+      ? (link.rowCount > 1
+          ? `${link.colCount} kolommen × ${link.rowCount} rijen · rij ${link.row+1}, kolom ${link.col+1}`
+          : 'horizontaal (links → rechts)')
+      : '';
     const overlayLocked = !!(link && link.index !== 0);
     const linkCircleOn = link ? link.members.some(m=>!!m.showCircle) : !!s.showCircle;
     const rgb = sliceRgb(s);
@@ -5141,7 +5233,7 @@ function renderSlices(){
         <button class="collapse-btn" onclick="toggleCollapse(${s.id})" title="${s.collapsed?'uitklappen':'inklappen'}">${s.collapsed?'▸':'▾'}</button>
         <span class="swatch"></span>
         <input type="text" data-f="name" value="${s.name}" oninput="recalcAll()">
-        ${link ? `<span class="link-badge" title="Gekoppeld in groep ${link.gid} · ${link.count} slices · ${link.axis==='v'?'verticaal':'horizontaal'}">🔗 ${link.index+1}/${link.count}</span>` : ''}
+        ${link ? `<span class="link-badge" title="Gekoppeld in groep ${link.gid} · ${link.count} slices · ${linkLayoutDesc}">🔗 ${link.index+1}/${link.count}</span>` : ''}
         <button class="remove-btn" onclick="removeSlice(${s.id})" title="verwijder">×</button>
       </div>
 
@@ -5204,7 +5296,7 @@ function renderSlices(){
         </div>
         <div class="properties-body" style="${s.linkCollapsed?'display:none;':''}">
           ${link ? `
-          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${link.axis==='v'?'verticaal (boven → onder)':'horizontaal (links → rechts)'} · positie <b>${link.index+1}</b> van ${link.count}.</div>
+          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${linkLayoutDesc} · positie <b>${link.index+1}</b> van ${link.count}.</div>
           <div class="link-order-row">
             <button type="button" onclick="moveLinkOrder(${s.id},-1)" ${link.index===0?'disabled':''} title="vorige positie">◀</button>
             <span class="link-order-pos">${link.index+1} / ${link.count}</span>
@@ -5641,27 +5733,17 @@ function overlayMarks(s, x, y, w, h, lineScale, idNs){
   if(link){
     /* Gekoppelde slices vormen samen één virtueel vlak. Het kruis en de
        cirkel worden op dat virtuele vlak berekend en per slice geclipt,
-       zodat ze over de fysieke naad heen doorlopen. */
-    const dims = link.members.map(m=>{
-      const c = computeSlice(m);
-      return { m, resX: c.resX, resY: c.resY, ox: 0, oy: 0 };
-    });
-    let cursor = 0, cross = 0;
-    dims.forEach(d=>{
-      if(link.axis === 'v'){
-        d.ox = 0; d.oy = cursor; cursor += d.resY; cross = Math.max(cross, d.resX);
-      } else {
-        d.ox = cursor; d.oy = 0; cursor += d.resX; cross = Math.max(cross, d.resY);
-      }
-    });
-    const cur = dims[link.index];
+       zodat ze over de fysieke naden heen doorlopen. Bij meerdere rijen
+       wordt het vlak rij voor rij opgebouwd (links → rechts, dan een rij
+       naar beneden). */
+    const cur = link.slot;
     if(cur){
       const scX = w / Math.max(1, cur.resX);
       const scY = h / Math.max(1, cur.resY);
       const gx = x - cur.ox * scX;
       const gy = y - cur.oy * scY;
-      const gw = Math.max(1, (link.axis === 'v' ? cross : cursor) * scX);
-      const gh = Math.max(1, (link.axis === 'v' ? cursor : cross) * scY);
+      const gw = Math.max(1, link.virtualW * scX);
+      const gh = Math.max(1, link.virtualH * scY);
       const cx = gx + gw/2, cy = gy + gh/2;
       if(showCircle){
         const r = Math.max(2, Math.min(gw, gh)/2 - 1);
