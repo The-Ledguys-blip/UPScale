@@ -5599,7 +5599,7 @@ function occupiedClipRects(s, x, y, w, h){
   return rects;
 }
 
-function overlayMarks(s, x, y, w, h, lineScale){
+function overlayMarks(s, x, y, w, h, lineScale, idNs){
   const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
   const link = getSliceLinkInfo(s);
   const leader = link ? link.leader : s;
@@ -5615,7 +5615,7 @@ function overlayMarks(s, x, y, w, h, lineScale){
   let out = '';
   let clipOpen = '', clipClose = '';
   if((hasHoles || link) && (showCircle || showCross)){
-    const clipId = (link ? 'link-clip-' : 'occ-clip-') + (clipIdCounter++);
+    const clipId = (link ? 'link-clip-' : 'occ-clip-') + (idNs ? (idNs + '-s' + s.id + '-marks') : clipIdCounter++);
     const clipRects = hasHoles
       ? occupiedClipRects(s, x, y, w, h)
       : `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}"/>`;
@@ -5809,7 +5809,7 @@ function imPanelCells(s, x, y, w, h, ls, interactive){
       }
     }
   }
-  cells += overlayMarks(s, x, y, w, h, ls);
+  cells += overlayMarks(s, x, y, w, h, ls, idNs);
   return cells;
 }
 
@@ -5872,7 +5872,7 @@ function onTestPatternTypeChange(id, type){
   recalcAll();
 }
 
-function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
+function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, idNs){
   const s = c.slice;
   const tpType = s.testPatternType || (s.testPattern ? 'colorbars-h' : 'none');
   if(tpType && tpType !== 'none'){
@@ -5885,7 +5885,7 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
     const roundPct = Math.max(0, Math.min(50, isFinite(roundPctRaw) ? roundPctRaw : 8));
     const roundRX = useRounded ? Math.max(1.5, w * (roundPct / 100)) : 0;
     const roundRY = useRounded ? Math.max(1.5, h * (roundPct / 100)) : 0;
-    const clipId = 'tpclip-' + (clipIdCounter++);
+    const clipId = 'tpclip-' + (idNs ? (idNs + '-s' + s.id + '-' + idx) : clipIdCounter++);
     const dur = (11 - Math.max(1, Math.min(10, Number(s.testPatternSpeed) || 5))).toFixed(1);
     const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
     let out = '';
@@ -5984,7 +5984,7 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
       for(let gy=y; gy<=y+h; gy+=step){ out += `<line x1="${x}" y1="${gy}" x2="${x+w}" y2="${gy}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
     }
     out += `</g>`;
-    out += overlayMarks(s, x, y, w, h, ls);
+    out += overlayMarks(s, x, y, w, h, ls, idNs);
     return out;
   }
   const color = colorForSlice(s);
@@ -6042,14 +6042,14 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
         }
       }
     }
-    cells += overlayMarks(s, x, y, w, h, ls);
+    cells += overlayMarks(s, x, y, w, h, ls, idNs);
     inner = cells;
   } else {
-    inner = `<rect x="${x}" y="${y}" width="${shapeW}" height="${shapeH}" fill="${color}" stroke="${color}" stroke-width="${1*ls}" rx="${roundRX}" ry="${roundRY}"/>` + overlayMarks(s, x, y, w, h, ls);
+    inner = `<rect x="${x}" y="${y}" width="${shapeW}" height="${shapeH}" fill="${color}" stroke="${color}" stroke-width="${1*ls}" rx="${roundRX}" ry="${roundRY}"/>` + overlayMarks(s, x, y, w, h, ls, idNs);
   }
 
   if(useRounded){
-    const roundId = `roundclip-${s.id}-${idx}-${interactive?'i':'s'}-${clipIdCounter++}`;
+    const roundId = `roundclip-${s.id}-${idx}-${interactive?'i':'s'}-${idNs || clipIdCounter++}`;
     inner = `<clipPath id="${roundId}"><rect x="${x}" y="${y}" width="${shapeW}" height="${shapeH}" rx="${roundRX}" ry="${roundRY}"/></clipPath><g clip-path="url(#${roundId})">${inner}</g>`;
   }
 
@@ -8652,6 +8652,11 @@ let liveRafId = null;
 let liveFps = 0, liveFrames = 0, liveFpsT0 = 0;
 let liveBroadcast = null;
 let liveBroadcastT = 0;
+/* Unieke id per pagina-sessie + oplopend volgnummer, zodat live-vensters
+   dubbele leveringen (BroadcastChannel + storage) kunnen negeren en na een
+   herlaad van de hoofdapp niet blijven hangen op een oude teller. */
+let livePayloadSession = Date.now() + '-' + Math.floor(Math.random() * 1e9);
+let livePayloadSeq = 0;
 let liveScreensCache = null;
 let liveOnly = false;
 let liveNativeOpen = false;
@@ -9006,7 +9011,7 @@ function buildLiveScaledCanvasSVG(comp, canvasArg){
     const w = Math.max(1, Math.round(c.resX * scale));
     const h = Math.max(1, Math.round(c.resY * scale));
     const textColor = sliceTextColor(c.slice);
-    out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1);
+    out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1, 'lsc'+canvas.id);
     if(w > 60 && h > 28){
       const scaledResX = Math.max(1, Math.round(c.resX * scale));
       const scaledResY = Math.max(1, Math.round(c.resY * scale));
@@ -9047,7 +9052,7 @@ function buildLiveNativeSVG(comp, canvasArg){
     const s = c.slice;
     const x = s.posX, y = s.posY, w = c.resX, h = c.resY;
     const textColor = sliceTextColor(s);
-    out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1);
+    out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1, 'ln'+canvas.id);
     if(w > 60 && h > 28){
       const bb = occupiedPixelBox(s, x, y, w, h);
       const fs = (9.5 * labelScale).toFixed(2);
@@ -9156,7 +9161,13 @@ function broadcastLive(force){
   try{
     if(!liveScaledSvg) liveScaledSvg = buildLiveScaledSVG(getComposition());
     const canvasesMap = buildLiveOutputSvgMap();
-    const payload = JSON.stringify({svg: liveScaledSvg, canvases: canvasesMap, ts: Date.now()});
+    const payload = JSON.stringify({
+      svg: liveScaledSvg,
+      canvases: canvasesMap,
+      ts: Date.now(),
+      session: livePayloadSession,
+      seq: ++livePayloadSeq
+    });
     try{
       if(!liveBroadcast && typeof BroadcastChannel !== 'undefined'){
         liveBroadcast = new BroadcastChannel(LIVE_CHANNEL_NAME);
@@ -9634,10 +9645,31 @@ function onLiveTabDeactivated(){
 
 /* ---- live-only output page (?live=1) ---- */
 let liveOnlyChannel = null;
+/* Laatst toegepaste update. Voorkomt dat elk live-venster bij elke broadcast
+   opnieuw een (vaak ongewijzigd) 1:1 canvas in de DOM zet. Met meerdere
+   uitgangen scheelt dat veel renderwerk en blijft de animatie doorlopen. */
+let liveOnlyLastSvg = '';
+let liveOnlyLastTs = 0;
+let liveOnlyLastSeq = 0;
+let liveOnlySession = '';
 
 function liveOnlyApply(payload){
   try{
     const obj = JSON.parse(payload);
+    const session = String((obj && obj.session) || '');
+    const seq = Number(obj && obj.seq) || 0;
+    const ts = Number(obj && obj.ts) || 0;
+    if(session && session !== liveOnlySession){
+      /* Hoofdapp is opnieuw geladen: teller en cache resetten. */
+      liveOnlySession = session;
+      liveOnlyLastSeq = 0;
+      liveOnlyLastSvg = '';
+    }
+    if(session && seq){
+      if(seq <= liveOnlyLastSeq) return;
+    } else if(ts && ts <= liveOnlyLastTs){
+      return;
+    }
     let svg = '';
     let canvasName = '';
     if(liveOnlyCanvasId != null){
@@ -9656,10 +9688,33 @@ function liveOnlyApply(payload){
       svg = (obj && typeof obj.svg === 'string') ? obj.svg : '';
     }
     if(!svg) return;
+    /* Alleen opnieuw renderen als dit venster echt een nieuw canvasbeeld
+       heeft. Bij 4 uitgangen verandert per frame meestal maar één canvas;
+       de andere vensters slaan het dure innerHTML-werk dan over en hun
+       CSS-animatie blijft gewoon doorlopen. */
+    if(svg === liveOnlyLastSvg){
+      if(seq) liveOnlyLastSeq = seq;
+      if(ts) liveOnlyLastTs = ts;
+      return;
+    }
     const t = 'ly'+Date.now()+'-';
-    const markup = svg.replace(/id="/g, 'id="'+t).replace(/url\(#/g, 'url(#'+t);
+    let markup = svg.replace(/id="/g, 'id="'+t).replace(/url\(#/g, 'url(#'+t);
+    /* Bij een rebuild (bijv. tijdens slepen) wordt de SVG opnieuw in de DOM
+       gezet en starten CSS-animaties opnieuw bij fase 0. Door de lopende
+       animaties een negatieve delay mee te geven op basis van de klok,
+       pakt het patroon de beweging op waar het was en blijft het vloeiend. */
+    markup = markup.replace(
+      /(animation:[A-Za-z0-9_-]+\s+([\d.]+)s\s+linear\s+infinite)/g,
+      function(m, decl, dur){
+        const cycle = Math.max(1, Math.round((parseFloat(dur) || 1) * 1000));
+        return decl + ';animation-delay:-' + (Date.now() % cycle) + 'ms';
+      }
+    );
     const host = document.getElementById('liveOnlySvg');
     if(host) host.innerHTML = markup;
+    liveOnlyLastSvg = svg;
+    if(seq) liveOnlyLastSeq = seq;
+    liveOnlyLastTs = ts || Date.now();
     if(liveOnlyCanvasId != null){
       document.title = 'UPScale Live · ' + (canvasName || ('Canvas ' + liveOnlyCanvasId));
     }

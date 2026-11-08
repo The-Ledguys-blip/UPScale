@@ -6,6 +6,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 
 ## What's New
 
+- **Live Output vloeiend met meerdere uitgangen**: elk live-venster krijgt alleen nog een nieuw beeld als zijn eigen canvas echt verandert. Bij 1, 2 en 4 live outputs blijven de vensters op 60 fps en blijft ook de hoofdapp op 60 fps, ook tijdens het slepen van een slice. Lopende testpatroon-animaties worden bij een update niet meer gereset, maar pakken de beweging op waar ze waren.
 - **Slice-koppeling (horizontaal/verticaal)**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie.
 - **Doorlopend kruis en rondje**: markeringen worden op het virtuele vlak van de hele groep berekend en per slice geclipt, zodat ze exact op de naad aansluiten.
 - **Koppeling-sectie per slice**: badge met positie (bijv. 🔗 2/3), uitleg, volgorde aanpassen met ◀/▶, groep selecteren en ontkoppelen.
@@ -62,6 +63,9 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Pijltjestoetsen verplaatsen de geselecteerde slices (groep bij groep-selectie)
 - [x] Live-uitgang toont 1:1 canvasresolutie vanaf 0,0 (geen overview/schaling)
 - [x] Live-router per canvas blijft werken
+- [x] 1, 2 en 4 live outputs blijven op 60 fps
+- [x] Hoofdapp blijft op 60 fps tijdens slepen met 4 live outputs
+- [x] Testpatroon-animatie loopt door in live output tijdens updates
 - [x] RGB-velden tonen de exacte waarden en zijn bewerkbaar
 - [x] Kopieer- en plakknop voor exacte objectkleur werken
 - [x] Gekopieerde kleur plakken als 'r, g, b' werkt in een ander object
