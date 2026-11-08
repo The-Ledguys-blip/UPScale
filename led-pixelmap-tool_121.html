@@ -168,9 +168,11 @@
   .slice-card.slice-inactive{opacity:.5;filter:grayscale(1);}
   .slice-card.slice-inactive.active-selected{box-shadow:none;}
   .slice-enable{display:inline-flex;align-items:center;flex-shrink:0;cursor:pointer;}
-  .slice-enable input{appearance:none;-webkit-appearance:none;width:15px;height:15px;border-radius:4px;border:1px solid var(--line-strong);background:var(--panel-3);margin:0;cursor:pointer;position:relative;transition:background .12s,border-color .12s;}
+  .slice-enable input{appearance:none;-webkit-appearance:none;width:16px;height:16px;border-radius:50%;border:1px solid var(--line-strong);background:var(--panel-3);margin:0;cursor:pointer;position:relative;transition:background .12s,border-color .12s,box-shadow .12s;}
+  .slice-enable input::after{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--text-faint);opacity:.35;transition:opacity .12s,background .12s,inset .12s;}
   .slice-enable input:checked{background:var(--real);border-color:var(--real);}
-  .slice-enable input:checked::after{content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(45deg);}
+  .slice-enable input:checked::after{inset:4px;background:var(--ink);opacity:1;}
+  .slice-enable input:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(78,204,163,.28);}
   .slice-top{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
   .collapse-btn{appearance:none;background:transparent;border:none;color:var(--text-faint);cursor:pointer;font-size:11px;padding:2px 3px;flex-shrink:0;line-height:1;width:14px;text-align:center;}
   .collapse-btn:hover{color:var(--text);}
@@ -3235,7 +3237,7 @@ function onMarqueeEnd(){
     const comp = getComposition();
     const scale = lastRealScale || 1, ox = lastRealOx, oy = lastRealOy;
     const newSelection = new Set();
-    comp.comps.forEach(c=>{
+    visibleComps(comp).forEach(c=>{
       const sx1 = ox + c.slice.posX*scale, sy1 = oy + c.slice.posY*scale;
       const sx2 = sx1 + c.resX*scale, sy2 = sy1 + c.resY*scale;
       if(sx1 < rx2 && sx2 > rx1 && sy1 < ry2 && sy2 > ry1){
@@ -3256,6 +3258,7 @@ function onMarqueeEnd(){
     const oy = meta.oy || 0;
     const newSelection = new Set();
     slices.forEach(s=>{
+      if(!sliceEnabled(s)) return;
       ensureStagePos(s);
       ensureStageSize(s);
       const sx1 = ox + s.stagePosX * scale;
@@ -3981,8 +3984,9 @@ function ensureSliceZoom(slice){
   slice.sliceZoom = Math.max(10, Math.min(300, Math.round(slice.sliceZoom)));
 }
 
-/* Een slice is actief tenzij expliciet uitgevinkt. Inactieve slices blijven
-   zichtbaar (grijs) maar zijn vergrendeld tot je ze weer aanzet. */
+/* Een slice is actief tenzij expliciet uitgevinkt. Inactieve slices worden
+   niet meer getekend of uitgevoerd en zijn vergrendeld tot je ze weer aanzet.
+   De compositiegeometrie blijft ongewijzigd; alleen de weergave filtert ze weg. */
 function sliceEnabled(slice){
   return !slice || slice.enabled !== false;
 }
@@ -3990,6 +3994,14 @@ function sliceEnabled(slice){
 function ensureSliceEnabled(slice){
   if(!slice) return;
   if(typeof slice.enabled !== 'boolean') slice.enabled = true;
+}
+
+/* Alleen actieve slices worden getekend en uitgevoerd. De compositie zelf
+   (canvas- en stagegeometrie) blijft ongewijzigd: filteren gebeurt pas in de
+   render- en uitvoerlussen. */
+function visibleComps(comp){
+  const list = comp && Array.isArray(comp.comps) ? comp.comps : [];
+  return list.filter(c=>c && sliceEnabled(c.slice));
 }
 
 function normalizeTestPatternFlags(slice){
@@ -5440,7 +5452,7 @@ function renderSlices(){
         <button class="collapse-btn" onclick="toggleCollapse(${s.id})" title="${s.collapsed?'uitklappen':'inklappen'}">${s.collapsed?'▸':'▾'}</button>
         <span class="swatch"></span>
         <input type="text" data-f="name" value="${s.name}" oninput="recalcAll()">
-        <label class="slice-enable" title="${inactive?'Slice is inactief — vink aan om hem weer te activeren':'Slice actief — vink uit om hem te vergrendelen (grijs en niet aanpasbaar)'}"><input type="checkbox" ${inactive?'':'checked'} onchange="setSliceEnabled(${s.id}, this.checked)"></label>
+        <label class="slice-enable" title="${inactive?'Slice is inactief — niet zichtbaar in canvas en uitvoer. Vink aan om hem weer te activeren.':'Slice actief — vink uit om hem te verbergen en te vergrendelen (grijs en niet aanpasbaar).'}"><input type="checkbox" ${inactive?'':'checked'} onchange="setSliceEnabled(${s.id}, this.checked)"></label>
         ${link ? `<span class="link-badge" title="Gekoppeld in groep ${link.gid} · ${link.count} slices · ${linkLayoutDesc}">🔗 ${link.index+1}/${link.count}</span>` : ''}
         <button class="remove-btn" onclick="removeSlice(${s.id})" title="verwijder">×</button>
       </div>
@@ -6421,7 +6433,7 @@ function drawComposition(svgId, comp, opts){
 
   const isReal = svgId==='realSvg';
   let rects = '';
-  comp.comps.forEach((c, idx)=>{
+  visibleComps(comp).forEach((c, idx)=>{
     const color = colorForSlice(c.slice);
     const textColor = sliceTextColor(c.slice);
     const x = ox + c.slice.posX*scale, y = oy + c.slice.posY*scale;
@@ -6485,7 +6497,7 @@ function drawComposition(svgId, comp, opts){
       <text x="${scx}" y="${scy+scH+16}" font-size="9.5" fill="#ffffff" opacity="0.8">1:1 canvas geschaald · ${fmt(Math.round(srcCanvas.w*realScale))}×${fmt(Math.round(srcCanvas.h*realScale))} px</text>`;
 
     let innerRects = '';
-    comp.comps.forEach((c, idx)=>{
+    visibleComps(comp).forEach((c, idx)=>{
       const x = scx + c.slice.posX*combinedScale, y = scy + c.slice.posY*combinedScale;
       const w = c.resX*combinedScale, h = c.resY*combinedScale;
       const scaledTextColor = sliceTextColor(c.slice);
@@ -6528,7 +6540,7 @@ function drawComposition(svgId, comp, opts){
 function renderRealLegend(){
   const canvasItem = `<div class="legend-item"><span class="legend-swatch" style="background:transparent;border:1px solid #fff"></span>canvas</div>`;
   el('realLegend').innerHTML = canvasItem + slices.map((s,idx)=>`
-    <div class="legend-item"><span class="legend-swatch" style="background:${colorForSlice(s)}"></span>${s.name}</div>
+    <div class="legend-item" style="${sliceEnabled(s)?'':'opacity:.45;text-decoration:line-through;'}"><span class="legend-swatch" style="background:${colorForSlice(s)}"></span>${s.name}</div>
   `).join('');
 }
 
@@ -6743,7 +6755,7 @@ function drawStageLayout(comp){
   }
 
   let rects = '';
-  comp.comps.forEach((c, idx)=>{
+  visibleComps(comp).forEach((c, idx)=>{
     ensureStagePos(c.slice);
     ensureStageSize(c.slice);
     const sx = c.slice.stagePosX;
@@ -6837,7 +6849,7 @@ function drawOverviewLayout(comp){
   }
 
   let rects = '';
-  comp.comps.forEach((c, idx)=>{
+  visibleComps(comp).forEach((c, idx)=>{
     ensureStagePos(c.slice);
     ensureStageSize(c.slice);
     const x = ox + c.slice.stagePosX*scale;
@@ -6899,7 +6911,7 @@ function drawOverviewLayout(comp){
 function renderOverviewList(comp){
   const host = el('overviewSliceList');
   if(!host) return;
-  const list = (comp && comp.comps) || [];
+  const list = visibleComps(comp);
   const info = el('overviewSelInfo');
   if(info) info.textContent = selectedSliceIds.size ? (selectedSliceIds.size + ' geselecteerd') : '—';
   if(!list.length){ host.innerHTML = '<div class="note" style="margin:0;">Nog geen schermen.</div>'; return; }
@@ -7445,7 +7457,7 @@ function buildStageLayoutSVGString(comp, stage, targetW, targetH){
   }
 
   let rects = '';
-  comp.comps.forEach((c, idx)=>{
+  visibleComps(comp).forEach((c, idx)=>{
     ensureStagePos(c.slice);
     ensureStageSize(c.slice);
     const x = ox + c.slice.stagePosX * scale;
@@ -7513,7 +7525,7 @@ function diagramFitScale(w, h){
 function buildCompositionSVGString(comp, targetW, targetH, scale, labelScale){
   labelScale = labelScale || 1;
   let content = `<rect x="0" y="0" width="${targetW}" height="${targetH}" fill="#000000"/>`;
-  comp.comps.forEach((c, idx)=>{
+  visibleComps(comp).forEach((c, idx)=>{
     const x = c.slice.posX*scale;
     const y = c.slice.posY*scale;
     const cw = c.resX*scale;
@@ -7798,7 +7810,7 @@ function renderScaledStats(comp,s){
 }
 
 function renderSliceTable(comp, s){
-  const rows = comp.comps.map((c, idx)=>{
+  const rows = visibleComps(comp).map((c, idx)=>{
     const sw = Math.max(1, Math.round(c.resX*s.scale));
     const sh = Math.max(1, Math.round(c.resY*s.scale));
     const sx = Math.round(c.slice.posX*s.scale);
@@ -9132,7 +9144,7 @@ function buildLiveSnapshot(comp){
     ch = Math.max(1, Math.round(canvas.h));
   }
   scale = cw / Math.max(1, canvas.w);
-  const slices = comp.comps.map(c=>{
+  const slices = visibleComps(comp).map(c=>{
     const s = c.slice;
     const isPanels = (s.type==='slice' && s.mode==='panels');
     return {
@@ -9291,7 +9303,7 @@ function buildLiveScaledSVG(comp){
   out += `<text x="${oox}" y="${ooy-8}" font-size="11" fill="var(--scaled,#ff9f43)">canvas · ${fmt(s.maxW)}×${fmt(s.maxH)} px</text>`;
   out += `<rect x="${scx}" y="${scy}" width="${scW}" height="${scH}" fill="#000000" stroke="#ffffff" stroke-width="1" rx="2"/>`;
   out += `<text x="${scx}" y="${scy+scH+16}" font-size="9.5" fill="#ffffff" opacity="0.8">1:1 canvas geschaald · ${fmt(Math.round(srcCanvas.w*realScale))}×${fmt(Math.round(srcCanvas.h*realScale))} px</text>`;
-  comp.comps.forEach((c, idx)=>{
+  visibleComps(comp).forEach((c, idx)=>{
     const x = scx + c.slice.posX*combinedScale, y = scy + c.slice.posY*combinedScale;
     const w = c.resX*combinedScale, h = c.resY*combinedScale;
     const scaledTextColor = sliceTextColor(c.slice);
@@ -9337,7 +9349,7 @@ function buildLiveScaledCanvasSVG(comp, canvasArg){
   const scaledCanvasH = Math.max(1, Math.round(srcCanvas.h * scale));
   let out = '';
   out += `<rect x="0" y="0" width="${scaledCanvasW}" height="${scaledCanvasH}" fill="#000000"/>`;
-  comp.comps.forEach((c, idx)=>{
+  visibleComps(comp).forEach((c, idx)=>{
     const x = Math.max(0, Math.round(c.slice.posX * scale));
     const y = Math.max(0, Math.round(c.slice.posY * scale));
     const w = Math.max(1, Math.round(c.resX * scale));
@@ -9380,7 +9392,7 @@ function buildLiveNativeSVG(comp, canvasArg){
   if(!canvasArg || canvasArg.id === activeCanvasId){ liveTargetW = W; liveTargetH = H; }
   const labelScale = Math.max(1, Math.min(W/1300, H/640));
   let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#000000"/>`;
-  comp.comps.forEach((c, idx)=>{
+  visibleComps(comp).forEach((c, idx)=>{
     const s = c.slice;
     const x = s.posX, y = s.posY, w = c.resX, h = c.resY;
     const textColor = sliceTextColor(s);
