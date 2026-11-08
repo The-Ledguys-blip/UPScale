@@ -4236,6 +4236,15 @@ function normalizeTestPatternFlags(slice){
   }
 }
 
+/* Testmode: zolang een testpatroon actief is, toont de slice alleen dat
+   patroon. Cirkel, kruis, naam, positie, resolutie en paneelaantal worden
+   dan in alle weergaven en uitvoer onderdrukt. */
+function sliceTestPatternActive(slice){
+  if(!slice) return false;
+  const tp = slice.testPatternType || (slice.testPattern ? 'colorbars-h' : 'none');
+  return !!tp && tp !== 'none';
+}
+
 /* ---- slices koppelen: doorlopend kruis/rondje over een naad ---- */
 function ensureLinkFields(slice){
   if(!slice) return;
@@ -6552,7 +6561,6 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, id
       for(let gy=y; gy<=y+h; gy+=step){ out += `<line x1="${x}" y1="${gy}" x2="${x+w}" y2="${gy}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
     }
     out += `</g>`;
-    out += overlayMarks(s, x, y, w, h, ls, idNs);
     return out;
   }
   const color = colorForSlice(s);
@@ -6664,7 +6672,7 @@ function drawComposition(svgId, comp, opts){
     const w = c.resX*scale, h = c.resY*scale;
     const shape = shapeSVG(c, idx, x, y, w, h, '22', isReal);
     let labels = '';
-    if(w>60 && h>28){
+    if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
       const titleSize = c.slice.titleSize || 12;
       const bb = occupiedPixelBox(c.slice, x, y, w, h);
@@ -6726,7 +6734,7 @@ function drawComposition(svgId, comp, opts){
       const w = c.resX*combinedScale, h = c.resY*combinedScale;
       const scaledTextColor = sliceTextColor(c.slice);
       innerRects += shapeSVG(c, idx, x, y, w, h, '33', false);
-      if(w>60 && h>28){
+      if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
         const scaledResX = Math.max(1, Math.round(c.resX*realScale));
         const scaledResY = Math.max(1, Math.round(c.resY*realScale));
         const scaledPosX = Math.round(c.slice.posX*realScale);
@@ -6999,7 +7007,7 @@ function drawStageLayout(comp){
       ? `<rect x="${x-3}" y="${y-3}" width="${Math.max(w+6,1)}" height="${Math.max(h+6,1)}" fill="none" stroke="var(--scaled)" stroke-width="2.5" stroke-dasharray="6,3" pointer-events="none"/>`
       : '';
     let labels = '';
-    if(w > 65 && h > 28){
+    if(w > 65 && h > 28 && !sliceTestPatternActive(c.slice)){
       labels += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${sliceTextColor(c.slice)}" style="pointer-events:none">${c.slice.name}</text>`;
     }
     rects += `<g data-id="${c.slice.id}" style="cursor:${hasSelection ? 'pointer' : 'default'}" onmousedown="startStageDrag(event, ${c.slice.id})">${shape}${labels}${selectedBox}</g>`;
@@ -7091,7 +7099,7 @@ function drawOverviewLayout(comp){
       ? `<rect x="${x-3}" y="${y-3}" width="${Math.max(w+6,1)}" height="${Math.max(h+6,1)}" fill="none" stroke="var(--stage)" stroke-width="2.5" stroke-dasharray="6,3" pointer-events="none"/>`
       : '';
     let labels = '';
-    if(w > 65 && h > 28){
+    if(w > 65 && h > 28 && !sliceTestPatternActive(c.slice)){
       labels += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${sliceTextColor(c.slice)}" style="pointer-events:none">${c.slice.name}</text>`;
     }
     rects += `<g data-id="${c.slice.id}" style="cursor:${hasSelection?'pointer':'grab'}" onmousedown="startStageDrag(event, ${c.slice.id})">${shape}${labels}${selectedBox}</g>`;
@@ -7697,7 +7705,7 @@ function buildStageLayoutSVGString(comp, stage, targetW, targetH){
     const shape = shapeSVG(stageComp, idx, x, y, w, h, '33', false, relScale);
     let labels = '';
     const stageTextColor = sliceTextColor(c.slice);
-    if(w > 60 && h > 28){
+    if(w > 60 && h > 28 && !sliceTestPatternActive(c.slice)){
       const bb = occupiedPixelBox(c.slice, x, y, w, h);
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
       if(c.slice.showPosition !== false) labels += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="${stageTextColor}" opacity="0.85">${fmt(Math.round(c.slice.stagePosX))},${fmt(Math.round(c.slice.stagePosY))}</text>`;
@@ -7755,7 +7763,7 @@ function buildCompositionSVGString(comp, targetW, targetH, scale, labelScale){
     const cw = c.resX*scale;
     const ch = c.resY*scale;
     content += shapeSVG(c, idx, x, y, cw, ch, '22', false);
-    if(cw>50 && ch>24){
+    if(cw>50 && ch>24 && !sliceTestPatternActive(c.slice)){
       const titleSize = (c.slice.titleSize || 12) * labelScale;
       const smallSize = 10 * labelScale;
       const bb = occupiedPixelBox(c.slice, x, y, cw, ch);
@@ -9406,7 +9414,8 @@ function buildLiveSnapshot(comp){
       showPosition: s.showPosition !== false,
       showResolution: s.showResolution !== false,
       showPanelCount: s.showPanelCount !== false,
-      showPanelIds: !!s.showPanelIds
+      showPanelIds: !!s.showPanelIds,
+      testPattern: sliceTestPatternActive(s)
     };
   });
   return {cw, ch, scale, slices, ts: Date.now()};
@@ -9465,7 +9474,7 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
       }
     }
 
-    if(opts.panelIds && isPanels && cellW>14 && cellH>10){
+    if(opts.panelIds && isPanels && cellW>14 && cellH>10 && !s.testPattern){
       ctx.globalAlpha = 0.45;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
@@ -9482,7 +9491,7 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
     }
 
     const minLabel = 26;
-    if(s.w > minLabel && s.h > minLabel){
+    if(s.w > minLabel && s.h > minLabel && !s.testPattern){
       const small = Math.max(5, Math.min(s.h*0.1, 13));
       if(opts.labels && s.showPosition){
         ctx.globalAlpha = 0.85;
@@ -9552,7 +9561,7 @@ function buildLiveScaledSVG(comp){
     const w = c.resX*combinedScale, h = c.resY*combinedScale;
     const scaledTextColor = sliceTextColor(c.slice);
     out += shapeSVG(c, idx, x, y, w, h, '33', false);
-    if(w>60 && h>28){
+    if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
       const scaledResX = Math.max(1, Math.round(c.resX*realScale));
       const scaledResY = Math.max(1, Math.round(c.resY*realScale));
       const scaledPosX = Math.round(c.slice.posX*realScale);
@@ -9600,7 +9609,7 @@ function buildLiveScaledCanvasSVG(comp, canvasArg){
     const h = Math.max(1, Math.round(c.resY * scale));
     const textColor = sliceTextColor(c.slice);
     out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1, 'lsc'+canvas.id);
-    if(w > 60 && h > 28){
+    if(w > 60 && h > 28 && !sliceTestPatternActive(c.slice)){
       const scaledResX = Math.max(1, Math.round(c.resX * scale));
       const scaledResY = Math.max(1, Math.round(c.resY * scale));
       const scaledPosX = Math.round(c.slice.posX * scale);
@@ -9641,7 +9650,7 @@ function buildLiveNativeSVG(comp, canvasArg){
     const x = s.posX, y = s.posY, w = c.resX, h = c.resY;
     const textColor = sliceTextColor(s);
     out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1, 'ln'+canvas.id);
-    if(w > 60 && h > 28){
+    if(w > 60 && h > 28 && !sliceTestPatternActive(s)){
       const bb = occupiedPixelBox(s, x, y, w, h);
       const fs = (9.5 * labelScale).toFixed(2);
       if(s.showPosition !== false){

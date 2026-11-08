@@ -14,6 +14,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - **Slice-koppeling**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie. **Koppel ↔** zet alle geselecteerde slices virtueel in één rij van links naar rechts; **Koppel ↕** zet ze in één kolom van boven naar onder. De volgorde volgt de leesvolgorde op de canvas (rij voor rij, links → rechts), maar de fysieke posities op de canvas blijven precies staan. Zo wordt een 3×2-raster bij horizontaal koppelen één virtueel vlak van 1×6, terwijl de slices op de canvas in hun 3×2-opstelling blijven liggen. Cirkel en kruis lopen over alle naden heen door.
 - **Virtuele indeling vastgezet**: op het moment van koppelen wordt de virtuele plaats van elke slice vastgelegd (rij, kolom, offset en resolutie). Verplaats je daarna een slice op de pixelmap, dan blijft het virtuele beeld gelijk: de slice behoudt zijn eigen deel van het virtuele vlak en alleen de fysieke positie verandert. Met **Herbereken indeling** leg je de indeling opnieuw vast op basis van de huidige posities.
 - **Doorlopend kruis en rondje**: markeringen worden op het virtuele vlak van de hele groep berekend en per slice geclipt, zodat ze exact op de naad aansluiten.
+- **Testmode toont alleen het testpatroon**: staat een testpatroon aan, dan zie je op de canvas, Stage, Overview, live-uitgang en in de export uitsluitend het patroon. Cirkel, kruis, naam, positie, resolutie en paneelaantal worden dan onderdrukt — ook binnen een gekoppelde groep, zodat het patroon altijd boven de markeringen ligt.
 - **Koppeling-sectie per slice**: badge met positie (bijv. 🔗 2/3), rij/kolom in het virtuele vlak, **Selecteer groep**, **Herbereken indeling** en **Ontkoppel**.
 - **Leider bepaalt de cirkelvorm**: de eerste slice in de groep bepaalt de cirkelvervorming (zodat de vorm op de naad aansluit). Cirkel, kruis en tekstkleur (zwart/wit) blijven **per slice** instelbaar en werken gewoon door in een gekoppelde groep.
 - **Automatische volgorde**: bij koppelen wordt de selectie in leesvolgorde gesorteerd (boven → beneden, links → rechts) en daarna vastgezet.
@@ -88,6 +89,8 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Annuleren laat bestaande bestanden ongemoeid
 - [x] Overschrijven vervangt precies hetzelfde bestand
 - [x] Colorbars 100% diagonaal beweegt naadloos naar beneden
+- [x] Testmode verbergt cirkel, kruis, naam, positie, resolutie en paneelaantal in canvas, Stage, Overview, live en export
+- [x] Testmode werkt ook binnen een gekoppelde groep, zonder markeringen over het patroon
 - [x] Bestaande colorbars (verticaal/horizontaal) werken ongewijzigd
 - [x] Persistentie na herladen (autosave)
 - [x] Groep wordt opgeheven bij verwijderen van een lid
