@@ -165,6 +165,12 @@
 
   .slice-card{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--slice-color,var(--real));border-radius:10px;padding:12px 12px;margin-bottom:10px;}
   .slice-card.active-selected{border-color:var(--scaled);box-shadow:0 0 0 1px var(--scaled);}
+  .slice-card.slice-inactive{opacity:.5;filter:grayscale(1);}
+  .slice-card.slice-inactive.active-selected{box-shadow:none;}
+  .slice-enable{display:inline-flex;align-items:center;flex-shrink:0;cursor:pointer;}
+  .slice-enable input{appearance:none;-webkit-appearance:none;width:15px;height:15px;border-radius:4px;border:1px solid var(--line-strong);background:var(--panel-3);margin:0;cursor:pointer;position:relative;transition:background .12s,border-color .12s;}
+  .slice-enable input:checked{background:var(--real);border-color:var(--real);}
+  .slice-enable input:checked::after{content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(45deg);}
   .slice-top{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
   .collapse-btn{appearance:none;background:transparent;border:none;color:var(--text-faint);cursor:pointer;font-size:11px;padding:2px 3px;flex-shrink:0;line-height:1;width:14px;text-align:center;}
   .collapse-btn:hover{color:var(--text);}
@@ -2795,7 +2801,7 @@ document.addEventListener('keydown', (e)=>{
     const moveStage = activeTab === 'stage';
     selectedSliceIds.forEach(id=>{
       const s = slices.find(x=>x.id===id);
-      if(!s) return;
+      if(!s || !sliceEnabled(s)) return;
       if(moveStage){
         ensureStagePos(s);
         s.stagePosX = s.stagePosX + dx;
@@ -3902,6 +3908,8 @@ function startDrag(evt, id){
   if(evt.button !== 0) return;
   evt.preventDefault();
   evt.stopPropagation();
+  const dragSlice = slices.find(x=>x.id===id);
+  if(dragSlice && !sliceEnabled(dragSlice)) return;
   if(evt.shiftKey || evt.ctrlKey || evt.metaKey){
     if(selectedSliceIds.has(id)){
       selectedSliceIds.delete(id);
@@ -3923,7 +3931,12 @@ function startDrag(evt, id){
   /* Sleep je één slice, dan verplaatst alleen die slice. Selecteer je
      meerdere slices (of de hele koppelgroep via "Selecteer groep"), dan
      verhuist de selectie als één geheel en snapt de groep als geheel. */
-  const groupIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id];
+  const groupIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id))
+    ? [...selectedSliceIds].filter(gid=>{
+        const gs = slices.find(x=>x.id===gid);
+        return gs && sliceEnabled(gs);
+      })
+    : [id];
   const groupStart = {};
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   groupIds.forEach(gid=>{
@@ -3966,6 +3979,17 @@ function ensureSliceZoom(slice){
   if(!slice) return;
   if(!Number.isFinite(slice.sliceZoom)) slice.sliceZoom = 100;
   slice.sliceZoom = Math.max(10, Math.min(300, Math.round(slice.sliceZoom)));
+}
+
+/* Een slice is actief tenzij expliciet uitgevinkt. Inactieve slices blijven
+   zichtbaar (grijs) maar zijn vergrendeld tot je ze weer aanzet. */
+function sliceEnabled(slice){
+  return !slice || slice.enabled !== false;
+}
+
+function ensureSliceEnabled(slice){
+  if(!slice) return;
+  if(typeof slice.enabled !== 'boolean') slice.enabled = true;
 }
 
 function normalizeTestPatternFlags(slice){
@@ -4535,6 +4559,8 @@ function startStageDrag(evt, id){
   if(evt.button !== 0) return;
   evt.preventDefault();
   evt.stopPropagation();
+  const stageSlice = slices.find(x=>x.id===id);
+  if(stageSlice && !sliceEnabled(stageSlice)) return;
 
   const modSelect = !!(evt.shiftKey || evt.ctrlKey || evt.metaKey);
   if(modSelect){
@@ -4557,7 +4583,12 @@ function startStageDrag(evt, id){
   if(!target) return;
   ensureStagePos(target);
 
-  const groupIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id)) ? [...selectedSliceIds] : [id];
+  const groupIds = (selectedSliceIds.size>1 && selectedSliceIds.has(id))
+    ? [...selectedSliceIds].filter(gid=>{
+        const gs = slices.find(x=>x.id===gid);
+        return gs && sliceEnabled(gs);
+      })
+    : [id];
   const groupStart = {};
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   groupIds.forEach(gid=>{
@@ -4971,6 +5002,7 @@ function makeSlice(defaults){
     titleCropVertical: 0,
     showCircle: false,
     showCross: false,
+    enabled: true,
     linkGroup: 0,
     linkOrder: 0,
     linkAxis: 'h',
@@ -5386,6 +5418,8 @@ function renderSlices(){
     : slices;
   el('slicesList').innerHTML = displayOrder.map((s,idx)=>{
     ensureSliceZoom(s);
+    ensureSliceEnabled(s);
+    const inactive = !sliceEnabled(s);
     const color = colorForSlice(s);
     const comp = computeSlice(s);
     const link = getSliceLinkInfo(s);
@@ -5401,11 +5435,12 @@ function renderSlices(){
     const rgb = sliceRgb(s);
     const panelInfo = (s.type==='slice' && s.mode==='panels') ? `<span>${s.panelsX}×${s.panelsY} panelen</span>` : '';
     return `
-    <div class="slice-card ${s.collapsed?'collapsed':''} ${selectedSliceIds.has(s.id)?'active-selected':''} ${link?'linked':''}" id="card-${s.id}" style="--slice-color:${color}">
+    <div class="slice-card ${s.collapsed?'collapsed':''} ${selectedSliceIds.has(s.id)?'active-selected':''} ${link?'linked':''} ${inactive?'slice-inactive':''}" id="card-${s.id}" style="--slice-color:${color}">
       <div class="slice-top">
         <button class="collapse-btn" onclick="toggleCollapse(${s.id})" title="${s.collapsed?'uitklappen':'inklappen'}">${s.collapsed?'▸':'▾'}</button>
         <span class="swatch"></span>
         <input type="text" data-f="name" value="${s.name}" oninput="recalcAll()">
+        <label class="slice-enable" title="${inactive?'Slice is inactief — vink aan om hem weer te activeren':'Slice actief — vink uit om hem te vergrendelen (grijs en niet aanpasbaar)'}"><input type="checkbox" ${inactive?'':'checked'} onchange="setSliceEnabled(${s.id}, this.checked)"></label>
         ${link ? `<span class="link-badge" title="Gekoppeld in groep ${link.gid} · ${link.count} slices · ${linkLayoutDesc}">🔗 ${link.index+1}/${link.count}</span>` : ''}
         <button class="remove-btn" onclick="removeSlice(${s.id})" title="verwijder">×</button>
       </div>
@@ -5738,6 +5773,36 @@ function renderSlices(){
   updatePanelPreviews();
   refreshSidebarSelectionStyles();
   applySliceTabOrder();
+  applySliceEnabledState();
+}
+
+function setSliceEnabled(id, enabled){
+  const s = slices.find(x=>x.id===id);
+  if(!s) return;
+  readSliceInputs();
+  s.enabled = !!enabled;
+  if(!s.enabled){
+    selectedSliceIds.delete(s.id);
+    syncPrimarySelection();
+  }
+  renderSlices();
+  renderComposition();
+  commitHistory();
+  updateSliceSelectionBar();
+  syncSidebarSelection();
+}
+
+/* Vergrendel alle bediening van een inactieve slice; alleen het
+   actief/inactief-vinkje zelf blijft bruikbaar. */
+function applySliceEnabledState(){
+  const list = el('slicesList');
+  if(!list) return;
+  list.querySelectorAll('.slice-card.slice-inactive').forEach(card=>{
+    card.querySelectorAll('input, select, button, textarea').forEach(node=>{
+      if(node.closest('.slice-enable')) return;
+      node.disabled = true;
+    });
+  });
 }
 
 /* Houd de Tab-volgorde in het objecten-menu gericht op invoervelden.
