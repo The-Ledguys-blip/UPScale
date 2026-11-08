@@ -3026,11 +3026,18 @@ function syncSidebarSelection(){
     refreshSidebarSelectionStyles();
   }
   if(selectedSliceIds.size === 1){
-    const card = el('card-'+selectedSliceId);
-    /* Zet de geselecteerde slice bovenaan de lijst, zodat de bijbehorende
-       properties direct zichtbaar zijn na een klik op de canvas/Stage. */
-    if(card) card.scrollIntoView({behavior:'auto', block:'start'});
+    scrollSelectedSliceCardToTop();
   }
+}
+
+/* Houdt de properties van de geselecteerde slice bovenaan de slicelijst.
+   Wordt na elke render én na een selectie aangeroepen, zodat bijvoorbeeld
+   het wijzigen van een testpatroon de lijst niet naar een andere slice laat
+   verspringen. */
+function scrollSelectedSliceCardToTop(){
+  if(selectedSliceIds.size !== 1) return;
+  const card = el('card-'+selectedSliceId);
+  if(card) card.scrollIntoView({behavior:'auto', block:'start'});
 }
 let lastRealScale = 1;
 let lastRealOx = 0;
@@ -6021,6 +6028,7 @@ function renderSlices(){
   refreshSidebarSelectionStyles();
   applySliceTabOrder();
   applySliceEnabledState();
+  scrollSelectedSliceCardToTop();
 }
 
 function setSliceEnabled(id, enabled){
