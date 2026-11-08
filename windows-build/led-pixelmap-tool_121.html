@@ -996,7 +996,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
             </div>
           </div>
           <div class="legend" id="realLegend"></div>
-          <div class="note">Sleep een slice om te verplaatsen — randen magnetiseren op andere slices en de canvas. Sleep op de lege achtergrond om een selectiekader te trekken en meerdere slices tegelijk te selecteren (dan te verplaatsen met de muis of de pijltjestoetsen). Houd <b>spatie</b> ingedrukt en sleep om te pannen (hand-tool). <b>Ctrl</b> + dubbelklik op een paneel om het te verwijderen of terug te zetten. <b>Ctrl+Shift</b> + klik om meerdere panelen te selecteren. <b>Pinch</b> (2 vingers uit elkaar op het trackpad) zoomt in/uit.</div>
+          <div class="note">Sleep een slice om te verplaatsen — randen magnetiseren op andere slices en de canvas. Sleep op de lege achtergrond om een selectiekader te trekken en meerdere slices tegelijk te selecteren (dan te verplaatsen met de muis of de pijltjestoetsen). <b>Shift</b> + klik op een slice om die aan de selectie toe te voegen of eruit te halen. Houd <b>spatie</b> ingedrukt en sleep om te pannen (hand-tool). <b>Ctrl</b> + dubbelklik op een paneel om het te verwijderen of terug te zetten. <b>Ctrl+Shift</b> + klik om meerdere panelen te selecteren. <b>Pinch</b> (2 vingers uit elkaar op het trackpad) zoomt in/uit.</div>
         </div>
       </div>
     </div>
@@ -3710,10 +3710,21 @@ function startDrag(evt, id){
     startPan(evt, 'realSvg');
     return;
   }
-  if(evt.ctrlKey || evt.metaKey) return;
   if(evt.button !== 0) return;
   evt.preventDefault();
   evt.stopPropagation();
+  if(evt.shiftKey || evt.ctrlKey || evt.metaKey){
+    if(selectedSliceIds.has(id)){
+      selectedSliceIds.delete(id);
+    } else {
+      selectedSliceIds.add(id);
+    }
+    syncPrimarySelection();
+    renderComposition();
+    updateSliceSelectionBar();
+    syncSidebarSelection();
+    return;
+  }
   const svg = el('realSvg');
   const pt = getSvgPoint(svg, evt);
   const s = slices.find(x=>x.id===id);
@@ -3830,7 +3841,7 @@ function sanitizeLinkGroups(list){
 function linkSelectedSlices(axis){
   const ids = [...selectedSliceIds];
   if(ids.length < 2){
-    alert('Selecteer minimaal 2 slices om ze te koppelen (sleep een selectiekader op de compositie of gebruik Shift/Ctrl-klik in Stage).');
+    alert('Selecteer minimaal 2 slices om ze te koppelen (sleep een selectiekader op de compositie of gebruik Shift+klik op de slices).');
     return;
   }
   readSliceInputs();

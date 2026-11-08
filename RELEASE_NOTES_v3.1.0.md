@@ -11,6 +11,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - **Koppeling-sectie per slice**: badge met positie (bijv. 🔗 2/3), uitleg, volgorde aanpassen met ◀/▶, groep selecteren en ontkoppelen.
 - **Leider bepaalt de cirkelvorm**: de eerste slice in de groep bepaalt de cirkelvervorming (zodat de vorm op de naad aansluit). Cirkel, kruis en tekstkleur (zwart/wit) blijven **per slice** instelbaar en werken gewoon door in een gekoppelde groep.
 - **Automatische volgorde**: bij koppelen wordt horizontaal gesorteerd op X en verticaal op Y; daarna handmatig aan te passen.
+- **Shift+klik multi-select**: houd Shift (of Cmd/Ctrl) ingedrukt en klik slices aan of uit in de 1:1-weergave en Stage; de selectiebalk en koppel-knoppen volgen direct.
 - **Duurzaam**: koppeling wordt opgeslagen in project/autosave, meegenomen in undo/redo, en opgeruimd bij verwijderen of plakken.
 
 ## Fixes
@@ -49,6 +50,8 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Tekstkleur zwart/wit werkt per slice, ook binnen een koppeling
 - [x] Cirkelvorm (vervorming) wordt door de leider bepaald
 - [x] Badge, status en disabled controls in de slice-kaarten
+- [x] Shift+klik selecteert meerdere slices in de 1:1-weergave
+- [x] Gewone klik selecteert één slice en deselecteert bij nogmaals klikken
 - [x] Persistentie na herladen (autosave)
 - [x] Groep wordt opgeheven bij verwijderen van een lid
 - [ ] macOS DMG mount en app copy naar Applications werkt
