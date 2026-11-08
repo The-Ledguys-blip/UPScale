@@ -14,6 +14,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - **Live Output pixel-per-pixel**: de live-uitgang toont nu de echte canvasresolutie 1:1 vanaf 0,0 (canvaspixel = uitvoerpixel), zonder de geschaalde 1300×640-overview en zonder CSS-schaling. Is de canvas groter dan het scherm, dan worden de buitenste pixels afgeknipt.
 - **RGB-waarden per object**: onder de kleur-slider staan drie velden met de exacte R/G/B-waarden (0–255). Je kunt ze bewerken, met de kopieerknop kopiëren en met de plakknop direct op een ander object toepassen (of handmatig plakken als `r, g, b`), zodat de kleur exact gelijk wordt.
 - **Bevestiging bij bestaand exportbestand**: als je 1:1 + Scaled Output exporteert en er bestaat al een PNG met dezelfde naam, vraagt de app eerst om bevestiging met **Annuleren** of **Overschrijven**. Er wordt nooit stilzwijgend overschreven of automatisch hernoemd.
+- **Colorbars 100% (diagonaal, bewegend)**: nieuw testpatroon met de zeven 100%-kleurbalken als diagonale banden die schuin naar beneden schuiven en naadloos loopen, zoals in Megapixel VR/HELIOS. Snelheid regelbaar met de bestaande slider; Motion uitzetten maakt het patroon statisch.
 - **Los verplaatsen of als groep**: een gekoppelde slice kun je gewoon individueel slepen en snappen. Selecteer je de hele groep (Shift+klik of **Selecteer groep**), dan verplaatst en snapt de groep als één object op andere slices en de canvas.
 - **Shift+klik multi-select**: houd Shift (of Cmd/Ctrl) ingedrukt en klik slices aan of uit in de 1:1-weergave en Stage; de selectiebalk en koppel-knoppen volgen direct.
 - **Duurzaam**: koppeling wordt opgeslagen in project/autosave, meegenomen in undo/redo, en opgeruimd bij verwijderen of plakken.
@@ -68,6 +69,8 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Export naar bestaande PNG vraagt om Annuleren of Overschrijven
 - [x] Annuleren laat bestaande bestanden ongemoeid
 - [x] Overschrijven vervangt precies hetzelfde bestand
+- [x] Colorbars 100% diagonaal beweegt naadloos naar beneden
+- [x] Bestaande colorbars (verticaal/horizontaal) werken ongewijzigd
 - [x] Persistentie na herladen (autosave)
 - [x] Groep wordt opgeheven bij verwijderen van een lid
 - [ ] macOS DMG mount en app copy naar Applications werkt

@@ -5179,6 +5179,7 @@ function renderSlices(){
               <option value="grid" ${s.testPatternType==='grid'?'selected':''}>Grid</option>
               <option value="colorbars-100" ${s.testPatternType==='colorbars-100'?'selected':''}>Colorbars 100% (verticaal)</option>
               <option value="colorbars-100h" ${s.testPatternType==='colorbars-100h'?'selected':''}>Colorbars 100% (horizontaal)</option>
+              <option value="colorbars-100d" ${s.testPatternType==='colorbars-100d'?'selected':''}>Colorbars 100% (diagonaal, bewegend)</option>
             </select>
           </div>
           <div class="title-size-row" style="margin-bottom:0;">
@@ -5188,8 +5189,9 @@ function renderSlices(){
           </div>
           <div class="overlay-row" style="margin-top:8px;">
             <label><input type="checkbox" data-f="testPatternMotion" ${s.testPatternMotion?'checked':''} onchange="recalcAll()"> Motion</label>
+            ${s.testPatternType==='colorbars-100d' ? '' : `
             <label><input type="checkbox" data-f="testPatternHorizontal" ${s.testPatternHorizontal?'checked':''} onchange="recalcAll()"> Horizontaal</label>
-            <label><input type="checkbox" data-f="testPatternVertical" ${s.testPatternVertical?'checked':''} onchange="recalcAll()"> Verticaal</label>
+            <label><input type="checkbox" data-f="testPatternVertical" ${s.testPatternVertical?'checked':''} onchange="recalcAll()"> Verticaal</label>`}
           </div>
         </div>
       </div>
@@ -5927,6 +5929,34 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale){
         const name = moveX ? 'tpx' : 'tpy';
         out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
       }
+    } else if(tpType==='colorbars-100d'){
+      /* 100% colorbars als diagonale kleurbanden die naar beneden schuiven.
+         De banden staan onder 45 graden en bewegen loodrecht op hun lengte
+         (schuin naar beneden). Eén volledige kleurcyclus staat gelijk aan
+         7 bandbreedtes, waardoor de loop naadloos is. */
+      const cx = x + w/2, cy = y + h/2;
+      const diag = Math.sqrt(w*w + h*h);
+      const bw = Math.max(6, Math.round(diag / barColors.length));
+      const half = diag/2 + bw;
+      const cycle = bw * barColors.length;
+      const startX = -Math.ceil((half + cycle) / bw) * bw;
+      const endX = half + cycle + bw;
+      const count = Math.ceil((endX - startX) / bw) + 1;
+      const animName = 'tpd-' + clipId;
+      out += `<g transform="translate(${cx} ${cy}) rotate(45)">`;
+      if(tpMotion){
+        out += `<g style="transform-origin:0 0;animation:${animName} ${dur}s linear infinite;">`;
+      }
+      for(let i=0;i<count;i++){
+        const bx = startX + i*bw;
+        const col = barColors[((i % barColors.length) + barColors.length) % barColors.length];
+        out += `<rect x="${bx}" y="${-half}" width="${bw+1}" height="${half*2}" fill="${col}"/>`;
+      }
+      if(tpMotion){
+        out += `</g>`;
+        out += `<style>@keyframes ${animName}{from{transform:translateX(0px)}to{transform:translateX(${cycle}px)}}</style>`;
+      }
+      out += `</g>`;
     } else if(tpType==='counters'){
       out += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(12,Math.min(w,h)/4)}" fill="#ffffff">00:00:00</text>`;
     } else if(tpType==='diagonal'){
