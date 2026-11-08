@@ -20,7 +20,7 @@ from PySide6.QtCore import QObject, Slot
 from PySide6.QtGui import QAction, QColor, QIcon, QPixmap, QGuiApplication, QShortcut, QKeySequence
 import base64
 import shutil
-from PySide6.QtWidgets import QApplication, QMainWindow, QMenuBar, QMessageBox, QWidget, QVBoxLayout
+from PySide6.QtWidgets import QApplication, QMainWindow, QMenuBar, QMessageBox, QWidget, QVBoxLayout, QFileDialog
 import threading
 import time
 import datetime
@@ -56,6 +56,15 @@ def project_display_name(value, fallback: str = "Untitled Project") -> str:
     name = str(value or "").strip()
     name = re.sub(r'\.(?:json|up)$', '', name, flags=re.IGNORECASE).strip()
     return name or fallback
+
+
+def project_target_path(folder, filename) -> Path:
+    """Resolve a project file inside a chosen folder and enforce the .UP extension."""
+    base = Path(str(folder or "").strip()).expanduser()
+    if not base.is_absolute():
+        base = Path.home() / base
+    clean = sanitize_path_component(project_display_name(filename, fallback="project"), fallback="project")
+    return base / (clean + ".UP")
 
 
 def _config_file_path() -> Path:
@@ -1030,6 +1039,74 @@ class MainWindow(QMainWindow):
                 except Exception:
                     LOGGER.exception("save_file failed")
                     return False
+
+            @Slot(result=str)
+            def default_project_dir(self) -> str:
+                """Return the folder to start in when saving a project."""
+                try:
+                    cfg = load_config()
+                    saved = str(cfg.get("project_save_dir", "") or "").strip()
+                    if saved:
+                        path = Path(saved).expanduser()
+                        if path.is_dir():
+                            return path.as_posix()
+                    documents = QStandardPaths.standardLocations(QStandardPaths.DocumentsLocation)
+                    if documents:
+                        path = Path(documents[0])
+                        if path.is_dir():
+                            return path.as_posix()
+                except Exception:
+                    LOGGER.exception("default_project_dir failed")
+                return get_downloads_dir().as_posix()
+
+            @Slot(str, result=str)
+            def choose_project_folder(self, current: str) -> str:
+                """Open a native folder picker and remember the chosen folder."""
+                try:
+                    start = str(current or "").strip()
+                    if not start or not Path(start).expanduser().is_dir():
+                        start = self.default_project_dir()
+                    chosen = QFileDialog.getExistingDirectory(
+                        main_window,
+                        "Kies een map om het project op te slaan",
+                        start,
+                        QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+                    )
+                    if not chosen:
+                        return ""
+                    path = Path(chosen)
+                    cfg = load_config()
+                    cfg["project_save_dir"] = path.as_posix()
+                    save_config(cfg)
+                    return path.as_posix()
+                except Exception:
+                    LOGGER.exception("choose_project_folder failed")
+                    return ""
+
+            @Slot(str, str, result=bool)
+            def project_file_exists(self, folder: str, filename: str) -> bool:
+                try:
+                    return project_target_path(folder, filename).exists()
+                except Exception:
+                    LOGGER.exception("project_file_exists failed")
+                    return False
+
+            @Slot(str, str, str, result=str)
+            def save_project_file(self, folder: str, filename: str, content: str) -> str:
+                """Write the project file to the chosen folder. Returns OK:<path> or an error."""
+                try:
+                    target = project_target_path(folder, filename)
+                    if not target.parent.is_dir():
+                        return "De gekozen map bestaat niet."
+                    target.write_text(content or "", encoding="utf-8")
+                    cfg = load_config()
+                    cfg["project_save_dir"] = target.parent.as_posix()
+                    save_config(cfg)
+                    LOGGER.info("save_project_file wrote %s", target)
+                    return "OK:" + target.as_posix()
+                except Exception:
+                    LOGGER.exception("save_project_file failed")
+                    return "Opslaan mislukt. Controleer of je schrijfrechten hebt in deze map."
 
             @Slot(result=str)
             def list_screens(self) -> str:

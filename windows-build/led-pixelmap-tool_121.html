@@ -389,6 +389,19 @@
   .export-conflict-body ul{margin:0 0 10px;padding-left:18px;max-height:150px;overflow:auto;}
   .export-conflict-body li{font-family:var(--font-mono);font-size:11.5px;color:var(--text);word-break:break-all;margin:2px 0;}
   .export-conflict-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 15px;border-top:1px solid var(--line-soft);background:var(--panel-2);}
+  #exportConflictModal{z-index:2600;}
+  .save-project-shell{width:min(560px,94vw);background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 30px 80px -20px rgba(0,0,0,.85);overflow:hidden;}
+  .save-project-body{padding:14px 15px;display:flex;flex-direction:column;gap:12px;}
+  .save-project-field{display:flex;flex-direction:column;gap:6px;}
+  .save-project-field>span{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);font-weight:600;}
+  .save-project-field input{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);font-family:var(--font-mono);font-size:12.5px;padding:9px 10px;border-radius:7px;outline:none;transition:border-color .15s;}
+  .save-project-field input:focus{border-color:var(--real);}
+  .save-project-field input:disabled{opacity:.55;cursor:wait;}
+  .save-project-path-row{display:flex;gap:8px;align-items:stretch;}
+  .save-project-path-row input{flex:1;min-width:0;}
+  .save-project-path-row .stage-btn{white-space:nowrap;flex-shrink:0;}
+  .save-project-hint{margin:0;font-size:11.5px;color:var(--text-faint);line-height:1.45;min-height:16px;word-break:break-word;}
+  .save-project-hint.error{color:var(--warn);}
   .stage-svg-wrap{position:relative;width:100%;aspect-ratio:1300/640;}
   .stage-svg-wrap svg{width:100%;height:auto;display:block;touch-action:none;}
 </style>
@@ -1466,6 +1479,32 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
     <div class="export-conflict-actions">
       <button type="button" class="stage-btn" id="exportCancelBtn" onclick="resolveExportConflict('cancel')">Annuleren</button>
       <button type="button" class="stage-btn stage-btn-accent" id="exportOverwriteBtn" onclick="resolveExportConflict('overwrite')">Overschrijven</button>
+    </div>
+  </div>
+</div>
+
+<div class="crop-modal" id="saveProjectModal">
+  <div class="save-project-shell" role="dialog" aria-modal="true" aria-labelledby="saveProjectTitle">
+    <div class="export-conflict-head">
+      <h3 id="saveProjectTitle">Project opslaan als</h3>
+    </div>
+    <div class="save-project-body">
+      <label class="save-project-field">
+        <span>Bestandsnaam</span>
+        <input type="text" id="saveProjectName" spellcheck="false" autocomplete="off" placeholder="pixelmap-project.UP">
+      </label>
+      <label class="save-project-field">
+        <span>Locatie</span>
+        <div class="save-project-path-row">
+          <input type="text" id="saveProjectFolder" spellcheck="false" autocomplete="off" placeholder="Kies een map…">
+          <button type="button" class="stage-btn" id="saveProjectBrowse" onclick="browseProjectFolder()">Kies map…</button>
+        </div>
+      </label>
+      <p class="save-project-hint" id="saveProjectHint"></p>
+    </div>
+    <div class="export-conflict-actions">
+      <button type="button" class="stage-btn" onclick="closeSaveProjectDialog()">Annuleren</button>
+      <button type="button" class="stage-btn stage-btn-accent" id="saveProjectConfirm" onclick="confirmSaveProjectDialog()">Opslaan</button>
     </div>
   </div>
 </div>
@@ -3320,9 +3359,13 @@ document.addEventListener('keyup', (e)=>{
 const APP_VERSION = 'v3.1.0';
 let activeTab = 'real';
 let lastSavedFilename = null;
+let lastSavedPath = null;
 const DEFAULT_APP_TITLE = 'Untitled Project';
 const PROJECT_EXT = '.UP';
 const PROJECT_EXT_RE = /\.(?:up|json)$/i;
+const PROJECT_SAVE_DIR_KEY = 'upscale-project-save-dir';
+let lastProjectSaveDir = '';
+try{ lastProjectSaveDir = localStorage.getItem(PROJECT_SAVE_DIR_KEY) || ''; }catch(e){}
 
 function projectDisplayName(name){
   return name ? String(name).replace(PROJECT_EXT_RE, '') : DEFAULT_APP_TITLE;
@@ -3334,11 +3377,10 @@ function normalizeProjectFilename(name){
 }
 
 function updateHeaderTitle(){
-  const h1 = el('appTitle');
-  if(!h1) return;
   const displayName = projectDisplayName(lastSavedFilename);
-  h1.textContent = displayName;
-  
+  const h1 = el('appTitle');
+  if(h1) h1.textContent = displayName;
+
   // Update document title - this may be reflected in the window title bar
   document.title = `UPScale — ${displayName}`;
 
@@ -3732,22 +3774,168 @@ function downloadProjectFile(filename){
   URL.revokeObjectURL(link.href);
 }
 
-function saveProject(){
+function projectJoinPath(folder, filename){
+  return String(folder || '').replace(/[\\/]+$/, '') + '/' + filename;
+}
+
+function setSaveProjectHint(text, isError){
+  const hint = el('saveProjectHint');
+  if(!hint) return;
+  hint.textContent = text || '';
+  hint.classList.toggle('error', !!isError);
+}
+
+function updateSaveProjectHint(){
+  const nameEl = el('saveProjectName');
+  const folderEl = el('saveProjectFolder');
+  if(!nameEl || !folderEl) return;
+  const name = normalizeProjectFilename(nameEl.value);
+  const folder = folderEl.value.trim();
+  setSaveProjectHint(folder ? `Wordt opgeslagen als ${projectJoinPath(folder, name)}` : 'Kies een map om het project op te slaan.');
+}
+
+function closeSaveProjectDialog(){
+  const modal = el('saveProjectModal');
+  if(modal) modal.classList.remove('open');
+  setSaveProjectHint('');
+}
+
+async function browseProjectFolder(){
+  const input = el('saveProjectFolder');
+  const btn = el('saveProjectBrowse');
+  if(!input) return;
+  if(btn) btn.disabled = true;
+  try{
+    const chosen = await callPy('choose_project_folder', [input.value.trim()]);
+    if(typeof chosen === 'string' && chosen){
+      input.value = chosen;
+      lastProjectSaveDir = chosen;
+      try{ localStorage.setItem(PROJECT_SAVE_DIR_KEY, chosen); }catch(e){}
+      updateSaveProjectHint();
+    }
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+async function saveProjectAs(){
+  const modal = el('saveProjectModal');
+  if(!modal){
+    downloadProjectFile(normalizeProjectFilename(projectDisplayName(lastSavedFilename)));
+    return;
+  }
+  const nameEl = el('saveProjectName');
+  const folderEl = el('saveProjectFolder');
+  const hint = el('saveProjectHint');
+  const confirmBtn = el('saveProjectConfirm');
+  const browseBtn = el('saveProjectBrowse');
+  const name = normalizeProjectFilename(projectDisplayName(lastSavedFilename));
+  nameEl.value = name;
+  folderEl.value = lastProjectSaveDir || '';
+  folderEl.placeholder = 'Locatie wordt geladen…';
+  if(hint) hint.classList.remove('error');
+  setSaveProjectHint('');
+  if(confirmBtn) confirmBtn.disabled = false;
+  if(browseBtn) browseBtn.disabled = false;
+  modal.classList.add('open');
+
+  const hasBridge = await pyBridgeReady(1500);
+  if(!hasBridge){
+    folderEl.value = 'Downloads';
+    folderEl.placeholder = 'Downloads';
+    if(browseBtn) browseBtn.disabled = true;
+    setSaveProjectHint('Map kiezen kan alleen in de desktop-app; in de browser wordt het bestand gedownload.');
+  } else if(!folderEl.value){
+    const dir = await callPy('default_project_dir', []);
+    if(typeof dir === 'string' && dir){
+      folderEl.value = dir;
+      lastProjectSaveDir = dir;
+    }
+  }
+  updateSaveProjectHint();
+  try{
+    nameEl.focus();
+    const dot = name.lastIndexOf('.');
+    nameEl.setSelectionRange(0, dot > 0 ? dot : name.length);
+  }catch(e){}
+}
+
+async function confirmSaveProjectDialog(){
+  const nameEl = el('saveProjectName');
+  const folderEl = el('saveProjectFolder');
+  const confirmBtn = el('saveProjectConfirm');
+  if(!nameEl || !folderEl) return;
+  const filename = normalizeProjectFilename(nameEl.value);
+  nameEl.value = filename;
+  const folder = folderEl.value.trim();
+  if(!folder){
+    setSaveProjectHint('Kies eerst een map.', true);
+    folderEl.focus();
+    return;
+  }
+
+  const hasBridge = await pyBridgeReady(1200);
+  if(!hasBridge){
+    lastSavedFilename = filename;
+    lastSavedPath = null;
+    updateHeaderTitle();
+    closeSaveProjectDialog();
+    downloadProjectFile(filename);
+    return;
+  }
+
+  if(confirmBtn) confirmBtn.disabled = true;
+  setSaveProjectHint('Bezig met opslaan…');
+  try{
+    const exists = await callPy('project_file_exists', [folder, filename]);
+    if(exists){
+      setSaveProjectHint('Bestand bestaat al — kies overschrijven of annuleren.');
+      const choice = await askExportOverwrite([projectJoinPath(folder, filename)]);
+      if(choice !== 'overwrite'){
+        setSaveProjectHint('Opslaan geannuleerd — bestaand bestand is niet gewijzigd.');
+        return;
+      }
+      setSaveProjectHint('Bezig met overschrijven…');
+    }
+    const data = JSON.stringify(serializeProject());
+    const result = await callPy('save_project_file', [folder, filename, data]);
+    if(typeof result === 'string' && result.indexOf('OK:') === 0){
+      const savedPath = result.slice(3);
+      lastSavedPath = savedPath;
+      lastSavedFilename = savedPath.split(/[\\/]/).pop() || filename;
+      lastProjectSaveDir = folder;
+      try{ localStorage.setItem(PROJECT_SAVE_DIR_KEY, folder); }catch(e){}
+      updateHeaderTitle();
+      closeSaveProjectDialog();
+    } else {
+      setSaveProjectHint((typeof result === 'string' && result) ? result : 'Opslaan mislukt.', true);
+    }
+  }finally{
+    if(confirmBtn) confirmBtn.disabled = false;
+  }
+}
+
+async function saveProject(){
   if(!lastSavedFilename){
     saveProjectAs();
     return;
   }
-  downloadProjectFile(lastSavedFilename);
-}
-
-function saveProjectAs(){
-  const suggestion = projectDisplayName(lastSavedFilename);
-  const name = prompt('Bestandsnaam (.UP):', suggestion);
-  if(!name || !name.trim()) return;
-  const filename = normalizeProjectFilename(name);
-  lastSavedFilename = filename;
-  updateHeaderTitle();
-  downloadProjectFile(filename);
+  if(lastSavedPath){
+    const hasBridge = await pyBridgeReady(1200);
+    if(hasBridge){
+      const folder = lastSavedPath.replace(/[\\/][^\\/]+$/, '');
+      const filename = lastSavedPath.split(/[\\/]/).pop() || lastSavedFilename;
+      const data = JSON.stringify(serializeProject());
+      const result = await callPy('save_project_file', [folder, filename, data]);
+      if(typeof result === 'string' && result.indexOf('OK:') === 0){
+        lastSavedPath = result.slice(3);
+        lastSavedFilename = lastSavedPath.split(/[\\/]/).pop() || filename;
+        updateHeaderTitle();
+        return;
+      }
+    }
+  }
+  saveProjectAs();
 }
 
 function newProject(){
@@ -3766,6 +3954,7 @@ function newProject(){
   clipboardSlices = [];
   selectedPanels = [];
   lastSavedFilename = null;
+  lastSavedPath = null;
   updateHeaderTitle();
   clearGuideImage();
   clearStageImage();
@@ -3814,6 +4003,7 @@ function handleLoadProject(evt){
       const data = JSON.parse(e.target.result);
       restoreProject(data);
       lastSavedFilename = normalizeProjectFilename(file.name);
+      lastSavedPath = null;
       updateHeaderTitle();
     }catch(err){
       alert('Kon dit bestand niet laden — is het een geldig UPScale-projectbestand (.UP)?');
@@ -7699,6 +7889,26 @@ window.addEventListener('keydown', (e)=>{
     resolveExportConflict('cancel');
   }
 });
+
+(function(){
+  const modal = el('saveProjectModal');
+  if(!modal) return;
+  modal.addEventListener('keydown', (e)=>{
+    e.stopPropagation();
+    if(e.key === 'Escape'){
+      if(exportConflictResolve) return;
+      e.preventDefault();
+      closeSaveProjectDialog();
+    } else if(e.key === 'Enter' && e.target && e.target.tagName !== 'BUTTON'){
+      e.preventDefault();
+      confirmSaveProjectDialog();
+    }
+  });
+  ['saveProjectName','saveProjectFolder'].forEach(id=>{
+    const input = el(id);
+    if(input) input.addEventListener('input', updateSaveProjectHint);
+  });
+})();
 
 async function exportScaledPNG(){
   const btn = document.querySelector('.export-btn');
