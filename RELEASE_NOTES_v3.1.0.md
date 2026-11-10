@@ -6,7 +6,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 
 ## What's New
 
-- **Slice selecteren op de canvas**: klik je een slice aan in de 1:1-compositie, dan scrolt de slicelijst automatisch naar die slice en komt zijn properties bovenaan de lijst te staan. Die kaart blijft bovenaan staan terwijl je er iets in wijzigt — ook bij het kiezen of uitzetten van een testpatroon — zodat de lijst niet naar een andere slice verspringt.
+- **Slice selecteren op de canvas**: klik je een slice aan in de 1:1-compositie, dan komt die slice bovenaan de slicelijst te staan zonder dat de pagina of canvas verspringt. Alleen de slicelijst zelf scrolt; het canvas blijft exact op zijn plek. Die kaart blijft bovenaan staan terwijl je er iets in wijzigt — ook bij het kiezen of uitzetten van een testpatroon — zodat de lijst niet naar een andere slice verspringt.
 - **Tab in het objecten-menu**: met Tab ga je direct naar de invulbare velden (naam, R/G/B, positie, resolutie, checkboxes). De ▲/▼-stapknoppen, schuifbalken en icoon-knoppen worden overgeslagen, zodat je snel door de gegevens heen tabt. Alles blijft gewoon met de muis bedienbaar.
 - **Live Output vloeiend met meerdere uitgangen**: elk live-venster krijgt alleen nog een nieuw beeld als zijn eigen canvas echt verandert. Bij 1, 2 en 4 live outputs blijven de vensters op 60 fps en blijft ook de hoofdapp op 60 fps, ook tijdens het slepen van een slice. Lopende testpatroon-animaties worden bij een update niet meer gereset, maar pakken de beweging op waar ze waren.
 - **Slice actief/inactief**: naast de naam van elke slice staat een rond actief-balletje. Uitvinken maakt de slice grijs, verbergt hem uit het canvas, de Stage, de live-uitgang en de export, en vergrendelt alle bediening (velden, knoppen, slepen en pijltjestoetsen) tot je hem weer aanvinkt. Zo bescherm je een scherm tijdelijk tegen aanpassingen zonder het te verwijderen.
@@ -95,6 +95,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Testmode werkt ook binnen een gekoppelde groep, zonder markeringen over het patroon
 - [x] Klik op een slice in de canvas scrolt de slicelijst naar die slice, met de properties bovenaan
 - [x] De geselecteerde slice blijft bovenaan staan bij het wijzigen van bijvoorbeeld het testpatroon
+- [x] Een slice aanklikken in de canvas laat de pagina en canvas staan; alleen de slicelijst scrolt naar de selectie
 - [x] IM mode aan/uit rendert zonder fouten en blokkeert andere bediening niet
 - [x] Actief/inactief, testpatroon, koppelen, undo/redo en live/export werken na de IM-fix
 - [x] Bestaande colorbars (verticaal/horizontaal) werken ongewijzigd

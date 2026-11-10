@@ -3020,6 +3020,15 @@ function syncSidebarSelection(){
       }
     });
   }
+  /* Zorg dat de geselecteerde slice bovenaan de lijst staat. renderSlices()
+     sorteert de selectie naar boven, maar bij een klik op de canvas wordt
+     eerst gerenderd en pas daarna de selectie bijgewerkt. Vergelijk daarom
+     de eerste kaart met de selectie en render zo nodig opnieuw. */
+  if(selectedSliceIds.size === 1){
+    const list = el('slicesList');
+    const first = list && list.firstElementChild;
+    if(!first || first.id !== 'card-'+selectedSliceId) needsRender = true;
+  }
   if(needsRender){
     renderSlices();
   } else {
@@ -3033,11 +3042,17 @@ function syncSidebarSelection(){
 /* Houdt de properties van de geselecteerde slice bovenaan de slicelijst.
    Wordt na elke render én na een selectie aangeroepen, zodat bijvoorbeeld
    het wijzigen van een testpatroon de lijst niet naar een andere slice laat
+   verspringen. Er wordt uitsluitend binnen #slicesList gescrold: een
+   scrollIntoView() zou ook de pagina meescrollen en de canvas laten
    verspringen. */
 function scrollSelectedSliceCardToTop(){
   if(selectedSliceIds.size !== 1) return;
   const card = el('card-'+selectedSliceId);
-  if(card) card.scrollIntoView({behavior:'auto', block:'start'});
+  const list = el('slicesList');
+  if(!card || !list) return;
+  const listRect = list.getBoundingClientRect();
+  const cardRect = card.getBoundingClientRect();
+  list.scrollTop = Math.max(0, list.scrollTop + (cardRect.top - listRect.top));
 }
 let lastRealScale = 1;
 let lastRealOx = 0;
