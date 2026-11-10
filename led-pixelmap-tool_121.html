@@ -6349,7 +6349,7 @@ function onImCountInput(id){
   recalcAll(); updatePanelPreviews();
 }
 
-function imPanelCells(s, x, y, w, h, ls, interactive){
+function imPanelCells(s, x, y, w, h, ls, interactive, idNs){
   const GREY = '#e1e1e1', WHITE = '#ffffff';
   const cellW = w / s.panelsX, cellH = h / s.panelsY;
   const seg = imSegments(s, 4000);
@@ -6589,7 +6589,7 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, id
   const shapeH = Math.max(useRounded ? h : (h-1), 1);
   let inner;
   if(s.type==='slice' && s.mode==='panels' && s.imMode){
-    inner = imPanelCells(s, x, y, w, h, ls, interactive);
+    inner = imPanelCells(s, x, y, w, h, ls, interactive, idNs);
   } else if(s.type==='slice' && s.mode==='panels'){
     const cellW = w / s.panelsX, cellH = h / s.panelsY;
     let cells = `<path d="${occupiedOutlinePath(s,x,y,w,h)}" fill="none" stroke="${color}" stroke-width="${1*ls}"/>`;

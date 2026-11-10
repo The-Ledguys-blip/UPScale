@@ -29,6 +29,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 
 ## Fixes
 
+- **IM mode werkt weer**: een fout in de IM-paneeltekening (`idNs is not defined`) zorgde ervoor dat IM mode de compositie niet kon renderen. Daardoor leken ook de actief-schakelaar en het testpatroon daarna niet meer te reageren. IM mode rendert nu correct en blokkeert de overige bediening niet meer.
 - Geen regressies in bestaande enkelvoudige cirkel/kruis-weergave; elke slice zonder groep gedraagt zich zoals voorheen.
 
 ## Downloads
@@ -94,6 +95,8 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Testmode werkt ook binnen een gekoppelde groep, zonder markeringen over het patroon
 - [x] Klik op een slice in de canvas scrolt de slicelijst naar die slice, met de properties bovenaan
 - [x] De geselecteerde slice blijft bovenaan staan bij het wijzigen van bijvoorbeeld het testpatroon
+- [x] IM mode aan/uit rendert zonder fouten en blokkeert andere bediening niet
+- [x] Actief/inactief, testpatroon, koppelen, undo/redo en live/export werken na de IM-fix
 - [x] Bestaande colorbars (verticaal/horizontaal) werken ongewijzigd
 - [x] Persistentie na herladen (autosave)
 - [x] Groep wordt opgeheven bij verwijderen van een lid
