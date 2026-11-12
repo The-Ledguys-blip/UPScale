@@ -7191,6 +7191,21 @@ function imSegmentSize(s){
   return { w: wpx/seg.segX, h: hpx/seg.segY };
 }
 
+/* Houdt de (alleen-lezen) IM-grootte in de kaart gelijk aan het paneelformaat
+   en het aantal, ook als het paneel later wordt aangepast. */
+function refreshImSizeFields(){
+  slices.forEach(s=>{
+    if(!s.imMode || s.type!=='slice' || s.mode!=='panels') return;
+    const card = el('card-'+s.id);
+    if(!card) return;
+    const size = imSegmentSize(s);
+    const wEl = card.querySelector('[data-f=imSegW]');
+    const hEl = card.querySelector('[data-f=imSegH]');
+    if(wEl) wEl.value = Math.round(size.w);
+    if(hEl) hEl.value = Math.round(size.h);
+  });
+}
+
 function onImCountInput(id){
   const s = slices.find(x=>x.id===id);
   if(!s) return;
@@ -9073,6 +9088,7 @@ function renderComposition(){
 function recalcAll(){
   syncActiveCanvasFromInputs();
   readSliceInputs();
+  refreshImSizeFields();
   queueCompositionRender();
   scheduleHistoryPush();
 }
