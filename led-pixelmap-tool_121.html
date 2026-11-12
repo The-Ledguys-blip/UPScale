@@ -3611,7 +3611,7 @@ function nextCanvasName(){
 const LIVE_TEST_TYPES = ['none','solid-black','solid-red','solid-green','solid-blue','solid-white','diagonal','gradient','grid','colorbars-100','colorbars-100h','colorbars-100d'];
 
 function defaultLiveTest(){
-  return { type: 'none', speed: 5, motion: true, horizontal: true, vertical: false };
+  return { type: 'none', speed: 2, motion: true, horizontal: true, vertical: false };
 }
 
 function normalizeLiveTest(raw){
@@ -3619,7 +3619,7 @@ function normalizeLiveTest(raw){
   const type = LIVE_TEST_TYPES.indexOf(t.type) >= 0 ? t.type : 'none';
   return {
     type: type,
-    speed: Math.max(1, Math.min(10, parseInt(t.speed, 10) || 5)),
+    speed: Math.max(1, Math.min(10, parseInt(t.speed, 10) || 2)),
     motion: t.motion !== false,
     horizontal: t.horizontal !== false,
     vertical: !!t.vertical
@@ -6099,7 +6099,7 @@ function makeSlice(defaults){
     linkCollapsed: true,
     testPattern: false,
     testPatternType: 'none',
-    testPatternSpeed: 5,
+    testPatternSpeed: 2,
     testPatternCollapsed: true,
     testPatternMotion: true,
     testPatternHorizontal: true,
@@ -6240,7 +6240,7 @@ function readSliceInputs(){
     const testPatternTypeInput = c.querySelector('[data-f=testPatternType]');
     if(testPatternTypeInput) s.testPatternType = testPatternTypeInput.value;
     const testPatternSpeedInput = c.querySelector('[data-f=testPatternSpeed]');
-    if(testPatternSpeedInput) s.testPatternSpeed = Math.max(1, Math.min(10, parseInt(testPatternSpeedInput.value) || 5));
+    if(testPatternSpeedInput) s.testPatternSpeed = Math.max(1, Math.min(10, parseInt(testPatternSpeedInput.value) || 2));
     const tpMotionInput = c.querySelector('[data-f=testPatternMotion]');
     if(tpMotionInput) s.testPatternMotion = tpMotionInput.checked;
     const tpHorizInput = c.querySelector('[data-f=testPatternHorizontal]');
@@ -6611,8 +6611,8 @@ function renderSlices(){
           </div>
           <div class="title-size-row" style="margin-bottom:0;">
             <label>Snelheid</label>
-            <input type="range" data-f="testPatternSpeed" min="1" max="10" step="1" value="${s.testPatternSpeed||5}" oninput="el('testSpeedVal-${s.id}').textContent=this.value; recalcAll()">
-            <span class="val" id="testSpeedVal-${s.id}">${s.testPatternSpeed||5}</span>
+            <input type="range" data-f="testPatternSpeed" min="1" max="10" step="1" value="${s.testPatternSpeed||2}" oninput="el('testSpeedVal-${s.id}').textContent=this.value; recalcAll()">
+            <span class="val" id="testSpeedVal-${s.id}">${s.testPatternSpeed||2}</span>
           </div>
           <div class="overlay-row" style="margin-top:8px;">
             <label><input type="checkbox" data-f="testPatternMotion" ${s.testPatternMotion?'checked':''} onchange="recalcAll()"> Motion</label>
@@ -7343,7 +7343,7 @@ function testPatternSVG(type, x, y, w, h, opts, seed){
   const roundRX = Math.max(0, Number(o.rx) || 0);
   const roundRY = Math.max(0, Number(o.ry) || 0);
   const clipId = 'tpclip-' + seed;
-  const dur = (11 - Math.max(1, Math.min(10, Number(o.speed) || 5))).toFixed(1);
+  const dur = (11 - Math.max(1, Math.min(10, Number(o.speed) || 2))).toFixed(1);
   const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
   let out = '';
   out += `<defs><clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" rx="${roundRX}" ry="${roundRY}"/></clipPath></defs>`;
@@ -7358,9 +7358,9 @@ function testPatternSVG(type, x, y, w, h, opts, seed){
     const count = animated ? barColors.length*2 : barColors.length;
     if(animated){
       const anim = moveY ? `tpy-${clipId}` : `tpx-${clipId}`;
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;">`;
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;will-change:transform;">`;
     }
-    for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; }
+    for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; const a=Math.round(x + i*bw), b=Math.round(x + (i+1)*bw); out += `<rect x="${a}" y="${y}" width="${b-a+1}" height="${h}" fill="${col}"/>`; }
     if(animated){
       out += `</g>`;
       const dist = moveY ? h : bw*barColors.length;
@@ -7376,9 +7376,9 @@ function testPatternSVG(type, x, y, w, h, opts, seed){
     const count = animated ? barColors.length*2 : barColors.length;
     if(animated){
       const anim = moveX ? `tpx-${clipId}` : `tpy-${clipId}`;
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;">`;
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;will-change:transform;">`;
     }
-    for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; }
+    for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; const a=Math.round(y + i*bh), b=Math.round(y + (i+1)*bh); out += `<rect x="${x}" y="${a}" width="${w}" height="${b-a+1}" fill="${col}"/>`; }
     if(animated){
       out += `</g>`;
       const dist = moveX ? bw*barColors.length : bh*barColors.length;
@@ -10954,7 +10954,7 @@ function liveSetCanvasTestSpeed(canvasId, value){
   const c = canvases.find(x=>x.id === canvasId);
   if(!c) return;
   const t = ensureCanvasLiveTest(c);
-  t.speed = Math.max(1, Math.min(10, parseInt(value, 10) || 5));
+  t.speed = Math.max(1, Math.min(10, parseInt(value, 10) || 2));
   const label = el('liveTestSpeed-' + canvasId);
   if(label) label.textContent = t.speed;
   livePushTestPattern();
