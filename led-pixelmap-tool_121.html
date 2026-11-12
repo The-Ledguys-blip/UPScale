@@ -7274,10 +7274,10 @@ function imGroupHTML(s){
             <input type="text" class="calc im-dim" data-f="imSegW" value="${Math.round(size.w)}" readonly tabindex="-1" title="Automatisch: paneelbreedte ÷ aantal">
           </div>
           <div class="title-size-row" style="margin-bottom:10px;">
-            <label title="Stel in hoeveel segmenten per paneel; de pixelgrootte past zich daarop aan">Aantal (H×B)</label>
-            <input type="text" inputmode="numeric" class="calc im-dim" data-f="imSegRows" value="${seg.segY}" oninput="onImCountInput(${s.id})">
-            <span class="im-x">×</span>
+            <label title="Stel in hoeveel segmenten per paneel; de pixelgrootte past zich daarop aan">Aantal (B×H)</label>
             <input type="text" inputmode="numeric" class="calc im-dim" data-f="imSegCols" value="${seg.segX}" oninput="onImCountInput(${s.id})">
+            <span class="im-x">×</span>
+            <input type="text" inputmode="numeric" class="calc im-dim" data-f="imSegRows" value="${seg.segY}" oninput="onImCountInput(${s.id})">
           </div>
         </div>
       </div>`;
