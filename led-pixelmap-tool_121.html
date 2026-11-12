@@ -7330,6 +7330,36 @@ function onTestPatternTypeChange(id, type){
   recalcAll();
 }
 
+/* Kleurbanden op hele pixels: geen gemengde randen, dus geen waas tussen de
+   kleuren. Bij beweging worden de banden in de bewegingsrichting dubbel zo lang
+   getekend en schuift het geheel in gehele pixelstappen, zodat de lus naadloos
+   en scherp blijft. */
+function testBarsSVG(vertical, axis, x, y, w, h, dur, animName, colors){
+  const n = colors.length;
+  const along = vertical ? w : h;
+  const across = vertical ? h : w;
+  const origin = vertical ? x : y;
+  const crossOrigin = vertical ? y : x;
+  const moveAlongBands = !!axis && ((vertical && axis === 'x') || (!vertical && axis === 'y'));
+  const moveAcross = !!axis && !moveAlongBands;
+  const count = moveAlongBands ? n*2 : n;
+  const crossLen = moveAcross ? across*2 : across;
+  const edge = i => Math.round(origin + i*along/n);
+  const dist = Math.max(1, Math.round(moveAlongBands ? along : across));
+  let body = '';
+  for(let i=0;i<count;i++){
+    const col = colors[i % n];
+    const a = edge(i), b = edge(i+1);
+    if(vertical) body += `<rect x="${a}" y="${crossOrigin}" width="${b-a+1}" height="${crossLen}" fill="${col}"/>`;
+    else body += `<rect x="${crossOrigin}" y="${a}" width="${crossLen}" height="${b-a+1}" fill="${col}"/>`;
+  }
+  if(!axis) return `<g shape-rendering="crispEdges">${body}</g>`;
+  const tf = axis === 'x' ? 'translateX' : 'translateY';
+  const name = animName + '-' + axis;
+  return `<g shape-rendering="crispEdges"><g style="transform-box:view-box;transform-origin:0 0;animation:${name} ${dur}s steps(${dist}, end) infinite;will-change:transform;">${body}</g></g>` +
+    `<style>@keyframes ${name}{from{transform:${tf}(-${dist}px)}to{transform:${tf}(0px)}}</style>`;
+}
+
 /* Testpatroon-bank. Wordt zowel per slice (1:1-compositie, Stage, export)
    als voor de volledige live-uitgang gebruikt. x/y/w/h bepalen het bereik;
    voor een live-uitgang is dat de hele canvasresolutie. */
@@ -7352,40 +7382,13 @@ function testPatternSVG(type, x, y, w, h, opts, seed){
   if(solidColor){
     out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="${solidColor}"/>`;
   } else if(tpType==='colorbars-100'){
-    const bw = w / barColors.length;
-    const moveY = tpMotion && tpVert && !tpHoriz;
     const animated = tpMotion && (tpHoriz || tpVert);
-    const count = animated ? barColors.length*2 : barColors.length;
-    if(animated){
-      const anim = moveY ? `tpy-${clipId}` : `tpx-${clipId}`;
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;will-change:transform;">`;
-    }
-    for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; const a=Math.round(x + i*bw), b=Math.round(x + (i+1)*bw); out += `<rect x="${a}" y="${y}" width="${b-a+1}" height="${h}" fill="${col}"/>`; }
-    if(animated){
-      out += `</g>`;
-      const dist = moveY ? h : bw*barColors.length;
-      const tf = moveY ? 'translateY' : 'translateX';
-      const name = moveY ? 'tpy' : 'tpx';
-      out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
-    }
+    const axis = animated ? ((tpVert && !tpHoriz) ? 'y' : 'x') : null;
+    out += testBarsSVG(true, axis, x, y, w, h, dur, 'tpb-' + clipId, barColors);
   } else if(tpType==='colorbars-100h'){
-    const bh = h / barColors.length;
-    const bw = w / barColors.length;
-    const moveX = tpMotion && tpHoriz && !tpVert;
     const animated = tpMotion && (tpHoriz || tpVert);
-    const count = animated ? barColors.length*2 : barColors.length;
-    if(animated){
-      const anim = moveX ? `tpx-${clipId}` : `tpy-${clipId}`;
-      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;will-change:transform;">`;
-    }
-    for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; const a=Math.round(y + i*bh), b=Math.round(y + (i+1)*bh); out += `<rect x="${x}" y="${a}" width="${w}" height="${b-a+1}" fill="${col}"/>`; }
-    if(animated){
-      out += `</g>`;
-      const dist = moveX ? bw*barColors.length : bh*barColors.length;
-      const tf = moveX ? 'translateX' : 'translateY';
-      const name = moveX ? 'tpx' : 'tpy';
-      out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
-    }
+    const axis = animated ? ((tpHoriz && !tpVert) ? 'x' : 'y') : null;
+    out += testBarsSVG(false, axis, x, y, w, h, dur, 'tpb-' + clipId, barColors);
   } else if(tpType==='colorbars-100d'){
     /* 100% colorbars als diagonale kleurbanden die naar beneden schuiven.
        De banden staan onder 45 graden en bewegen loodrecht op hun lengte
@@ -7400,7 +7403,7 @@ function testPatternSVG(type, x, y, w, h, opts, seed){
     const endX = half + cycle + bw;
     const count = Math.ceil((endX - startX) / bw) + 1;
     const animName = 'tpd-' + clipId;
-    out += `<g transform="translate(${cx} ${cy}) rotate(45)">`;
+    out += `<g transform="translate(${cx} ${cy}) rotate(45)" shape-rendering="crispEdges">`;
     if(tpMotion){
       out += `<g style="transform-origin:0 0;animation:${animName} ${dur}s linear infinite;">`;
     }
@@ -11355,7 +11358,7 @@ function liveOnlyApply(payload){
        animaties een negatieve delay mee te geven op basis van de klok,
        pakt het patroon de beweging op waar het was en blijft het vloeiend. */
     markup = markup.replace(
-      /(animation:[A-Za-z0-9_-]+\s+([\d.]+)s\s+linear\s+infinite)/g,
+      /(animation:[A-Za-z0-9_-]+\s+([\d.]+)s\s+(?:linear|steps\(\d+,\s*end\))\s+infinite)/g,
       function(m, decl, dur){
         const cycle = Math.max(1, Math.round((parseFloat(dur) || 1) * 1000));
         return decl + ';animation-delay:-' + (Date.now() % cycle) + 'ms';
