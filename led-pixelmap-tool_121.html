@@ -6616,9 +6616,6 @@ function renderSlices(){
           </div>
           <div class="overlay-row" style="margin-top:8px;">
             <label><input type="checkbox" data-f="testPatternMotion" ${s.testPatternMotion?'checked':''} onchange="recalcAll()"> Motion</label>
-            ${s.testPatternType==='colorbars-100d' ? '' : `
-            <label><input type="checkbox" data-f="testPatternHorizontal" ${s.testPatternHorizontal?'checked':''} onchange="recalcAll()"> Horizontaal</label>
-            <label><input type="checkbox" data-f="testPatternVertical" ${s.testPatternVertical?'checked':''} onchange="recalcAll()"> Verticaal</label>`}
           </div>
         </div>
       </div>
