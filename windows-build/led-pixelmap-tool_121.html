@@ -1056,7 +1056,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
               <button class="delete-btn" onclick="pasteSlice()" style="background:rgba(148,163,184,.12);border-color:var(--real);color:var(--real);" title="Ctrl+V">Plak</button>
               <button class="link-btn" id="linkSlicesHBtn" onclick="linkSelectedSlices('h')" title="Koppel de geselecteerde slices virtueel in één rij, van links naar rechts. De volgorde volgt de leesvolgorde op de canvas (rij voor rij); de fysieke posities blijven ongewijzigd. Kruis en rondje lopen door over alle naden.">Koppel ↔</button>
               <button class="link-btn" id="linkSlicesVBtn" onclick="linkSelectedSlices('v')" title="Koppel de geselecteerde slices virtueel in één kolom, van boven naar onder. De volgorde volgt de leesvolgorde op de canvas; de fysieke posities blijven ongewijzigd. Kruis en rondje lopen door over alle naden.">Koppel ↕</button>
-              <button class="link-btn" id="linkSlicesCustomBtn" onclick="openCustomLinkEditor()" title="Koppel de geselecteerde slices custom: zet ze zelf in de gewenste positie op een routing-canvas. De fysieke posities op de canvas blijven ongewijzigd.">Koppel custom…</button>
+              <button class="link-btn" id="linkSlicesCustomBtn" onclick="openCustomLinkEditor()" title="Koppel de geselecteerde slices custom: zet ze zelf in de gewenste positie op een routing-canvas. De fysieke posities op de canvas blijven ongewijzigd. Zijn de slices al gekoppeld, dan opent de eerder vastgelegde indeling.">Koppel custom…</button>
               <button class="link-btn" id="unlinkSlicesBtn" onclick="unlinkSelectedSlices()" title="Ontkoppel de geselecteerde slices">Ontkoppel</button>
               <button class="delete-btn" onclick="removeSelectedSlices()" title="Delete">Verwijder</button>
               <button class="clear-btn" onclick="clearSliceSelection()" title="selectie wissen">×</button>
@@ -4810,6 +4810,21 @@ function openCustomLinkEditor(){
   if(ids.length < 2){
     alert('Selecteer minimaal 2 slices om ze custom te koppelen.');
     return;
+  }
+  readSliceInputs();
+  const selected = ids.map(id=> slices.find(s=>s.id === id)).filter(Boolean);
+  const gids = new Set(selected.map(s=> Number(s.linkGroup) || 0));
+  const singleGid = gids.size === 1 ? [...gids][0] : 0;
+  /* Zijn de geselecteerde slices al gekoppeld? Dan open je de bestaande
+     indeling met de eerder gekozen posities: de instellingen blijven dus
+     bewaard als je het menu sluit en later weer opent. Pas nadat je hebt
+     ontkoppeld begin je weer met de standaardindeling. */
+  if(singleGid){
+    const members = slices.filter(s=> (Number(s.linkGroup) || 0) === singleGid);
+    if(members.length >= 2){
+      openLinkLayoutEditor(singleGid, false);
+      return;
+    }
   }
   openLinkLayoutEditor(0, true);
 }
