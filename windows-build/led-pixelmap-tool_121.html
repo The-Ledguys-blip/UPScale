@@ -9960,7 +9960,6 @@ function renderLivePreview(){
       <div class="live-preview-cell-head">
         <span class="live-route-state"></span>
         <span class="live-preview-name">${escapeHtmlText(c.name)}</span>
-        ${active?'<span class="live-route-tag">bewerkt</span>':''}
         ${canvasLiveTest(c).type!=='none'?'<span class="live-route-tag live-route-test-tag">test</span>':''}
         <span class="live-preview-size">${fmt(w)}×${fmt(h)}</span>
       </div>
@@ -10124,7 +10123,6 @@ function liveRouteRowsHtml(){
       <div class="live-route-head">
         <span class="live-route-state"></span>
         <span class="live-route-name">${escapeHtmlText(c.name)}</span>
-        ${active?'<span class="live-route-tag">bewerkt</span>':''}
         ${lt.type!=='none'?'<span class="live-route-tag live-route-test-tag">test</span>':''}
         <span class="live-route-size">${fmt(c.w)}×${fmt(c.h)}</span>
       </div>
@@ -10145,7 +10143,7 @@ function liveRouteRowsHtml(){
         <span class="live-route-size" id="liveTestSpeed-${c.id}">${lt.speed}</span>
       </div>
       <div class="live-route-controls live-route-test-flags">
-        <label class="live-route-flag"><input type="checkbox" ${lt.motion?'checked':''} onchange="liveSetCanvasTestFlag(${c.id},'motion',this.checked)"> Bewegend</label>
+        <label class="live-route-flag"><input type="checkbox" ${lt.motion?'checked':''} onchange="liveSetCanvasTestFlag(${c.id},'motion',this.checked)"> Motion</label>
         ${lt.type === 'colorbars-100d' ? '' : `
         <label class="live-route-flag"><input type="checkbox" ${lt.horizontal?'checked':''} onchange="liveSetCanvasTestFlag(${c.id},'horizontal',this.checked)"> Horizontaal</label>
         <label class="live-route-flag"><input type="checkbox" ${lt.vertical?'checked':''} onchange="liveSetCanvasTestFlag(${c.id},'vertical',this.checked)"> Verticaal</label>`}
