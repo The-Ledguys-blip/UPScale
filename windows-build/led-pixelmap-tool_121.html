@@ -414,7 +414,7 @@
   .link-layout-zoom span{font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);min-width:38px;text-align:center;}
   .link-layout-body{flex:1;display:flex;min-height:0;}
   .link-layout-stage{flex:1;min-width:0;position:relative;overflow:auto;background:radial-gradient(circle at 30% 20%, #13181d, #0a0d10);display:flex;align-items:flex-start;justify-content:flex-start;padding:12px;}
-  .link-layout-canvas{position:relative;flex:0 0 auto;margin:auto;background-color:#0d1114;background-image:linear-gradient(rgba(148,163,184,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.08) 1px,transparent 1px);background-size:var(--ll-grid,32px) var(--ll-grid,32px);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 60px rgba(0,0,0,.6);}
+  .link-layout-canvas{position:relative;flex:0 0 auto;margin:0;background-color:#0d1114;background-image:linear-gradient(rgba(148,163,184,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.08) 1px,transparent 1px);background-size:var(--ll-grid,32px) var(--ll-grid,32px);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 60px rgba(0,0,0,.6);}
   .link-layout-tiles{position:absolute;inset:0;}
   .link-layout-tile{position:absolute;box-sizing:border-box;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.55);border-radius:3px;overflow:hidden;cursor:grab;touch-action:none;user-select:none;padding:3px 4px;display:flex;flex-direction:column;gap:1px;transition:box-shadow .1s,border-color .1s,background .1s;}
   .link-layout-tile:hover{border-color:var(--real);}
@@ -1569,7 +1569,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
         <button type="button" onclick="applyLinkLayoutPreset('col')" title="Alle slices onder elkaar in één kolom">Kolom</button>
         <button type="button" onclick="applyLinkLayoutPreset('grid')" title="Raster op basis van de posities op de canvas">Raster</button>
       </div>
-      <div class="link-layout-hint">Sleep een slice naar de gewenste plek. Randen en hartlijnen magnetiseren; houd <b>Alt</b> ingedrukt om vrij te plaatsen. Pijltjes = 1 px, Shift + pijltjes = 10 px.</div>
+      <div class="link-layout-hint">Sleep een slice naar de gewenste plek — het routing-canvas groeit mee en staat los van de canvasmaat van het project. Randen en hartlijnen magnetiseren; houd <b>Alt</b> ingedrukt om vrij te plaatsen. Pijltjes = 1 px, Shift + pijltjes = 10 px.</div>
       <div class="link-layout-zoom">
         <button type="button" onclick="zoomLinkLayoutEditor(0.8)" title="Uitzoomen">−</button>
         <span id="linkLayoutZoomLabel">100%</span>
@@ -4923,8 +4923,11 @@ function configureLinkLayoutWorkspace(initial){
   if(!ed) return;
   const b = linkLayoutBounds(ed.slots);
   if(initial || ed.workspaceW <= 1 || ed.workspaceH <= 1){
-    const marginW = Math.max(160, Math.round(b.w * 0.35));
-    const marginH = Math.max(160, Math.round(b.h * 0.35));
+    /* Het routing-canvas is geen vast kader en volgt niet de canvasmaat van
+       het project: het begint iets ruimer dan de slices en groeit tijdens het
+       slepen automatisch mee zodra je verder naar rechts of naar beneden gaat. */
+    const marginW = Math.max(140, Math.round(b.w * 0.15));
+    const marginH = Math.max(140, Math.round(b.h * 0.15));
     ed.workspaceW = Math.max(1, b.w + marginW);
     ed.workspaceH = Math.max(1, b.h + marginH);
     ed.zoom = 1;
@@ -4947,18 +4950,39 @@ function renderLinkLayoutEditor(){
   updateLinkLayoutScaleLabel();
 }
 
+function applyLinkLayoutCanvasMetrics(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const canvas = el('linkLayoutCanvas');
+  if(!canvas) return;
+  canvas.style.width = Math.max(1, Math.round(ed.workspaceW * ed.scale)) + 'px';
+  canvas.style.height = Math.max(1, Math.round(ed.workspaceH * ed.scale)) + 'px';
+  const gridStep = Math.max(10, Math.round(Math.max(ed.workspaceW, ed.workspaceH) / 24));
+  canvas.style.setProperty('--ll-grid', Math.max(8, gridStep * ed.scale) + 'px');
+}
+
+/* Laat het routing-canvas meegroeien met de slice die je verplaatst. Zo kun
+   je slices vrij naast of onder elkaar zetten zonder tegen een vast kader
+   (of de canvasmaat van het project) aan te lopen. */
+function growLinkLayoutWorkspaceFor(slot){
+  const ed = linkLayoutEditor;
+  if(!ed || !slot) return;
+  const padX = Math.max(160, Math.round(slot.resX * 0.3));
+  const padY = Math.max(160, Math.round(slot.resY * 0.3));
+  const needW = slot.ox + slot.resX + padX;
+  const needH = slot.oy + slot.resY + padY;
+  let changed = false;
+  if(needW > ed.workspaceW){ ed.workspaceW = needW; changed = true; }
+  if(needH > ed.workspaceH){ ed.workspaceH = needH; changed = true; }
+  if(changed) applyLinkLayoutCanvasMetrics();
+}
+
 function buildLinkLayoutTiles(){
   const ed = linkLayoutEditor;
   if(!ed) return;
   const host = el('linkLayoutTiles');
-  const canvas = el('linkLayoutCanvas');
-  if(!host || !canvas) return;
-  const pxW = Math.max(1, Math.round(ed.workspaceW * ed.scale));
-  const pxH = Math.max(1, Math.round(ed.workspaceH * ed.scale));
-  canvas.style.width = pxW + 'px';
-  canvas.style.height = pxH + 'px';
-  const gridStep = Math.max(10, Math.round(Math.max(ed.workspaceW, ed.workspaceH) / 24));
-  canvas.style.setProperty('--ll-grid', Math.max(8, gridStep * ed.scale) + 'px');
+  if(!host) return;
+  applyLinkLayoutCanvasMetrics();
   const ordered = ed.members.slice().sort((a,b)=>{
     const sa = ed.slots[a.id], sb = ed.slots[b.id];
     return ((sa ? sa.oy : 0) - (sb ? sb.oy : 0)) || ((sa ? sa.ox : 0) - (sb ? sb.ox : 0)) || (a.id - b.id);
@@ -5016,12 +5040,15 @@ function startLinkLayoutDrag(ev){
   ev.stopPropagation();
   ed.selectedId = id;
   updateLinkLayoutTileSelection();
+  const stage = el('linkLayoutStage');
   ed.drag = {
     id,
     startX: ev.clientX,
     startY: ev.clientY,
     baseOx: ed.slots[id].ox,
-    baseOy: ed.slots[id].oy
+    baseOy: ed.slots[id].oy,
+    startScrollLeft: stage ? stage.scrollLeft : 0,
+    startScrollTop: stage ? stage.scrollTop : 0
   };
   ev.currentTarget.classList.add('dragging');
   try{ ev.currentTarget.setPointerCapture(ev.pointerId); }catch(e){}
@@ -5030,17 +5057,35 @@ function startLinkLayoutDrag(ev){
   window.addEventListener('pointercancel', endLinkLayoutDrag);
 }
 
+function autoScrollLinkLayoutStage(ev){
+  const stage = el('linkLayoutStage');
+  if(!stage) return;
+  const r = stage.getBoundingClientRect();
+  const edge = 48, step = 20;
+  if(ev.clientX < r.left + edge) stage.scrollLeft -= step;
+  else if(ev.clientX > r.right - edge) stage.scrollLeft += step;
+  if(ev.clientY < r.top + edge) stage.scrollTop -= step;
+  else if(ev.clientY > r.bottom - edge) stage.scrollTop += step;
+}
+
 function moveLinkLayoutDrag(ev){
   const ed = linkLayoutEditor;
   if(!ed || !ed.drag) return;
   const drag = ed.drag;
   const slot = ed.slots[drag.id];
   if(!slot) return;
-  const rawOx = drag.baseOx + (ev.clientX - drag.startX) / ed.scale;
-  const rawOy = drag.baseOy + (ev.clientY - drag.startY) / ed.scale;
+  autoScrollLinkLayoutStage(ev);
+  const stage = el('linkLayoutStage');
+  /* Compenseer voor het scrollen van het routing-canvas, zodat de slice
+     onder de cursor blijft terwijl je voorbij de rand sleept. */
+  const scrollDX = (stage ? stage.scrollLeft : 0) - (drag.startScrollLeft || 0);
+  const scrollDY = (stage ? stage.scrollTop : 0) - (drag.startScrollTop || 0);
+  const rawOx = drag.baseOx + (ev.clientX - drag.startX + scrollDX) / ed.scale;
+  const rawOy = drag.baseOy + (ev.clientY - drag.startY + scrollDY) / ed.scale;
   const snapped = snapLinkLayoutSlot(drag.id, rawOx, rawOy, ev.altKey);
   slot.ox = snapped.ox;
   slot.oy = snapped.oy;
+  growLinkLayoutWorkspaceFor(slot);
   positionLinkLayoutTiles();
   updateLinkLayoutGuides(snapped.guides);
 }
@@ -5052,15 +5097,10 @@ function endLinkLayoutDrag(){
   window.removeEventListener('pointercancel', endLinkLayoutDrag);
   updateLinkLayoutGuides(null);
   if(!ed || !ed.drag) return;
+  const slot = ed.slots[ed.drag.id];
   ed.drag = null;
   document.querySelectorAll('#linkLayoutTiles .link-layout-tile.dragging').forEach(t=> t.classList.remove('dragging'));
-  const b = linkLayoutBounds(ed.slots);
-  if(b.w > ed.workspaceW || b.h > ed.workspaceH){
-    ed.workspaceW = Math.max(ed.workspaceW, b.w + 120);
-    ed.workspaceH = Math.max(ed.workspaceH, b.h + 120);
-    configureLinkLayoutWorkspace(false);
-    buildLinkLayoutTiles();
-  }
+  growLinkLayoutWorkspaceFor(slot);
   renderLinkLayoutInfo();
 }
 
@@ -5091,10 +5131,10 @@ function snapLinkLayoutSlot(id, ox, oy, disable){
       });
     });
   }
-  let nx = Math.round(ox + (bestX ? bestX.d : 0));
-  let ny = Math.round(oy + (bestY ? bestY.d : 0));
-  nx = Math.max(0, Math.min(Math.round(ed.workspaceW - slot.resX), nx));
-  ny = Math.max(0, Math.min(Math.round(ed.workspaceH - slot.resY), ny));
+  /* Geen bovengrens: het routing-canvas groeit mee, dus je kunt een slice
+     altijd verder naar rechts of naar beneden neerzetten. */
+  const nx = Math.max(0, Math.round(ox + (bestX ? bestX.d : 0)));
+  const ny = Math.max(0, Math.round(oy + (bestY ? bestY.d : 0)));
   return { ox: nx, oy: ny, guides: { x: bestX ? bestX.at : null, y: bestY ? bestY.at : null } };
 }
 
@@ -5161,8 +5201,8 @@ function updateLinkLayoutSelectedInfo(){
   if(name) name.textContent = m ? m.name : '—';
   const x = el('linkLayoutX');
   const y = el('linkLayoutY');
-  if(x){ if(document.activeElement !== x) x.value = s ? s.ox : ''; x.max = Math.max(0, Math.round(ed.workspaceW - (s ? s.resX : 0))); }
-  if(y){ if(document.activeElement !== y) y.value = s ? s.oy : ''; y.max = Math.max(0, Math.round(ed.workspaceH - (s ? s.resY : 0))); }
+  if(x && document.activeElement !== x) x.value = s ? s.ox : '';
+  if(y && document.activeElement !== y) y.value = s ? s.oy : '';
 }
 
 function updateLinkLayoutTotal(){
@@ -5185,8 +5225,9 @@ function setLinkLayoutSelectedPos(axis, value){
   const s = ed.slots[ed.selectedId];
   if(!s) return;
   const v = Math.max(0, Math.round(Number(value) || 0));
-  if(axis === 'x') s.ox = Math.min(v, Math.max(0, Math.round(ed.workspaceW - s.resX)));
-  else s.oy = Math.min(v, Math.max(0, Math.round(ed.workspaceH - s.resY)));
+  if(axis === 'x') s.ox = v;
+  else s.oy = v;
+  growLinkLayoutWorkspaceFor(s);
   positionLinkLayoutTiles();
   renderLinkLayoutInfo();
 }
@@ -5363,9 +5404,10 @@ function applyLinkLayoutEditor(){
       if(!s) return;
       const step = e.shiftKey ? 10 : 1;
       if(e.key === 'ArrowLeft') s.ox = Math.max(0, s.ox - step);
-      if(e.key === 'ArrowRight') s.ox = Math.min(Math.round(ed.workspaceW - s.resX), s.ox + step);
+      if(e.key === 'ArrowRight') s.ox = s.ox + step;
       if(e.key === 'ArrowUp') s.oy = Math.max(0, s.oy - step);
-      if(e.key === 'ArrowDown') s.oy = Math.min(Math.round(ed.workspaceH - s.resY), s.oy + step);
+      if(e.key === 'ArrowDown') s.oy = s.oy + step;
+      growLinkLayoutWorkspaceFor(s);
       positionLinkLayoutTiles();
       renderLinkLayoutInfo();
     }
