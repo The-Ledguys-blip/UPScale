@@ -6118,6 +6118,7 @@ function makeSlice(defaults){
     showPosition: true,
     showTitle: true,
     imMode: false,
+    imShowIds: false,
     imSegW: 21,
     imSegH: 21,
     imSegCols: 8,
@@ -6265,6 +6266,8 @@ function readSliceInputs(){
     if(titleShowInput) s.showTitle = titleShowInput.checked;
     const imModeInput = c.querySelector('[data-f=imMode]');
     if(imModeInput) s.imMode = imModeInput.checked;
+    const imShowIdsInput = c.querySelector('[data-f=imShowIds]');
+    if(imShowIdsInput) s.imShowIds = imShowIdsInput.checked;
     const cropTopInput = c.querySelector('[data-f=cropTop]');
     if(cropTopInput) s.cropTop = Math.max(0, Math.min(2000, parseInt(cropTopInput.value)||0));
     const cropBottomInput = c.querySelector('[data-f=cropBottom]');
@@ -7260,7 +7263,17 @@ function imPanelCells(s, x, y, w, h, ls, interactive, idNs){
         lines += `<line x1="${cx}" y1="${ly}" x2="${cx+cellW}" y2="${ly}"/>`;
       }
       if(lines) cells += `<g stroke="${WHITE}" stroke-width="${1*ls}" pointer-events="none">${lines}</g>`;
-      if(s.showPanelIds && cellW>14 && cellH>10){
+      if(s.imShowIds && sW>14 && sH>10){
+        const imIdScale = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct)||100)/100));
+        const imFontSize = Math.max(4, Math.min(96, Math.min(sW,sH)*0.2)) * imIdScale;
+        for(let gj=0; gj<seg.segY; gj++){
+          for(let gi=0; gi<seg.segX; gi++){
+            const imNo = gj*seg.segX + gi + 1;
+            const tx = cx + gi*sW + sW/2, ty = cy + gj*sH + sH/2;
+            cells += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="${imFontSize.toFixed(2)}" fill="${sliceTextColor(s)}" opacity="0.85" style="pointer-events:none">${panelIdCounter}.${imNo}</text>`;
+          }
+        }
+      } else if(s.showPanelIds && cellW>14 && cellH>10){
         const idScale = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct)||100)/100));
         const idFontSize = Math.max(5, Math.min(96, Math.min(cellW,cellH)*0.2)) * idScale;
         cells += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${idFontSize.toFixed(2)}" fill="${sliceTextColor(s)}" opacity="0.75" style="pointer-events:none">${panelIdCounter}</text>`;
@@ -7293,6 +7306,9 @@ function imGroupHTML(s){
             <input type="text" inputmode="numeric" class="calc im-dim" data-f="imSegCols" value="${seg.segX}" oninput="onImCountInput(${s.id})">
             <span class="im-x">×</span>
             <input type="text" inputmode="numeric" class="calc im-dim" data-f="imSegRows" value="${seg.segY}" oninput="onImCountInput(${s.id})">
+          </div>
+          <div class="overlay-row" style="margin-bottom:0;">
+            <label title="Nummer per IM: paneelnummer.volgnummer, links naar rechts en rij voor rij"><input type="checkbox" data-f="imShowIds" ${s.imShowIds?'checked':''} onchange="recalcAll()"> IM ID's</label>
           </div>
         </div>
       </div>`;
