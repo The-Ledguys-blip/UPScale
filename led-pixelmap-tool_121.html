@@ -98,7 +98,7 @@
   .diagram-card h2{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-faint);font-weight:600;margin:0 0 14px;}
   .diagram-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
   .diagram-card-head h2{margin:0;}
-  .panel-selection-bar{display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px 6px 12px;}
+  .panel-selection-bar{display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px 6px 12px;flex-wrap:wrap;}
   .panel-selection-bar span{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);white-space:nowrap;}
   .panel-selection-bar .delete-btn{appearance:none;background:rgba(255,95,86,.12);border:1px solid var(--warn);color:var(--warn);font-family:var(--font-sans);font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:6px;cursor:pointer;}
   .panel-selection-bar .delete-btn:hover{background:rgba(255,95,86,.22);}
@@ -402,6 +402,48 @@
   .save-project-path-row .stage-btn{white-space:nowrap;flex-shrink:0;}
   .save-project-hint{margin:0;font-size:11.5px;color:var(--text-faint);line-height:1.45;min-height:16px;word-break:break-word;}
   .save-project-hint.error{color:var(--warn);}
+  /* custom koppeling: routing-canvas-editor */
+  .link-layout-shell{width:min(1180px,96vw);height:min(820px,94vh);background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px -20px rgba(0,0,0,.85);}
+  .link-layout-toolbar{display:flex;align-items:center;gap:14px;padding:9px 12px;border-bottom:1px solid var(--line-soft);background:var(--panel-2);flex-wrap:wrap;}
+  .link-layout-presets,.link-layout-zoom{display:flex;align-items:center;gap:6px;}
+  .link-layout-presets>span{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);font-weight:600;}
+  .link-layout-presets button,.link-layout-zoom button{appearance:none;background:var(--panel-3);border:1px solid var(--line);color:var(--text-dim);font-family:var(--font-sans);font-size:11px;font-weight:600;padding:5px 10px;border-radius:6px;cursor:pointer;white-space:nowrap;}
+  .link-layout-presets button:hover,.link-layout-zoom button:hover{border-color:var(--scaled);color:var(--text);}
+  .link-layout-hint{font-size:11px;color:var(--text-faint);line-height:1.4;flex:1;min-width:220px;}
+  .link-layout-hint b{color:var(--text-dim);}
+  .link-layout-zoom span{font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);min-width:38px;text-align:center;}
+  .link-layout-body{flex:1;display:flex;min-height:0;}
+  .link-layout-stage{flex:1;min-width:0;position:relative;overflow:auto;background:radial-gradient(circle at 30% 20%, #13181d, #0a0d10);display:flex;align-items:flex-start;justify-content:flex-start;padding:12px;}
+  .link-layout-canvas{position:relative;flex:0 0 auto;margin:auto;background-color:#0d1114;background-image:linear-gradient(rgba(148,163,184,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.08) 1px,transparent 1px);background-size:var(--ll-grid,32px) var(--ll-grid,32px);border:1px solid var(--line);border-radius:4px;box-shadow:inset 0 0 60px rgba(0,0,0,.6);}
+  .link-layout-tiles{position:absolute;inset:0;}
+  .link-layout-tile{position:absolute;box-sizing:border-box;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.55);border-radius:3px;overflow:hidden;cursor:grab;touch-action:none;user-select:none;padding:3px 4px;display:flex;flex-direction:column;gap:1px;transition:box-shadow .1s,border-color .1s,background .1s;}
+  .link-layout-tile:hover{border-color:var(--real);}
+  .link-layout-tile.selected{border-color:var(--scaled);background:rgba(255,159,67,.16);box-shadow:0 0 0 1px var(--scaled),0 8px 22px -8px rgba(0,0,0,.8);z-index:3;}
+  .link-layout-tile.dragging{cursor:grabbing;z-index:4;}
+  .link-layout-tile-name{font-family:var(--font-sans);font-size:9.5px;font-weight:600;color:var(--text);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .link-layout-tile-res{font-family:var(--font-mono);font-size:8.5px;color:var(--text-dim);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .link-layout-tile-pos{font-family:var(--font-mono);font-size:8.5px;color:var(--scaled);line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:auto;}
+  .link-layout-tile.leader::after{content:'leider';position:absolute;right:2px;top:2px;font-family:var(--font-sans);font-size:7.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);background:var(--scaled);border-radius:3px;padding:1px 3px;}
+  .link-layout-guide{position:absolute;pointer-events:none;background:rgba(255,159,67,.85);z-index:5;display:none;}
+  .link-layout-guide-v{top:0;bottom:0;width:1px;}
+  .link-layout-guide-h{left:0;right:0;height:1px;}
+  .link-layout-side{width:250px;flex-shrink:0;border-left:1px solid var(--line-soft);background:var(--panel-2);display:flex;flex-direction:column;min-height:0;}
+  .link-layout-side-head{padding:9px 12px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-faint);font-weight:600;}
+  .link-layout-selected{padding:0 12px 10px;border-bottom:1px solid var(--line-soft);}
+  .link-layout-selected-name{font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px;}
+  .link-layout-xy{display:flex;gap:8px;}
+  .link-layout-xy label{display:flex;align-items:center;gap:5px;flex:1;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);}
+  .link-layout-xy input{width:100%;min-width:0;background:var(--panel-3);border:1px solid var(--line);color:var(--text);font-family:var(--font-mono);font-size:11.5px;padding:5px 6px;border-radius:5px;outline:none;}
+  .link-layout-xy input:focus{border-color:var(--scaled);}
+  .link-layout-order{flex:1;overflow:auto;padding:0 8px 8px;min-height:0;display:flex;flex-direction:column;gap:4px;}
+  .link-layout-order-item{appearance:none;display:flex;align-items:center;gap:7px;width:100%;text-align:left;background:var(--panel-3);border:1px solid transparent;border-radius:6px;padding:5px 7px;cursor:pointer;color:var(--text-dim);}
+  .link-layout-order-item:hover{border-color:var(--line-strong);color:var(--text);}
+  .link-layout-order-item.selected{border-color:var(--scaled);background:rgba(255,159,67,.1);color:var(--text);}
+  .link-layout-order-idx{font-family:var(--font-mono);font-size:9.5px;color:var(--text-faint);width:14px;flex-shrink:0;}
+  .link-layout-order-name{font-family:var(--font-sans);font-size:11px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .link-layout-order-pos{font-family:var(--font-mono);font-size:9.5px;color:var(--scaled);flex-shrink:0;}
+  .link-layout-total{padding:8px 12px;border-top:1px solid var(--line-soft);font-family:var(--font-mono);font-size:10px;color:var(--text-faint);}
+  @media (max-width:760px){.link-layout-side{display:none;}}
   .stage-svg-wrap{position:relative;width:100%;aspect-ratio:1300/640;}
   .stage-svg-wrap svg{width:100%;height:auto;display:block;touch-action:none;}
 </style>
@@ -1014,6 +1056,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
               <button class="delete-btn" onclick="pasteSlice()" style="background:rgba(148,163,184,.12);border-color:var(--real);color:var(--real);" title="Ctrl+V">Plak</button>
               <button class="link-btn" id="linkSlicesHBtn" onclick="linkSelectedSlices('h')" title="Koppel de geselecteerde slices virtueel in één rij, van links naar rechts. De volgorde volgt de leesvolgorde op de canvas (rij voor rij); de fysieke posities blijven ongewijzigd. Kruis en rondje lopen door over alle naden.">Koppel ↔</button>
               <button class="link-btn" id="linkSlicesVBtn" onclick="linkSelectedSlices('v')" title="Koppel de geselecteerde slices virtueel in één kolom, van boven naar onder. De volgorde volgt de leesvolgorde op de canvas; de fysieke posities blijven ongewijzigd. Kruis en rondje lopen door over alle naden.">Koppel ↕</button>
+              <button class="link-btn" id="linkSlicesCustomBtn" onclick="openCustomLinkEditor()" title="Koppel de geselecteerde slices custom: zet ze zelf in de gewenste positie op een routing-canvas. De fysieke posities op de canvas blijven ongewijzigd.">Koppel custom…</button>
               <button class="link-btn" id="unlinkSlicesBtn" onclick="unlinkSelectedSlices()" title="Ontkoppel de geselecteerde slices">Ontkoppel</button>
               <button class="delete-btn" onclick="removeSelectedSlices()" title="Delete">Verwijder</button>
               <button class="clear-btn" onclick="clearSliceSelection()" title="selectie wissen">×</button>
@@ -1505,6 +1548,56 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
     <div class="export-conflict-actions">
       <button type="button" class="stage-btn" onclick="closeSaveProjectDialog()">Annuleren</button>
       <button type="button" class="stage-btn stage-btn-accent" id="saveProjectConfirm" onclick="confirmSaveProjectDialog()">Opslaan</button>
+    </div>
+  </div>
+</div>
+
+<div class="crop-modal" id="linkLayoutModal">
+  <div class="link-layout-shell" role="dialog" aria-modal="true" aria-labelledby="linkLayoutTitle">
+    <div class="crop-head">
+      <h3 id="linkLayoutTitle">Koppeling custom indelen</h3>
+      <div class="crop-actions">
+        <button type="button" class="stage-btn" onclick="resetLinkLayoutEditor()">Herstel</button>
+        <button type="button" class="stage-btn" onclick="closeLinkLayoutEditor()">Annuleren</button>
+        <button type="button" class="stage-btn stage-btn-accent" onclick="applyLinkLayoutEditor()">Toepassen</button>
+      </div>
+    </div>
+    <div class="link-layout-toolbar">
+      <div class="link-layout-presets">
+        <span>Indeling</span>
+        <button type="button" onclick="applyLinkLayoutPreset('row')" title="Alle slices naast elkaar in één rij">Rij</button>
+        <button type="button" onclick="applyLinkLayoutPreset('col')" title="Alle slices onder elkaar in één kolom">Kolom</button>
+        <button type="button" onclick="applyLinkLayoutPreset('grid')" title="Raster op basis van de posities op de canvas">Raster</button>
+      </div>
+      <div class="link-layout-hint">Sleep een slice naar de gewenste plek. Randen en hartlijnen magnetiseren; houd <b>Alt</b> ingedrukt om vrij te plaatsen. Pijltjes = 1 px, Shift + pijltjes = 10 px.</div>
+      <div class="link-layout-zoom">
+        <button type="button" onclick="zoomLinkLayoutEditor(0.8)" title="Uitzoomen">−</button>
+        <span id="linkLayoutZoomLabel">100%</span>
+        <button type="button" onclick="zoomLinkLayoutEditor(1.25)" title="Inzoomen">+</button>
+        <button type="button" onclick="fitLinkLayoutEditor()" title="Alles passend maken">Fit</button>
+      </div>
+    </div>
+    <div class="link-layout-body">
+      <div class="link-layout-stage" id="linkLayoutStage">
+        <div class="link-layout-canvas" id="linkLayoutCanvas">
+          <div class="link-layout-tiles" id="linkLayoutTiles"></div>
+          <div class="link-layout-guide link-layout-guide-v" id="linkLayoutGuideV"></div>
+          <div class="link-layout-guide link-layout-guide-h" id="linkLayoutGuideH"></div>
+        </div>
+      </div>
+      <div class="link-layout-side">
+        <div class="link-layout-side-head">Positie</div>
+        <div class="link-layout-selected">
+          <div class="link-layout-selected-name" id="linkLayoutSelectedName">—</div>
+          <div class="link-layout-xy">
+            <label>X <input type="number" id="linkLayoutX" min="0" step="1" inputmode="numeric"></label>
+            <label>Y <input type="number" id="linkLayoutY" min="0" step="1" inputmode="numeric"></label>
+          </div>
+        </div>
+        <div class="link-layout-side-head">Volgorde</div>
+        <div class="link-layout-order" id="linkLayoutOrderList"></div>
+        <div class="link-layout-total" id="linkLayoutTotal"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -2989,7 +3082,7 @@ function updateSliceSelectionBar(){
     bar.style.display = 'none';
   }
   const canLink = selectedSliceIds.size >= 2;
-  ['linkSlicesHBtn','linkSlicesVBtn'].forEach(btnId=>{
+  ['linkSlicesHBtn','linkSlicesVBtn','linkSlicesCustomBtn'].forEach(btnId=>{
     const btn = el(btnId);
     if(btn) btn.disabled = !canLink;
   });
@@ -4348,7 +4441,7 @@ function normalizeLinkVirtual(virtual){
     w, h,
     rows: Math.max(1, Math.round(Number(virtual.rows) || 1)),
     cols: Math.max(1, Math.round(Number(virtual.cols) || 1)),
-    mode: (virtual.mode === 'row' || virtual.mode === 'col' || virtual.mode === 'grid') ? virtual.mode : null
+    mode: (virtual.mode === 'row' || virtual.mode === 'col' || virtual.mode === 'grid' || virtual.mode === 'custom') ? virtual.mode : null
   };
 }
 
@@ -4379,7 +4472,16 @@ function frozenLinkLayout(members){
     if(!slot || !virt) return null;
     entries.push({ m, slot, virt });
   }
-  entries.sort((a,b)=> (a.slot.row - b.slot.row) || (a.slot.col - b.slot.col) || (a.m.id - b.m.id));
+  /* Vrije (custom) indeling: de leesvolgorde is de positie op het
+     routing-canvas — boven naar beneden, dan links naar rechts. Zo blijft
+     de slice linksboven de leider. */
+  const customOrder = entries.some(e=> e.virt.mode === 'custom');
+  entries.sort((a,b)=>{
+    if(customOrder){
+      return (a.slot.oy - b.slot.oy) || (a.slot.ox - b.slot.ox) || (a.m.id - b.m.id);
+    }
+    return (a.slot.row - b.slot.row) || (a.slot.col - b.slot.col) || (a.m.id - b.m.id);
+  });
   const layout = entries.map(e=>({
     m: e.m, ox: e.slot.ox, oy: e.slot.oy, row: e.slot.row, col: e.slot.col,
     resX: e.slot.resX, resY: e.slot.resY
@@ -4686,6 +4788,12 @@ function recaptureLinkLayoutOf(id){
   const members = slices.filter(x=> (Number(x.linkGroup) || 0) === gid);
   if(members.length < 2) return;
   const info = getSliceLinkInfo(s);
+  /* Een vrije (custom) indeling kun je niet automatisch herberekenen: open
+     de routing-editor zodat de posities zelf aangepast kunnen worden. */
+  if(info && info.mode === 'custom'){
+    openLinkLayoutEditor(gid, false);
+    return;
+  }
   captureLinkLayout(members, null, info ? info.mode : 'row');
   syncLinkGroupSettings();
   renderSlices();
@@ -4693,6 +4801,587 @@ function recaptureLinkLayoutOf(id){
   commitHistory();
   updateSliceSelectionBar();
 }
+
+/* ---- custom koppelen: routing-canvas waarin je de slices zelf neerzet ---- */
+let linkLayoutEditor = null;
+
+function openCustomLinkEditor(){
+  const ids = [...selectedSliceIds];
+  if(ids.length < 2){
+    alert('Selecteer minimaal 2 slices om ze custom te koppelen.');
+    return;
+  }
+  openLinkLayoutEditor(0, true);
+}
+
+function openLinkLayoutEditorFor(id){
+  const s = slices.find(x=>x.id === id);
+  if(!s) return;
+  const gid = Number(s.linkGroup) || 0;
+  if(!gid) return;
+  openLinkLayoutEditor(gid, false);
+}
+
+function linkMemberReadOrder(list){
+  const rows = groupLinkRows(list);
+  const ordered = [];
+  rows.forEach(r=> r.members.forEach(it=> ordered.push(it.m)));
+  return ordered;
+}
+
+function linkSlotsFromLayout(layout){
+  const out = {};
+  (layout || []).forEach(slot=>{
+    if(!slot || !slot.m) return;
+    out[slot.m.id] = {
+      ox: Math.max(0, Math.round(Number(slot.ox) || 0)),
+      oy: Math.max(0, Math.round(Number(slot.oy) || 0)),
+      resX: Math.max(1, Math.round(Number(slot.resX) || 1)),
+      resY: Math.max(1, Math.round(Number(slot.resY) || 1))
+    };
+  });
+  return out;
+}
+
+function cloneLinkSlots(slots){
+  const out = {};
+  Object.keys(slots || {}).forEach(key=>{
+    const s = slots[key];
+    out[key] = { ox: s.ox, oy: s.oy, resX: s.resX, resY: s.resY };
+  });
+  return out;
+}
+
+function linkLayoutBounds(slots){
+  let w = 1, h = 1;
+  Object.keys(slots || {}).forEach(key=>{
+    const s = slots[key];
+    w = Math.max(w, s.ox + s.resX);
+    h = Math.max(h, s.oy + s.resY);
+  });
+  return { w, h };
+}
+
+function openLinkLayoutEditor(gid, isNew){
+  readSliceInputs();
+  let members = [];
+  if(isNew){
+    members = linkMemberReadOrder([...selectedSliceIds].map(id=> slices.find(s=>s.id === id)).filter(Boolean));
+  } else {
+    gid = Number(gid) || 0;
+    if(!gid) return;
+    members = slices.filter(x=> (Number(x.linkGroup) || 0) === gid);
+    if(members.length < 2) return;
+    const frozen = frozenLinkLayout(members);
+    members = frozen ? frozen.layout.map(x=> x.m) : linkMemberReadOrder(members);
+  }
+  if(members.length < 2) return;
+  const modal = el('linkLayoutModal');
+  if(!modal) return;
+
+  /* Werk op een kopie: Annuleren laat de slices volledig ongemoeid, ook bij
+     een nieuwe koppeling. Pas bij Toepassen wordt er iets vastgelegd. */
+  let slots = null;
+  if(!isNew){
+    const frozen = frozenLinkLayout(members);
+    if(frozen) slots = linkSlotsFromLayout(frozen.layout);
+  }
+  if(!slots){
+    const base = buildLinkLayout(members, 'grid');
+    slots = linkSlotsFromLayout(base ? base.layout : []);
+  }
+  linkLayoutEditor = {
+    isNew: !!isNew,
+    gid: isNew ? 0 : gid,
+    members,
+    slots,
+    initialSlots: cloneLinkSlots(slots),
+    selectedId: members[0].id,
+    fitScale: 1,
+    zoom: 1,
+    scale: 1,
+    workspaceW: 1,
+    workspaceH: 1,
+    drag: null
+  };
+  modal.classList.add('open');
+  configureLinkLayoutWorkspace(true);
+  renderLinkLayoutEditor();
+  const stage = el('linkLayoutStage');
+  if(stage){ stage.scrollTop = 0; stage.scrollLeft = 0; }
+}
+
+function closeLinkLayoutEditor(){
+  const modal = el('linkLayoutModal');
+  if(modal) modal.classList.remove('open');
+  linkLayoutEditor = null;
+  updateLinkLayoutGuides(null);
+}
+
+function configureLinkLayoutWorkspace(initial){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const b = linkLayoutBounds(ed.slots);
+  if(initial || ed.workspaceW <= 1 || ed.workspaceH <= 1){
+    const marginW = Math.max(160, Math.round(b.w * 0.35));
+    const marginH = Math.max(160, Math.round(b.h * 0.35));
+    ed.workspaceW = Math.max(1, b.w + marginW);
+    ed.workspaceH = Math.max(1, b.h + marginH);
+    ed.zoom = 1;
+  } else {
+    ed.workspaceW = Math.max(ed.workspaceW, b.w + 1);
+    ed.workspaceH = Math.max(ed.workspaceH, b.h + 1);
+  }
+  const stage = el('linkLayoutStage');
+  const availW = stage ? Math.max(260, stage.clientWidth - 24) : 820;
+  const availH = stage ? Math.max(220, stage.clientHeight - 24) : 520;
+  ed.fitScale = Math.max(0.005, Math.min(1, Math.min(availW / ed.workspaceW, availH / ed.workspaceH)));
+  ed.scale = ed.fitScale * ed.zoom;
+}
+
+function renderLinkLayoutEditor(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  buildLinkLayoutTiles();
+  renderLinkLayoutInfo();
+  updateLinkLayoutScaleLabel();
+}
+
+function buildLinkLayoutTiles(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const host = el('linkLayoutTiles');
+  const canvas = el('linkLayoutCanvas');
+  if(!host || !canvas) return;
+  const pxW = Math.max(1, Math.round(ed.workspaceW * ed.scale));
+  const pxH = Math.max(1, Math.round(ed.workspaceH * ed.scale));
+  canvas.style.width = pxW + 'px';
+  canvas.style.height = pxH + 'px';
+  const gridStep = Math.max(10, Math.round(Math.max(ed.workspaceW, ed.workspaceH) / 24));
+  canvas.style.setProperty('--ll-grid', Math.max(8, gridStep * ed.scale) + 'px');
+  const ordered = ed.members.slice().sort((a,b)=>{
+    const sa = ed.slots[a.id], sb = ed.slots[b.id];
+    return ((sa ? sa.oy : 0) - (sb ? sb.oy : 0)) || ((sa ? sa.ox : 0) - (sb ? sb.ox : 0)) || (a.id - b.id);
+  });
+  const leaderId = ordered.length ? ordered[0].id : null;
+  host.innerHTML = ed.members.map(m=>{
+    const s = ed.slots[m.id];
+    if(!s) return '';
+    const w = Math.max(10, s.resX * ed.scale);
+    const h = Math.max(10, s.resY * ed.scale);
+    const classes = ['link-layout-tile'];
+    if(ed.selectedId === m.id) classes.push('selected');
+    if(m.id === leaderId) classes.push('leader');
+    return `<div class="${classes.join(' ')}" data-link-tile="${m.id}" style="left:${(s.ox*ed.scale).toFixed(2)}px;top:${(s.oy*ed.scale).toFixed(2)}px;width:${w.toFixed(2)}px;height:${h.toFixed(2)}px;">
+      <div class="link-layout-tile-name">${escapeHtmlText(m.name)}</div>
+      <div class="link-layout-tile-res">${s.resX}×${s.resY}</div>
+      <div class="link-layout-tile-pos">${s.ox}, ${s.oy}</div>
+    </div>`;
+  }).join('');
+  host.querySelectorAll('.link-layout-tile').forEach(tile=>{
+    tile.addEventListener('pointerdown', startLinkLayoutDrag);
+  });
+}
+
+function positionLinkLayoutTiles(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  let leaderId = null;
+  ed.members.slice().sort((a,b)=>{
+    const sa = ed.slots[a.id], sb = ed.slots[b.id];
+    return ((sa ? sa.oy : 0) - (sb ? sb.oy : 0)) || ((sa ? sa.ox : 0) - (sb ? sb.ox : 0)) || (a.id - b.id);
+  }).forEach((m,i)=>{ if(i === 0) leaderId = m.id; });
+  document.querySelectorAll('#linkLayoutTiles .link-layout-tile').forEach(tile=>{
+    const id = parseInt(tile.getAttribute('data-link-tile'), 10);
+    const s = ed.slots[id];
+    if(!s) return;
+    tile.style.left = (s.ox * ed.scale).toFixed(2) + 'px';
+    tile.style.top = (s.oy * ed.scale).toFixed(2) + 'px';
+    tile.style.width = Math.max(10, s.resX * ed.scale).toFixed(2) + 'px';
+    tile.style.height = Math.max(10, s.resY * ed.scale).toFixed(2) + 'px';
+    tile.classList.toggle('leader', id === leaderId);
+    const pos = tile.querySelector('.link-layout-tile-pos');
+    if(pos) pos.textContent = s.ox + ', ' + s.oy;
+  });
+  updateLinkLayoutSelectedInfo();
+  updateLinkLayoutTotal();
+}
+
+function startLinkLayoutDrag(ev){
+  const ed = linkLayoutEditor;
+  if(!ed || ev.button !== 0) return;
+  const id = parseInt(ev.currentTarget.getAttribute('data-link-tile'), 10);
+  if(!ed.slots[id]) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  ed.selectedId = id;
+  updateLinkLayoutTileSelection();
+  ed.drag = {
+    id,
+    startX: ev.clientX,
+    startY: ev.clientY,
+    baseOx: ed.slots[id].ox,
+    baseOy: ed.slots[id].oy
+  };
+  ev.currentTarget.classList.add('dragging');
+  try{ ev.currentTarget.setPointerCapture(ev.pointerId); }catch(e){}
+  window.addEventListener('pointermove', moveLinkLayoutDrag);
+  window.addEventListener('pointerup', endLinkLayoutDrag);
+  window.addEventListener('pointercancel', endLinkLayoutDrag);
+}
+
+function moveLinkLayoutDrag(ev){
+  const ed = linkLayoutEditor;
+  if(!ed || !ed.drag) return;
+  const drag = ed.drag;
+  const slot = ed.slots[drag.id];
+  if(!slot) return;
+  const rawOx = drag.baseOx + (ev.clientX - drag.startX) / ed.scale;
+  const rawOy = drag.baseOy + (ev.clientY - drag.startY) / ed.scale;
+  const snapped = snapLinkLayoutSlot(drag.id, rawOx, rawOy, ev.altKey);
+  slot.ox = snapped.ox;
+  slot.oy = snapped.oy;
+  positionLinkLayoutTiles();
+  updateLinkLayoutGuides(snapped.guides);
+}
+
+function endLinkLayoutDrag(){
+  const ed = linkLayoutEditor;
+  window.removeEventListener('pointermove', moveLinkLayoutDrag);
+  window.removeEventListener('pointerup', endLinkLayoutDrag);
+  window.removeEventListener('pointercancel', endLinkLayoutDrag);
+  updateLinkLayoutGuides(null);
+  if(!ed || !ed.drag) return;
+  ed.drag = null;
+  document.querySelectorAll('#linkLayoutTiles .link-layout-tile.dragging').forEach(t=> t.classList.remove('dragging'));
+  const b = linkLayoutBounds(ed.slots);
+  if(b.w > ed.workspaceW || b.h > ed.workspaceH){
+    ed.workspaceW = Math.max(ed.workspaceW, b.w + 120);
+    ed.workspaceH = Math.max(ed.workspaceH, b.h + 120);
+    configureLinkLayoutWorkspace(false);
+    buildLinkLayoutTiles();
+  }
+  renderLinkLayoutInfo();
+}
+
+function snapLinkLayoutSlot(id, ox, oy, disable){
+  const ed = linkLayoutEditor;
+  const slot = ed.slots[id];
+  let bestX = null, bestY = null;
+  const threshold = Math.max(2, Math.min(60, 8 / Math.max(0.005, ed.scale)));
+  if(!disable){
+    const xTargets = [0];
+    const yTargets = [0];
+    Object.keys(ed.slots).forEach(key=>{
+      if(Number(key) === id) return;
+      const o = ed.slots[key];
+      xTargets.push(o.ox, o.ox + o.resX / 2, o.ox + o.resX);
+      yTargets.push(o.oy, o.oy + o.resY / 2, o.oy + o.resY);
+    });
+    [0, slot.resX / 2, slot.resX].forEach(edge=>{
+      xTargets.forEach(t=>{
+        const d = t - (ox + edge);
+        if(Math.abs(d) <= threshold && (!bestX || Math.abs(d) < Math.abs(bestX.d))) bestX = { d, at: t };
+      });
+    });
+    [0, slot.resY / 2, slot.resY].forEach(edge=>{
+      yTargets.forEach(t=>{
+        const d = t - (oy + edge);
+        if(Math.abs(d) <= threshold && (!bestY || Math.abs(d) < Math.abs(bestY.d))) bestY = { d, at: t };
+      });
+    });
+  }
+  let nx = Math.round(ox + (bestX ? bestX.d : 0));
+  let ny = Math.round(oy + (bestY ? bestY.d : 0));
+  nx = Math.max(0, Math.min(Math.round(ed.workspaceW - slot.resX), nx));
+  ny = Math.max(0, Math.min(Math.round(ed.workspaceH - slot.resY), ny));
+  return { ox: nx, oy: ny, guides: { x: bestX ? bestX.at : null, y: bestY ? bestY.at : null } };
+}
+
+function updateLinkLayoutGuides(guides){
+  const ed = linkLayoutEditor;
+  const gv = el('linkLayoutGuideV');
+  const gh = el('linkLayoutGuideH');
+  if(gv){
+    if(ed && guides && guides.x != null){ gv.style.display = 'block'; gv.style.left = (guides.x * ed.scale) + 'px'; }
+    else gv.style.display = 'none';
+  }
+  if(gh){
+    if(ed && guides && guides.y != null){ gh.style.display = 'block'; gh.style.top = (guides.y * ed.scale) + 'px'; }
+    else gh.style.display = 'none';
+  }
+}
+
+function updateLinkLayoutTileSelection(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  document.querySelectorAll('#linkLayoutTiles .link-layout-tile').forEach(tile=>{
+    tile.classList.toggle('selected', parseInt(tile.getAttribute('data-link-tile'), 10) === ed.selectedId);
+  });
+  renderLinkLayoutInfo();
+}
+
+function renderLinkLayoutInfo(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const list = el('linkLayoutOrderList');
+  const ordered = ed.members.slice().sort((a,b)=>{
+    const sa = ed.slots[a.id], sb = ed.slots[b.id];
+    return ((sa ? sa.oy : 0) - (sb ? sb.oy : 0)) || ((sa ? sa.ox : 0) - (sb ? sb.ox : 0)) || (a.id - b.id);
+  });
+  if(list){
+    list.innerHTML = ordered.map((m,i)=>{
+      const s = ed.slots[m.id];
+      const sel = m.id === ed.selectedId ? ' selected' : '';
+      return `<button type="button" class="link-layout-order-item${sel}" data-link-order="${m.id}">
+        <span class="link-layout-order-idx">${i+1}</span>
+        <span class="link-layout-order-name">${escapeHtmlText(m.name)}</span>
+        <span class="link-layout-order-pos">${s ? s.ox + ', ' + s.oy : '—'}</span>
+      </button>`;
+    }).join('');
+    list.querySelectorAll('[data-link-order]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const ed2 = linkLayoutEditor;
+        if(!ed2) return;
+        ed2.selectedId = parseInt(btn.getAttribute('data-link-order'), 10);
+        updateLinkLayoutTileSelection();
+      });
+    });
+  }
+  updateLinkLayoutSelectedInfo();
+  updateLinkLayoutTotal();
+}
+
+function updateLinkLayoutSelectedInfo(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const m = ed.members.find(x=> x.id === ed.selectedId);
+  const s = m ? ed.slots[m.id] : null;
+  const name = el('linkLayoutSelectedName');
+  if(name) name.textContent = m ? m.name : '—';
+  const x = el('linkLayoutX');
+  const y = el('linkLayoutY');
+  if(x){ if(document.activeElement !== x) x.value = s ? s.ox : ''; x.max = Math.max(0, Math.round(ed.workspaceW - (s ? s.resX : 0))); }
+  if(y){ if(document.activeElement !== y) y.value = s ? s.oy : ''; y.max = Math.max(0, Math.round(ed.workspaceH - (s ? s.resY : 0))); }
+}
+
+function updateLinkLayoutTotal(){
+  const ed = linkLayoutEditor;
+  const total = el('linkLayoutTotal');
+  if(!ed || !total) return;
+  const b = linkLayoutBounds(ed.slots);
+  total.textContent = `Virtueel vlak: ${Math.round(b.w)} × ${Math.round(b.h)} px · ${ed.members.length} slices`;
+}
+
+function updateLinkLayoutScaleLabel(){
+  const ed = linkLayoutEditor;
+  const label = el('linkLayoutZoomLabel');
+  if(label && ed) label.textContent = Math.round(ed.zoom * 100) + '%';
+}
+
+function setLinkLayoutSelectedPos(axis, value){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const s = ed.slots[ed.selectedId];
+  if(!s) return;
+  const v = Math.max(0, Math.round(Number(value) || 0));
+  if(axis === 'x') s.ox = Math.min(v, Math.max(0, Math.round(ed.workspaceW - s.resX)));
+  else s.oy = Math.min(v, Math.max(0, Math.round(ed.workspaceH - s.resY)));
+  positionLinkLayoutTiles();
+  renderLinkLayoutInfo();
+}
+
+function zoomLinkLayoutEditor(factor){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  ed.zoom = Math.max(0.4, Math.min(8, ed.zoom * factor));
+  ed.scale = ed.fitScale * ed.zoom;
+  buildLinkLayoutTiles();
+  updateLinkLayoutScaleLabel();
+}
+
+function fitLinkLayoutEditor(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  ed.zoom = 1;
+  configureLinkLayoutWorkspace(true);
+  buildLinkLayoutTiles();
+  updateLinkLayoutScaleLabel();
+}
+
+function applyLinkLayoutPreset(mode){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const ordered = ed.members.slice().sort((a,b)=>{
+    const sa = ed.slots[a.id], sb = ed.slots[b.id];
+    return ((sa ? sa.oy : 0) - (sb ? sb.oy : 0)) || ((sa ? sa.ox : 0) - (sb ? sb.ox : 0)) || (a.id - b.id);
+  });
+  const slots = {};
+  if(mode === 'col'){
+    let y = 0;
+    ordered.forEach(m=>{
+      const c = computeSlice(m);
+      slots[m.id] = { ox: 0, oy: y, resX: c.resX, resY: c.resY };
+      y += c.resY;
+    });
+  } else if(mode === 'grid'){
+    const rows = groupLinkRows(ordered);
+    let y = 0;
+    rows.forEach(row=>{
+      let x = 0, rowH = 1;
+      row.members.forEach(it=>{
+        const c = computeSlice(it.m);
+        slots[it.m.id] = { ox: x, oy: y, resX: c.resX, resY: c.resY };
+        x += c.resX;
+        rowH = Math.max(rowH, c.resY);
+      });
+      y += rowH;
+    });
+  } else {
+    let x = 0;
+    ordered.forEach(m=>{
+      const c = computeSlice(m);
+      slots[m.id] = { ox: x, oy: 0, resX: c.resX, resY: c.resY };
+      x += c.resX;
+    });
+  }
+  ed.slots = slots;
+  configureLinkLayoutWorkspace(true);
+  buildLinkLayoutTiles();
+  renderLinkLayoutInfo();
+  updateLinkLayoutScaleLabel();
+}
+
+function resetLinkLayoutEditor(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  ed.slots = cloneLinkSlots(ed.initialSlots);
+  configureLinkLayoutWorkspace(true);
+  buildLinkLayoutTiles();
+  renderLinkLayoutInfo();
+  updateLinkLayoutScaleLabel();
+}
+
+/* Groepeer de vrije posities in rijen/kolommen voor de statusregel. */
+function customLinkCounts(entries){
+  const rowRects = entries.map(e=>({ y: e.oy, h: e.resY })).sort((a,b)=> a.y - b.y);
+  const colRects = entries.map(e=>({ x: e.ox, w: e.resX })).sort((a,b)=> a.x - b.x);
+  const countBands = (rects, startKey, sizeKey)=>{
+    const bands = [];
+    rects.forEach(r=>{
+      const start = r[startKey], size = r[sizeKey];
+      let band = null;
+      for(let i=bands.length-1;i>=0;i--){
+        const b = bands[i];
+        const overlap = Math.min(b.start + b.size, start + size) - Math.max(b.start, start);
+        if(overlap > 0.5 * Math.min(b.size, size)){ band = b; break; }
+      }
+      if(!band){ band = { start, size }; bands.push(band); }
+      else { band.size = Math.max(band.size, start + size - band.start); }
+    });
+    return Math.max(1, bands.length);
+  };
+  return { rows: countBands(rowRects, 'y', 'h'), cols: countBands(colRects, 'x', 'w') };
+}
+
+function applyLinkLayoutEditor(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const entries = ed.members.map(m=>{
+    const s = ed.slots[m.id];
+    return s ? { m, ox: s.ox, oy: s.oy, resX: s.resX, resY: s.resY } : null;
+  }).filter(Boolean);
+  if(entries.length < 2) return;
+  const minX = entries.reduce((mn,e)=> Math.min(mn, e.ox), Infinity);
+  const minY = entries.reduce((mn,e)=> Math.min(mn, e.oy), Infinity);
+  entries.forEach(e=>{
+    e.ox = Math.max(0, Math.round(e.ox - minX));
+    e.oy = Math.max(0, Math.round(e.oy - minY));
+  });
+  entries.sort((a,b)=> (a.oy - b.oy) || (a.ox - b.ox) || (a.m.id - b.m.id));
+  const virtualW = Math.max(1, entries.reduce((mx,e)=> Math.max(mx, e.ox + e.resX), 1));
+  const virtualH = Math.max(1, entries.reduce((mx,e)=> Math.max(mx, e.oy + e.resY), 1));
+  const counts = customLinkCounts(entries);
+  const gid = ed.isNew ? nextLinkGroupId() : (Number(ed.gid) || 0);
+  const members = entries.map(e=> e.m);
+  members.forEach((m,i)=>{
+    m.linkGroup = gid;
+    m.linkOrder = i;
+    m.linkAxis = 'h';
+  });
+  captureLinkLayout(members, {
+    layout: entries.map(e=>({ m: e.m, ox: e.ox, oy: e.oy, row: 0, col: 0, resX: e.resX, resY: e.resY })),
+    rowSizes: [entries.length],
+    rowCount: counts.rows,
+    colCount: counts.cols,
+    virtualW,
+    virtualH,
+    mode: 'custom'
+  }, 'custom');
+  if(!members.some(m=> m.showCircle || m.showCross)){
+    members.forEach(m=>{ m.showCircle = true; m.showCross = true; });
+  }
+  closeLinkLayoutEditor();
+  syncLinkGroupSettings();
+  renderSlices();
+  recalcAll();
+  syncStageLayoutWithSlices(false);
+  commitHistory();
+  updateSliceSelectionBar();
+}
+
+(function initLinkLayoutEditorControls(){
+  const modal = el('linkLayoutModal');
+  if(!modal) return;
+  modal.addEventListener('keydown', (e)=>{
+    const ed = linkLayoutEditor;
+    if(!ed) return;
+    const target = e.target;
+    const typing = !!(target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT'));
+    const onButton = !!(target && (target.tagName === 'BUTTON' || target.tagName === 'A'));
+    /* Houd sneltoetsen van de editor (pijltjes, Delete, Ctrl+C, enz.) buiten
+       de hoofdapp zolang deze modal open is. Invoervelden en knoppen blijven
+       normaal werken. */
+    e.stopPropagation();
+    if(e.key === 'Escape'){
+      e.preventDefault();
+      closeLinkLayoutEditor();
+      return;
+    }
+    if(e.key === 'Enter' && !typing && !onButton){
+      e.preventDefault();
+      applyLinkLayoutEditor();
+      return;
+    }
+    if(!typing && (e.key === 'Delete' || e.key === 'Backspace')){
+      e.preventDefault();
+      return;
+    }
+    if(!typing && e.key.indexOf('Arrow') === 0){
+      e.preventDefault();
+      const s = ed.slots[ed.selectedId];
+      if(!s) return;
+      const step = e.shiftKey ? 10 : 1;
+      if(e.key === 'ArrowLeft') s.ox = Math.max(0, s.ox - step);
+      if(e.key === 'ArrowRight') s.ox = Math.min(Math.round(ed.workspaceW - s.resX), s.ox + step);
+      if(e.key === 'ArrowUp') s.oy = Math.max(0, s.oy - step);
+      if(e.key === 'ArrowDown') s.oy = Math.min(Math.round(ed.workspaceH - s.resY), s.oy + step);
+      positionLinkLayoutTiles();
+      renderLinkLayoutInfo();
+    }
+  }, true);
+  ['linkLayoutX','linkLayoutY'].forEach((id, idx)=>{
+    const input = el(id);
+    if(!input) return;
+    input.addEventListener('input', ()=> setLinkLayoutSelectedPos(idx === 0 ? 'x' : 'y', input.value));
+  });
+  window.addEventListener('resize', ()=>{
+    if(!linkLayoutEditor) return;
+    configureLinkLayoutWorkspace(false);
+    buildLinkLayoutTiles();
+    updateLinkLayoutScaleLabel();
+  });
+})();
 
 function unlinkLinkGroupOf(id){
   const s = slices.find(x=>x.id === id);
@@ -5725,11 +6414,18 @@ function renderSlices(){
     const comp = computeSlice(s);
     const link = getSliceLinkInfo(s);
     const linkLayoutDesc = link
-      ? (link.mode === 'row'
-          ? `1 rij · ${link.count} naast elkaar`
-          : link.mode === 'col'
-            ? `1 kolom · ${link.count} boven elkaar`
-            : `${link.colCount} kolommen × ${link.rowCount} rijen`)
+      ? (link.mode === 'custom'
+          ? 'vrije indeling'
+          : link.mode === 'row'
+            ? `1 rij · ${link.count} naast elkaar`
+            : link.mode === 'col'
+              ? `1 kolom · ${link.count} boven elkaar`
+              : `${link.colCount} kolommen × ${link.rowCount} rijen`)
+      : '';
+    const linkPosDesc = link
+      ? (link.mode === 'custom' && link.slot
+          ? `x ${link.slot.ox} px · y ${link.slot.oy} px`
+          : `rij ${link.row+1} · kolom ${link.col+1}`)
       : '';
     const overlayLocked = !!(link && link.index !== 0);
     const linkCircleOn = link ? link.members.some(m=>!!m.showCircle) : !!s.showCircle;
@@ -5805,18 +6501,19 @@ function renderSlices(){
         </div>
         <div class="properties-body" style="${s.linkCollapsed?'display:none;':''}">
           ${link ? `
-          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${linkLayoutDesc} · rij <b>${link.row+1}</b>, kolom <b>${link.col+1}</b>.<br>De virtuele indeling is vastgezet: een slice verplaatsen verandert het virtuele beeld niet.</div>
+          <div class="link-status">Gekoppeld in <b>groep ${link.gid}</b> · ${link.count} slices · ${linkLayoutDesc} · ${linkPosDesc}.<br>De virtuele indeling is vastgezet: een slice verplaatsen verandert het virtuele beeld niet.</div>
           <div class="link-order-row">
-            <span class="link-order-pos">rij ${link.row+1} · kolom ${link.col+1}</span>
+            <span class="link-order-pos">${linkPosDesc}</span>
             <button type="button" onclick="selectLinkGroupOf(${s.id})">Selecteer groep</button>
-            <button type="button" onclick="recaptureLinkLayoutOf(${s.id})" title="Leg de virtuele indeling opnieuw vast op basis van de huidige posities">Herbereken indeling</button>
+            <button type="button" onclick="openLinkLayoutEditorFor(${s.id})" title="Zet de slices zelf in de gewenste positie op een routing-canvas">Indeling…</button>
+            ${link.mode === 'custom' ? '' : `<button type="button" onclick="recaptureLinkLayoutOf(${s.id})" title="Leg de virtuele indeling opnieuw vast op basis van de huidige posities">Herbereken indeling</button>`}
             <button type="button" onclick="unlinkLinkGroupOf(${s.id})">Ontkoppel</button>
           </div>
           ${link.index!==0
             ? `<div class="hint-input">De cirkelvorm wordt bepaald door <b>${escapeHtmlText(link.leader.name)}</b>. Cirkel, kruis en tekstkleur stel je per slice in; zo lopen ze samen door over de naad.</div>`
             : `<div class="hint-input">Deze slice bepaalt de cirkelvorm voor de hele groep. Cirkel, kruis en tekstkleur stel je per slice in; zo lopen ze samen door over de naad.</div>`}
           ` : `
-          <div class="hint-input">Selecteer 2 of meer slices en klik op <b>Koppel ↔</b> (één virtuele rij, links → rechts) of <b>Koppel ↕</b> (één virtuele kolom, boven → onder) in de balk boven de compositie. De slices houden hun positie op de canvas; het kruis en rondje lopen door over de naden.</div>
+          <div class="hint-input">Selecteer 2 of meer slices en klik op <b>Koppel ↔</b> (één virtuele rij, links → rechts), <b>Koppel ↕</b> (één virtuele kolom, boven → onder) of <b>Koppel custom…</b> (zet de slices zelf in de gewenste positie op een routing-canvas) in de balk boven de compositie. De slices houden hun positie op de canvas; het kruis en rondje lopen door over de naden.</div>
           `}
         </div>
       </div>

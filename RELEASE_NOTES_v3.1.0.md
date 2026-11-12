@@ -14,9 +14,10 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - **Opslaan als… met het native opslaanvenster**: **Opslaan als…** opent het vertrouwde macOS-opslaanvenster (op Windows het Windows-opslaanvenster) met een invulbare bestandsnaam en locatiekiezer, zodat je zelf bepaalt hoe het bestand heet en waar het komt. De gekozen map wordt onthouden. Bestaat het bestand al, dan bevestigt het systeem het overschrijven. **Opslaan** schrijft daarna direct naar hetzelfde bestand, zonder nieuwe download of extra vraag.
 - **Slice-koppeling**: selecteer 2 of meer slices en klik op **Koppel ↔** of **Koppel ↕** in de balk boven de compositie. **Koppel ↔** zet alle geselecteerde slices virtueel in één rij van links naar rechts; **Koppel ↕** zet ze in één kolom van boven naar onder. De volgorde volgt de leesvolgorde op de canvas (rij voor rij, links → rechts), maar de fysieke posities op de canvas blijven precies staan. Zo wordt een 3×2-raster bij horizontaal koppelen één virtueel vlak van 1×6, terwijl de slices op de canvas in hun 3×2-opstelling blijven liggen. Cirkel en kruis lopen over alle naden heen door.
 - **Virtuele indeling vastgezet**: op het moment van koppelen wordt de virtuele plaats van elke slice vastgelegd (rij, kolom, offset en resolutie). Verplaats je daarna een slice op de pixelmap, dan blijft het virtuele beeld gelijk: de slice behoudt zijn eigen deel van het virtuele vlak en alleen de fysieke positie verandert. Met **Herbereken indeling** leg je de indeling opnieuw vast op basis van de huidige posities.
+- **Koppel custom… (vrije routing)**: met **Koppel custom…** open je een routing-canvas waarin je elke slice zelf in de gewenste virtuele positie zet. Sleep de slice-tegels vrij rond; randen en hartlijnen magnetiseren (houd **Alt** ingedrukt om vrij te plaatsen). Met de presets **Rij**, **Kolom** en **Raster** begin je snel, met de pijltjestoetsen stel je posities pixel voor pixel bij (Shift = 10 px) en in het zijpaneel typ je X/Y exact in. **Toepassen** legt de vrije indeling vast; **Annuleren** laat alles ongemoeid. Een bestaande koppeling pas je later aan via **Indeling…** in de Koppeling-sectie.
 - **Doorlopend kruis en rondje**: markeringen worden op het virtuele vlak van de hele groep berekend en per slice geclipt, zodat ze exact op de naad aansluiten.
 - **Testmode toont alleen het testpatroon**: staat een testpatroon aan, dan zie je op de canvas, Stage, Overview, live-uitgang en in de export uitsluitend het patroon. Cirkel, kruis, naam, positie, resolutie en paneelaantal worden dan onderdrukt — ook binnen een gekoppelde groep, zodat het patroon altijd boven de markeringen ligt.
-- **Koppeling-sectie per slice**: badge met positie (bijv. 🔗 2/3), rij/kolom in het virtuele vlak, **Selecteer groep**, **Herbereken indeling** en **Ontkoppel**.
+- **Koppeling-sectie per slice**: badge met positie (bijv. 🔗 2/3), rij/kolom of vrije X/Y in het virtuele vlak, **Selecteer groep**, **Indeling…**, **Herbereken indeling** en **Ontkoppel**.
 - **Leider bepaalt de cirkelvorm**: de eerste slice in de groep bepaalt de cirkelvervorming (zodat de vorm op de naad aansluit). Cirkel, kruis en tekstkleur (zwart/wit) blijven **per slice** instelbaar en werken gewoon door in een gekoppelde groep.
 - **Automatische volgorde**: bij koppelen wordt de selectie in leesvolgorde gesorteerd (boven → beneden, links → rechts) en daarna vastgezet.
 - **Live Output pixel-per-pixel**: de live-uitgang toont nu de echte canvasresolutie 1:1 vanaf 0,0 (canvaspixel = uitvoerpixel), zonder de geschaalde 1300×640-overview en zonder CSS-schaling. Is de canvas groter dan het scherm, dan worden de buitenste pixels afgeknipt.
@@ -76,6 +77,15 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Opslaan als… opent het native macOS/Windows-opslaanvenster met bestandsnaam en locatiekeuze
 - [x] Opslaan schrijft direct naar het gekozen bestand (zonder browserdownload)
 - [x] Virtuele indeling blijft vast bij verplaatsen van een gekoppelde slice
+- [x] **Koppel custom…** opent een routing-canvas met sleepbare slice-tegels
+- [x] Sleepbare tegels met magnetiseren op randen en hartlijnen (Alt = vrij plaatsen)
+- [x] Presets Rij, Kolom en Raster werken in de routing-editor
+- [x] Pijltjestoetsen (1 px) en Shift+pijltjestoetsen (10 px) verplaatsen de geselecteerde tegel
+- [x] X/Y zijn exact in te typen in het zijpaneel
+- [x] Toepassen legt de vrije indeling vast; Annuleren laat de slices ongemoeid
+- [x] Bestaande koppeling aanpassen via **Indeling…** in de Koppeling-sectie
+- [x] Vrije indeling blijft bewaard na undo/redo, herladen en autosave
+- [x] Vrije indeling werkt door in 1:1, Stage, Overview, live-uitgang en export
 - [x] Knop **Herbereken indeling** om de virtuele indeling opnieuw vast te leggen
 - [x] 2×3-koppeling vormt één virtueel vlak met doorlopende cirkel/kruis
 - [x] Live-uitgang toont 1:1 canvasresolutie vanaf 0,0 (geen overview/schaling)
