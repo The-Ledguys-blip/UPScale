@@ -6120,9 +6120,9 @@ function makeSlice(defaults){
     imMode: false,
     imSegW: 21,
     imSegH: 21,
-    imSegCols: 4,
-    imSegRows: 4,
-    imSegDriver: 'size',
+    imSegCols: 8,
+    imSegRows: 8,
+    imSegDriver: 'count',
     imCollapsed: true,
     cropTop: 0,
     cropBottom: 0,
@@ -7182,28 +7182,13 @@ function imSegments(s, cap){
   return {segX: sx, segY: sy};
 }
 
+/* De pixelgrootte van één IM-segment volgt altijd uit het paneelformaat en het
+   gekozen aantal segmenten per paneel. */
 function imSegmentSize(s){
-  if(s.imSegDriver==='count'){
-    const wpx = Math.max(1, Number(s.pxPanelW) || 1);
-    const hpx = Math.max(1, Number(s.pxPanelH) || 1);
-    const seg = imSegments(s, 1e9);
-    return { w: wpx/seg.segX, h: hpx/seg.segY };
-  }
-  return { w: Math.max(1, Number(s.imSegW) || 1), h: Math.max(1, Number(s.imSegH) || 1) };
-}
-
-function onImSizeInput(id){
-  const s = slices.find(x=>x.id===id);
-  if(!s) return;
-  const c = el('card-'+id);
-  if(!c) return;
-  s.imSegDriver = 'size';
-  s.imSegW = Math.max(1, parseFloat(c.querySelector('[data-f=imSegW]').value) || 1);
-  s.imSegH = Math.max(1, parseFloat(c.querySelector('[data-f=imSegH]').value) || 1);
-  const seg = imSegments(s, 4000);
-  const rowsEl = c.querySelector('[data-f=imSegRows]'); if(rowsEl) rowsEl.value = seg.segY;
-  const colsEl = c.querySelector('[data-f=imSegCols]'); if(colsEl) colsEl.value = seg.segX;
-  recalcAll(); updatePanelPreviews();
+  const wpx = Math.max(1, Number(s.pxPanelW) || 1);
+  const hpx = Math.max(1, Number(s.pxPanelH) || 1);
+  const seg = imSegments(s, 1e9);
+  return { w: wpx/seg.segX, h: hpx/seg.segY };
 }
 
 function onImCountInput(id){
@@ -7283,13 +7268,13 @@ function imGroupHTML(s){
         </div>
         <div class="properties-body" style="${s.imCollapsed?'display:none;':''}">
           <div class="title-size-row" style="margin-bottom:8px;">
-            <label>Grootte (H×B px)</label>
-            <input type="text" inputmode="decimal" class="calc im-dim" data-f="imSegH" value="${Math.round(size.h)}" oninput="onImSizeInput(${s.id})">
+            <label title="Wordt automatisch berekend uit het paneelformaat en het aantal">Grootte (H×B px)</label>
+            <input type="text" class="calc im-dim" data-f="imSegH" value="${Math.round(size.h)}" readonly tabindex="-1" title="Automatisch: paneelhoogte ÷ aantal">
             <span class="im-x">×</span>
-            <input type="text" inputmode="decimal" class="calc im-dim" data-f="imSegW" value="${Math.round(size.w)}" oninput="onImSizeInput(${s.id})">
+            <input type="text" class="calc im-dim" data-f="imSegW" value="${Math.round(size.w)}" readonly tabindex="-1" title="Automatisch: paneelbreedte ÷ aantal">
           </div>
           <div class="title-size-row" style="margin-bottom:10px;">
-            <label>Aantal (H×B)</label>
+            <label title="Stel in hoeveel segmenten per paneel; de pixelgrootte past zich daarop aan">Aantal (H×B)</label>
             <input type="text" inputmode="numeric" class="calc im-dim" data-f="imSegRows" value="${seg.segY}" oninput="onImCountInput(${s.id})">
             <span class="im-x">×</span>
             <input type="text" inputmode="numeric" class="calc im-dim" data-f="imSegCols" value="${seg.segX}" oninput="onImCountInput(${s.id})">
