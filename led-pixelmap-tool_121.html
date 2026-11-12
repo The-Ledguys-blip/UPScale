@@ -1443,7 +1443,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <div class="live-preview-wrap">
             <div id="livePreviewHost" class="live-preview-grid"></div>
           </div>
-          <div class="note" id="liveNote">De preview toont <b>alle canvassen</b> geschaald in een grid. Elke live-uitgang zelf blijft de ingestelde canvasmaat <b>1:1 vanaf 0,0</b> tonen op het gekozen scherm — bruikbaar als signaal naar een LED-processor. De <b>witte lijn</b> markeert de canvasrand; is de canvas groter dan het scherm, dan vallen de buitenste pixels buiten beeld. Wijzigingen in de canvasmaat worden direct live doorgestuurd.</div>
+          <div class="note" id="liveNote">De preview toont <b>alle canvassen</b> geschaald in een grid. Elke live-uitgang zelf blijft de ingestelde canvasmaat <b>1:1 vanaf 0,0</b> tonen op het gekozen scherm — bruikbaar als signaal naar een LED-processor. Met <b>Test</b> kies je per canvas dezelfde testpatroon-bank als bij 1:1; het patroon vult dan de <b>hele output op exact de canvasresolutie</b> (bijv. 3840×2160). De <b>witte lijn</b> markeert de canvasrand; is de canvas groter dan het scherm, dan vallen de buitenste pixels buiten beeld. Wijzigingen in de canvasmaat worden direct live doorgestuurd.</div>
         </div>
       </div>
     </div>
@@ -3507,6 +3507,36 @@ function nextCanvasName(){
   return 'Canvas ' + n;
 }
 
+/* Testpatroon voor de volledige live-uitgang. Zelfde bank als de 1:1
+   slice-testpatronen, maar toegepast over de hele canvasresolutie. */
+const LIVE_TEST_TYPES = ['none','solid-black','solid-red','solid-green','solid-blue','solid-white','diagonal','gradient','grid','colorbars-100','colorbars-100h','colorbars-100d'];
+
+function defaultLiveTest(){
+  return { type: 'none', speed: 5, motion: true, horizontal: true, vertical: false };
+}
+
+function normalizeLiveTest(raw){
+  const t = (raw && typeof raw === 'object') ? raw : {};
+  const type = LIVE_TEST_TYPES.indexOf(t.type) >= 0 ? t.type : 'none';
+  return {
+    type: type,
+    speed: Math.max(1, Math.min(10, parseInt(t.speed, 10) || 5)),
+    motion: t.motion !== false,
+    horizontal: t.horizontal !== false,
+    vertical: !!t.vertical
+  };
+}
+
+function ensureCanvasLiveTest(canvas){
+  if(!canvas) return defaultLiveTest();
+  canvas.liveTest = normalizeLiveTest(canvas.liveTest);
+  return canvas.liveTest;
+}
+
+function canvasLiveTest(canvas){
+  return normalizeLiveTest(canvas && canvas.liveTest);
+}
+
 function makeCanvasRecord(opts){
   const d = defaultCanvasDimensions();
   const o = opts || {};
@@ -3518,7 +3548,8 @@ function makeCanvasRecord(opts){
     arW: d.arW,
     arH: d.arH,
     aspectMode: aspectMode === 'custom' ? 'custom' : 'preset',
-    slices: []
+    slices: [],
+    liveTest: defaultLiveTest()
   };
 }
 
@@ -3548,7 +3579,8 @@ function sanitizeCanvases(rawList, fallback){
       aspectMode: (c.aspectMode === 'custom' || c.aspectMode === 'preset')
         ? c.aspectMode
         : (ratioMatchesPreset(w, h) ? 'preset' : 'custom'),
-      slices: Array.isArray(c.slices) ? c.slices : fallbackSlices
+      slices: Array.isArray(c.slices) ? c.slices : fallbackSlices,
+      liveTest: normalizeLiveTest(c.liveTest)
     };
   });
 }
@@ -6474,119 +6506,138 @@ function onTestPatternTypeChange(id, type){
   recalcAll();
 }
 
+/* Testpatroon-bank. Wordt zowel per slice (1:1-compositie, Stage, export)
+   als voor de volledige live-uitgang gebruikt. x/y/w/h bepalen het bereik;
+   voor een live-uitgang is dat de hele canvasresolutie. */
+function testPatternSVG(type, x, y, w, h, opts, seed){
+  if(!type || type === 'none') return '';
+  const tpType = type;
+  const o = opts || {};
+  const tpMotion = o.motion !== false;
+  const tpHoriz = o.horizontal !== false;
+  const tpVert = !!o.vertical;
+  const roundRX = Math.max(0, Number(o.rx) || 0);
+  const roundRY = Math.max(0, Number(o.ry) || 0);
+  const clipId = 'tpclip-' + seed;
+  const dur = (11 - Math.max(1, Math.min(10, Number(o.speed) || 5))).toFixed(1);
+  const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
+  let out = '';
+  out += `<defs><clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" rx="${roundRX}" ry="${roundRY}"/></clipPath></defs>`;
+  out += `<g clip-path="url(#${clipId})">`;
+  const solidColor = (tpType==='solid-black')?'#000000':(tpType==='solid-white')?'#ffffff':(tpType==='solid-red')?'#ff0000':(tpType==='solid-green')?'#00ff00':(tpType==='solid-blue')?'#0000ff':null;
+  if(solidColor){
+    out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="${solidColor}"/>`;
+  } else if(tpType==='colorbars-100'){
+    const bw = w / barColors.length;
+    const moveY = tpMotion && tpVert && !tpHoriz;
+    const animated = tpMotion && (tpHoriz || tpVert);
+    const count = animated ? barColors.length*2 : barColors.length;
+    if(animated){
+      const anim = moveY ? `tpy-${clipId}` : `tpx-${clipId}`;
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;">`;
+    }
+    for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; }
+    if(animated){
+      out += `</g>`;
+      const dist = moveY ? h : bw*barColors.length;
+      const tf = moveY ? 'translateY' : 'translateX';
+      const name = moveY ? 'tpy' : 'tpx';
+      out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
+    }
+  } else if(tpType==='colorbars-100h'){
+    const bh = h / barColors.length;
+    const bw = w / barColors.length;
+    const moveX = tpMotion && tpHoriz && !tpVert;
+    const animated = tpMotion && (tpHoriz || tpVert);
+    const count = animated ? barColors.length*2 : barColors.length;
+    if(animated){
+      const anim = moveX ? `tpx-${clipId}` : `tpy-${clipId}`;
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;">`;
+    }
+    for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; }
+    if(animated){
+      out += `</g>`;
+      const dist = moveX ? bw*barColors.length : bh*barColors.length;
+      const tf = moveX ? 'translateX' : 'translateY';
+      const name = moveX ? 'tpx' : 'tpy';
+      out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
+    }
+  } else if(tpType==='colorbars-100d'){
+    /* 100% colorbars als diagonale kleurbanden die naar beneden schuiven.
+       De banden staan onder 45 graden en bewegen loodrecht op hun lengte
+       (schuin naar beneden). Eén volledige kleurcyclus staat gelijk aan
+       7 bandbreedtes, waardoor de loop naadloos is. */
+    const cx = x + w/2, cy = y + h/2;
+    const diag = Math.sqrt(w*w + h*h);
+    const bw = Math.max(6, Math.round(diag / barColors.length));
+    const half = diag/2 + bw;
+    const cycle = bw * barColors.length;
+    const startX = -Math.ceil((half + cycle) / bw) * bw;
+    const endX = half + cycle + bw;
+    const count = Math.ceil((endX - startX) / bw) + 1;
+    const animName = 'tpd-' + clipId;
+    out += `<g transform="translate(${cx} ${cy}) rotate(45)">`;
+    if(tpMotion){
+      out += `<g style="transform-origin:0 0;animation:${animName} ${dur}s linear infinite;">`;
+    }
+    for(let i=0;i<count;i++){
+      const bx = startX + i*bw;
+      const col = barColors[((i % barColors.length) + barColors.length) % barColors.length];
+      out += `<rect x="${bx}" y="${-half}" width="${bw+1}" height="${half*2}" fill="${col}"/>`;
+    }
+    if(tpMotion){
+      out += `</g>`;
+      out += `<style>@keyframes ${animName}{from{transform:translateX(0px)}to{transform:translateX(${cycle}px)}}</style>`;
+    }
+    out += `</g>`;
+  } else if(tpType==='counters'){
+    out += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(12,Math.min(w,h)/4)}" fill="#ffffff">00:00:00</text>`;
+  } else if(tpType==='diagonal'){
+    const step = Math.max(6, Math.round(Math.min(w,h)/10));
+    if(tpMotion && (tpHoriz || tpVert)){
+      out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
+      for(let d=-h; d<w+h; d+=step){ out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`; }
+      out += `</g>`;
+      out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(-${step}px)}to{transform:translateX(0px)}}</style>`;
+    } else {
+      for(let d=-h; d<w; d+=step){ out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`; }
+    }
+  } else if(tpType==='gradient'){
+    const gid = 'tph-' + clipId;
+    out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#000000"/><stop offset="50%" stop-color="#808080"/><stop offset="100%" stop-color="#ffffff"/></linearGradient></defs>`;
+    if(tpMotion && tpHoriz){
+      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w*2)}" height="${Math.max(1,h)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.95;"/>`;
+      out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(-${Math.max(1,w)}px)}to{transform:translateX(0px)}}</style>`;
+    } else {
+      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="url(#${gid})" opacity="0.95;"/>`;
+    }
+  } else if(tpType==='grid'){
+    const step = Math.max(4, Math.round(Math.min(w,h)/12));
+    for(let gx=x; gx<=x+w; gx+=step){ out += `<line x1="${gx}" y1="${y}" x2="${gx}" y2="${y+h}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
+    for(let gy=y; gy<=y+h; gy+=step){ out += `<line x1="${x}" y1="${gy}" x2="${x+w}" y2="${gy}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
+  }
+  out += `</g>`;
+  return out;
+}
+
 function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, idNs){
   const s = c.slice;
   const tpType = s.testPatternType || (s.testPattern ? 'colorbars-h' : 'none');
   if(tpType && tpType !== 'none'){
-    const tpMotion = s.testPatternMotion !== false;
-    const tpHoriz = s.testPatternHorizontal !== false;
-    const tpVert = !!s.testPatternVertical;
-    const ls = Math.max(0.25, Math.min(2, Number(lineScale) || 1));
     const useRounded = !!s.roundedCorners;
     const roundPctRaw = Number(s.cornerRadiusPct);
     const roundPct = Math.max(0, Math.min(50, isFinite(roundPctRaw) ? roundPctRaw : 8));
     const roundRX = useRounded ? Math.max(1.5, w * (roundPct / 100)) : 0;
     const roundRY = useRounded ? Math.max(1.5, h * (roundPct / 100)) : 0;
-    const clipId = 'tpclip-' + (idNs ? (idNs + '-s' + s.id + '-' + idx) : clipIdCounter++);
-    const dur = (11 - Math.max(1, Math.min(10, Number(s.testPatternSpeed) || 5))).toFixed(1);
-    const barColors = ['#ffffff','#ffff00','#00ffff','#00ff00','#ff00ff','#ff0000','#0000ff'];
-    let out = '';
-    out += `<defs><clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" rx="${roundRX}" ry="${roundRY}"/></clipPath></defs>`;
-    out += `<g clip-path="url(#${clipId})">`;
-    const solidColor = (tpType==='solid-black')?'#000000':(tpType==='solid-white')?'#ffffff':(tpType==='solid-red')?'#ff0000':(tpType==='solid-green')?'#00ff00':(tpType==='solid-blue')?'#0000ff':null;
-    if(solidColor){
-      out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="${solidColor}"/>`;
-    } else if(tpType==='colorbars-100'){
-      const bw = w / barColors.length;
-      const moveY = tpMotion && tpVert && !tpHoriz;
-      const animated = tpMotion && (tpHoriz || tpVert);
-      const count = animated ? barColors.length*2 : barColors.length;
-      if(animated){
-        const anim = moveY ? `tpy-${clipId}` : `tpx-${clipId}`;
-        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;">`;
-      }
-      for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x + i*bw}" y="${y}" width="${bw+1}" height="${h}" fill="${col}"/>`; }
-      if(animated){
-        out += `</g>`;
-        const dist = moveY ? h : bw*barColors.length;
-        const tf = moveY ? 'translateY' : 'translateX';
-        const name = moveY ? 'tpy' : 'tpx';
-        out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
-      }
-    } else if(tpType==='colorbars-100h'){
-      const bh = h / barColors.length;
-      const bw = w / barColors.length;
-      const moveX = tpMotion && tpHoriz && !tpVert;
-      const animated = tpMotion && (tpHoriz || tpVert);
-      const count = animated ? barColors.length*2 : barColors.length;
-      if(animated){
-        const anim = moveX ? `tpx-${clipId}` : `tpy-${clipId}`;
-        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:${anim} ${dur}s linear infinite;">`;
-      }
-      for(let i=0;i<count;i++){ const col=barColors[i%barColors.length]; out += `<rect x="${x}" y="${y + i*bh}" width="${w}" height="${bh+1}" fill="${col}"/>`; }
-      if(animated){
-        out += `</g>`;
-        const dist = moveX ? bw*barColors.length : bh*barColors.length;
-        const tf = moveX ? 'translateX' : 'translateY';
-        const name = moveX ? 'tpx' : 'tpy';
-        out += `<style>@keyframes ${name}-${clipId}{from{transform:${tf}(-${Math.max(1,dist)}px)}to{transform:${tf}(0px)}}</style>`;
-      }
-    } else if(tpType==='colorbars-100d'){
-      /* 100% colorbars als diagonale kleurbanden die naar beneden schuiven.
-         De banden staan onder 45 graden en bewegen loodrecht op hun lengte
-         (schuin naar beneden). Eén volledige kleurcyclus staat gelijk aan
-         7 bandbreedtes, waardoor de loop naadloos is. */
-      const cx = x + w/2, cy = y + h/2;
-      const diag = Math.sqrt(w*w + h*h);
-      const bw = Math.max(6, Math.round(diag / barColors.length));
-      const half = diag/2 + bw;
-      const cycle = bw * barColors.length;
-      const startX = -Math.ceil((half + cycle) / bw) * bw;
-      const endX = half + cycle + bw;
-      const count = Math.ceil((endX - startX) / bw) + 1;
-      const animName = 'tpd-' + clipId;
-      out += `<g transform="translate(${cx} ${cy}) rotate(45)">`;
-      if(tpMotion){
-        out += `<g style="transform-origin:0 0;animation:${animName} ${dur}s linear infinite;">`;
-      }
-      for(let i=0;i<count;i++){
-        const bx = startX + i*bw;
-        const col = barColors[((i % barColors.length) + barColors.length) % barColors.length];
-        out += `<rect x="${bx}" y="${-half}" width="${bw+1}" height="${half*2}" fill="${col}"/>`;
-      }
-      if(tpMotion){
-        out += `</g>`;
-        out += `<style>@keyframes ${animName}{from{transform:translateX(0px)}to{transform:translateX(${cycle}px)}}</style>`;
-      }
-      out += `</g>`;
-    } else if(tpType==='counters'){
-      out += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${Math.max(12,Math.min(w,h)/4)}" fill="#ffffff">00:00:00</text>`;
-    } else if(tpType==='diagonal'){
-      const step = Math.max(6, Math.round(Math.min(w,h)/10));
-      if(tpMotion && (tpHoriz || tpVert)){
-        out += `<g style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;">`;
-        for(let d=-h; d<w+h; d+=step){ out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`; }
-        out += `</g>`;
-        out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(-${step}px)}to{transform:translateX(0px)}}</style>`;
-      } else {
-        for(let d=-h; d<w; d+=step){ out += `<line x1="${x+d}" y1="${y}" x2="${x+d+h}" y2="${y+h}" stroke="#ffffff" stroke-width="1.5" opacity="0.8"/>`; }
-      }
-    } else if(tpType==='gradient'){
-      const gid = 'tph-' + clipId;
-      out += `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#000000"/><stop offset="50%" stop-color="#808080"/><stop offset="100%" stop-color="#ffffff"/></linearGradient></defs>`;
-      if(tpMotion && tpHoriz){
-        out += `<rect x="${x}" y="${y}" width="${Math.max(1,w*2)}" height="${Math.max(1,h)}" fill="url(#${gid})" style="transform-box:view-box;transform-origin:0 0;animation:tpx-${clipId} ${dur}s linear infinite;opacity:0.95;"/>`;
-        out += `<style>@keyframes tpx-${clipId}{from{transform:translateX(-${Math.max(1,w)}px)}to{transform:translateX(0px)}}</style>`;
-      } else {
-        out += `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}" fill="url(#${gid})" opacity="0.95;"/>`;
-      }
-    } else if(tpType==='grid'){
-      const step = Math.max(4, Math.round(Math.min(w,h)/12));
-      for(let gx=x; gx<=x+w; gx+=step){ out += `<line x1="${gx}" y1="${y}" x2="${gx}" y2="${y+h}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
-      for(let gy=y; gy<=y+h; gy+=step){ out += `<line x1="${x}" y1="${gy}" x2="${x+w}" y2="${gy}" stroke="#ffffff" stroke-width="1" opacity="0.7"/>`; }
-    }
-    out += `</g>`;
-    return out;
+    const seed = idNs ? (idNs + '-s' + s.id + '-' + idx) : clipIdCounter++;
+    return testPatternSVG(tpType, x, y, w, h, {
+      motion: s.testPatternMotion !== false,
+      horizontal: s.testPatternHorizontal !== false,
+      vertical: !!s.testPatternVertical,
+      speed: s.testPatternSpeed,
+      rx: roundRX,
+      ry: roundRY
+    }, seed);
   }
   const color = colorForSlice(s);
   const border = '#ffffff';
@@ -9233,6 +9284,12 @@ if(typeof renderOverviewPanels === 'function') renderOverviewPanels();
 .live-route-controls{display:flex;gap:5px;align-items:center;}
 .live-route-controls select{flex:1;min-width:0;font-size:11px;padding:5px 6px;}
 .live-route-toggle{flex:0 0 auto;font-size:11px;padding:5px 10px;}
+.live-route-test-row{margin-top:5px;}
+.live-route-test-label{flex:0 0 auto;font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);}
+.live-route-test-row input[type=range]{flex:1;min-width:0;}
+.live-route-test-flags{flex-wrap:wrap;gap:8px;margin-top:4px;}
+.live-route-flag{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-dim);white-space:nowrap;cursor:pointer;}
+.live-route-test-tag{color:var(--scaled);border-color:rgba(255,159,67,.5);}
 #liveOverlay{position:fixed;inset:0;z-index:9000;background:#000;display:none;overflow:hidden;}
 #liveOverlay #liveOverlaySvg{position:absolute;inset:0;overflow:hidden;}
 #liveOverlay #liveOverlaySvg svg{display:block;width:auto;height:auto;max-width:none;max-height:none;}
@@ -9563,8 +9620,10 @@ let liveScaledSvg = '';
 let liveSvgSeq = 0;
 let liveTargetW = 0, liveTargetH = 0;
 
-function buildLiveScaledSVG(comp){
+function buildLiveScaledSVG(comp, canvasArg){
   const s = getScaled(comp);
+  const canvas = canvasArg || getActiveCanvas();
+  const liveTest = canvasLiveTest(canvas);
   const padL = 14, padT = 22, padR = 14, padB = 14;
   const areaW = 1300 - padL - padR, areaH = 640 - padT - padB;
   const outerScale = Math.min(areaW/s.maxW, areaH/s.maxH);
@@ -9581,6 +9640,16 @@ function buildLiveScaledSVG(comp){
   out += `<text x="${oox}" y="${ooy-8}" font-size="11" fill="var(--scaled,#ff9f43)">canvas · ${fmt(s.maxW)}×${fmt(s.maxH)} px</text>`;
   out += `<rect x="${scx}" y="${scy}" width="${scW}" height="${scH}" fill="#000000" stroke="#ffffff" stroke-width="1" rx="2"/>`;
   out += `<text x="${scx}" y="${scy+scH+16}" font-size="9.5" fill="#ffffff" opacity="0.8">1:1 canvas geschaald · ${fmt(Math.round(srcCanvas.w*realScale))}×${fmt(Math.round(srcCanvas.h*realScale))} px</text>`;
+  if(liveTest.type !== 'none'){
+    /* Testpatroon over de hele canvas: geen slices, labels of andere
+       overlays, zodat de preview exact het live-signaal toont. */
+    out += testPatternSVG(liveTest.type, scx, scy, scW, scH, {
+      motion: liveTest.motion,
+      horizontal: liveTest.horizontal,
+      vertical: liveTest.vertical,
+      speed: liveTest.speed
+    }, 'lst' + canvas.id);
+  } else {
   visibleComps(comp).forEach((c, idx)=>{
     const x = scx + c.slice.posX*combinedScale, y = scy + c.slice.posY*combinedScale;
     const w = c.resX*combinedScale, h = c.resY*combinedScale;
@@ -9605,6 +9674,7 @@ function buildLiveScaledSVG(comp){
       });
     }
   });
+  }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 640" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">${out}</svg>`;
 }
 
@@ -9663,6 +9733,7 @@ function buildLiveScaledCanvasSVG(comp, canvasArg){
 function buildLiveNativeSVG(comp, canvasArg){
   if(!comp || !comp.comps) return '';
   const canvas = canvasArg || getCanvasSize();
+  const liveTest = canvasLiveTest(canvasArg || getActiveCanvas());
   const W = Math.max(1, Math.round(canvas.w));
   const H = Math.max(1, Math.round(canvas.h));
   /* Alleen de actieve editor-canvas mag de previewmaten bijwerken; per-canvas
@@ -9670,6 +9741,16 @@ function buildLiveNativeSVG(comp, canvasArg){
   if(!canvasArg || canvasArg.id === activeCanvasId){ liveTargetW = W; liveTargetH = H; }
   const labelScale = Math.max(1, Math.min(W/1300, H/640));
   let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#000000"/>`;
+  if(liveTest.type !== 'none'){
+    /* Testpatroon over de volledige output op exact de canvasresolutie:
+       1 SVG-eenheid = 1 uitvoerpixel, vanaf 0,0. */
+    out += testPatternSVG(liveTest.type, 0, 0, W, H, {
+      motion: liveTest.motion,
+      horizontal: liveTest.horizontal,
+      vertical: liveTest.vertical,
+      speed: liveTest.speed
+    }, 'lnt' + canvas.id);
+  } else {
   visibleComps(comp).forEach((c, idx)=>{
     const s = c.slice;
     const x = s.posX, y = s.posY, w = c.resX, h = c.resY;
@@ -9695,6 +9776,7 @@ function buildLiveNativeSVG(comp, canvasArg){
       });
     }
   });
+  }
   /* Witte canvasrand: altijd zichtbaar in de output, ook als het scherm
      groter is dan de canvas. Ligt bovenop de objecten zodat hij nooit
      bedekt wordt. */
@@ -9727,7 +9809,7 @@ function buildLiveOutputSvgMap(){
       el('canvasH').value = c.h;
     }catch(e){}
     const list = isActive ? slices : (Array.isArray(c.slices) ? c.slices : []);
-    const svg = buildLiveNativeSVG(getComposition(list), { id:c.id, w:c.w, h:c.h });
+    const svg = buildLiveNativeSVG(getComposition(list), { id:c.id, w:c.w, h:c.h, liveTest:c.liveTest });
     map[c.id] = {
       id: c.id,
       name: c.name,
@@ -9760,7 +9842,7 @@ function buildLiveCanvasSvgMap(){
         el('canvasH').value = c.h;
       }catch(e){}
       const list = isActive ? slices : (Array.isArray(c.slices) ? c.slices : []);
-      svg = buildLiveScaledSVG(getComposition(list));
+      svg = buildLiveScaledSVG(getComposition(list), { id:c.id, w:c.w, h:c.h, liveTest:c.liveTest });
     }
     map[c.id] = {
       id: c.id,
@@ -9879,6 +9961,7 @@ function renderLivePreview(){
         <span class="live-route-state"></span>
         <span class="live-preview-name">${escapeHtmlText(c.name)}</span>
         ${active?'<span class="live-route-tag">bewerkt</span>':''}
+        ${canvasLiveTest(c).type!=='none'?'<span class="live-route-tag live-route-test-tag">test</span>':''}
         <span class="live-preview-size">${fmt(w)}×${fmt(h)}</span>
       </div>
       <div class="live-preview-frame">${svg || '<div class="live-preview-empty">Geen preview</div>'}</div>
@@ -9963,22 +10046,110 @@ function liveAnyOpen(){
   return Object.keys(liveOpenCanvasIds).length > 0;
 }
 
+function liveTestPatternOptionsHtml(selected){
+  const opts = [
+    ['none','Geen (normale output)'],
+    ['solid-black','Zwart'],
+    ['solid-red','Rood'],
+    ['solid-green','Groen'],
+    ['solid-blue','Blauw'],
+    ['solid-white','Wit'],
+    ['diagonal','Diagonale lijnen'],
+    ['gradient','Gradient (bewegend)'],
+    ['grid','Grid'],
+    ['colorbars-100','Colorbars 100% (verticaal)'],
+    ['colorbars-100h','Colorbars 100% (horizontaal)'],
+    ['colorbars-100d','Colorbars 100% (diagonaal, bewegend)']
+  ];
+  return opts.map(([v,l])=>`<option value="${v}"${v===selected?' selected':''}>${l}</option>`).join('');
+}
+
+function liveTestActive(canvas){
+  return canvasLiveTest(canvas).type !== 'none';
+}
+
+/* Bouwt de geschaalde preview en de echte 1:1 uitvoer opnieuw en stuurt ze
+   direct naar alle open live-vensters. */
+function livePushTestPattern(){
+  try{
+    liveScaledSvg = buildLiveScaledSVG(getComposition());
+    broadcastLive(true);
+    pushLiveSvg();
+  }catch(e){ console.warn('[LIVE] testpatroon bijwerken mislukt', e); }
+  scheduleLivePreviewDraw();
+}
+
+function liveSetCanvasTestPattern(canvasId, type){
+  const c = canvases.find(x=>x.id === canvasId);
+  if(!c) return;
+  const t = ensureCanvasLiveTest(c);
+  t.type = LIVE_TEST_TYPES.indexOf(type) >= 0 ? type : 'none';
+  if(t.type === 'colorbars-100h'){ t.horizontal = false; t.vertical = true; }
+  else if(t.type === 'colorbars-100'){ t.horizontal = true; t.vertical = false; }
+  renderLiveControls();
+  livePushTestPattern();
+  scheduleHistoryPush();
+}
+
+function liveSetCanvasTestSpeed(canvasId, value){
+  const c = canvases.find(x=>x.id === canvasId);
+  if(!c) return;
+  const t = ensureCanvasLiveTest(c);
+  t.speed = Math.max(1, Math.min(10, parseInt(value, 10) || 5));
+  const label = el('liveTestSpeed-' + canvasId);
+  if(label) label.textContent = t.speed;
+  livePushTestPattern();
+  scheduleHistoryPush();
+}
+
+function liveSetCanvasTestFlag(canvasId, flag, checked){
+  const c = canvases.find(x=>x.id === canvasId);
+  if(!c) return;
+  const t = ensureCanvasLiveTest(c);
+  if(flag === 'motion') t.motion = !!checked;
+  else if(flag === 'horizontal') t.horizontal = !!checked;
+  else if(flag === 'vertical') t.vertical = !!checked;
+  renderLiveControls();
+  livePushTestPattern();
+  scheduleHistoryPush();
+}
+
 function liveRouteRowsHtml(){
   if(!canvases.length) return '<div class="note" style="margin:0;">Geen canvassen gevonden.</div>';
   return canvases.map(c=>{
     const open = liveIsCanvasOpen(c.id);
     const active = c.id === activeCanvasId;
+    const lt = canvasLiveTest(c);
     return `<div class="live-route${open?' is-open':''}${active?' is-active':''}">
       <div class="live-route-head">
         <span class="live-route-state"></span>
         <span class="live-route-name">${escapeHtmlText(c.name)}</span>
         ${active?'<span class="live-route-tag">bewerkt</span>':''}
+        ${lt.type!=='none'?'<span class="live-route-tag live-route-test-tag">test</span>':''}
         <span class="live-route-size">${fmt(c.w)}×${fmt(c.h)}</span>
       </div>
       <div class="live-route-controls">
         <select class="calc" onchange="liveSetRouteScreen(${c.id}, this.value)">${liveScreenOptionsFor(c.id)}</select>
         <button class="stage-btn live-route-toggle" onclick="liveToggleCanvas(${c.id})">${open?'Sluiten':'Openen'}</button>
       </div>
+      <div class="live-route-controls live-route-test-row">
+        <span class="live-route-test-label" title="Testpatroon over de hele output, op exact de canvasresolutie">Test</span>
+        <select class="calc" onchange="liveSetCanvasTestPattern(${c.id}, this.value)" title="Zelfde testpatroon-bank als bij 1:1, toegepast over de hele canvasresolutie">
+          ${liveTestPatternOptionsHtml(lt.type)}
+        </select>
+      </div>
+      ${lt.type !== 'none' ? `
+      <div class="live-route-controls live-route-test-row">
+        <span class="live-route-test-label">Snelheid</span>
+        <input type="range" min="1" max="10" step="1" value="${lt.speed}" oninput="liveSetCanvasTestSpeed(${c.id}, this.value)" title="Snelheid van het testpatroon">
+        <span class="live-route-size" id="liveTestSpeed-${c.id}">${lt.speed}</span>
+      </div>
+      <div class="live-route-controls live-route-test-flags">
+        <label class="live-route-flag"><input type="checkbox" ${lt.motion?'checked':''} onchange="liveSetCanvasTestFlag(${c.id},'motion',this.checked)"> Bewegend</label>
+        ${lt.type === 'colorbars-100d' ? '' : `
+        <label class="live-route-flag"><input type="checkbox" ${lt.horizontal?'checked':''} onchange="liveSetCanvasTestFlag(${c.id},'horizontal',this.checked)"> Horizontaal</label>
+        <label class="live-route-flag"><input type="checkbox" ${lt.vertical?'checked':''} onchange="liveSetCanvasTestFlag(${c.id},'vertical',this.checked)"> Verticaal</label>`}
+      </div>` : ''}
     </div>`;
   }).join('');
 }
