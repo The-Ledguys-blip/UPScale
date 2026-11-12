@@ -210,6 +210,12 @@
   }
 
   .rgb-row{display:flex;align-items:center;gap:5px;margin:0 0 10px;}
+  .rot-row{display:flex;align-items:center;gap:5px;margin:0 0 10px;}
+  .rot-row>span{font-family:var(--font-sans);font-size:11px;color:var(--text-faint);margin-right:4px;min-width:54px;}
+  .rot-row button{appearance:none;flex:1;background:var(--panel-3);border:1px solid var(--line);color:var(--text-dim);font-family:var(--font-sans);font-size:11px;font-weight:600;padding:4px 0;border-radius:5px;cursor:pointer;}
+  .rot-row button:hover:not(:disabled){border-color:var(--stage);color:var(--text);}
+  .rot-row button.active{background:var(--stage);border-color:transparent;color:#08131f;}
+  .rot-row button:disabled{opacity:.4;cursor:not-allowed;}
   .rgb-field{display:flex;align-items:center;gap:4px;background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:3px 6px;flex:1;min-width:0;transition:border-color .15s;}
   .rgb-field span{font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--text-faint);flex-shrink:0;}
   .rgb-field input{width:100%;min-width:0;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--font-mono);font-size:11px;text-align:right;padding:0;}
@@ -4351,6 +4357,41 @@ function ensureStagePos(slice){
   if(!Number.isFinite(slice.stagePosY)) slice.stagePosY = slice.posY || 0;
 }
 
+/* Rotatie van de hele slice: alles wat erop staat (paneelraster, kruis,
+   cirkel, tekst en namen) draait mee. */
+function sliceRotation(slice){
+  const r = Math.round(Number(slice && slice.rotation) || 0);
+  return (r === 90 || r === 180 || r === 270) ? r : 0;
+}
+
+function sliceRotated90(slice){
+  const r = sliceRotation(slice);
+  return r === 90 || r === 270;
+}
+
+/* Gedeelde frame voor alle weergaven: (x,y,w,h) is het zichtbare vak van de
+   slice. Voor een gedraaide slice geeft dit de ongedraaide inhoud terug, in
+   het eigen formaat, gecentreerd op hetzelfde midden, plus de SVG-transform
+   die die inhoud om dat midden draait. */
+function sliceFrame(c, x, y, w, h){
+  const rot = sliceRotation(c.slice);
+  if(!rot) return { comp: c, x, y, w, h, open: '', close: '' };
+  const cx = x + w/2, cy = y + h/2;
+  const lw = h, lh = w;
+  return {
+    comp: Object.assign({}, c, { resX: c.nativeResX || lw, resY: c.nativeResY || lh }),
+    x: cx - lw/2, y: cy - lh/2, w: lw, h: lh,
+    open: `<g transform="rotate(${rot} ${cx} ${cy})">`,
+    close: '</g>'
+  };
+}
+
+/* Omhult alles wat sinds `mark` aan `out` is toegevoegd in de draai-groep. */
+function sliceFrameWrap(out, mark, fr){
+  if(!fr.open) return out;
+  return out.slice(0, mark) + fr.open + out.slice(mark) + fr.close;
+}
+
 function ensureSliceZoom(slice){
   if(!slice) return;
   if(!Number.isFinite(slice.sliceZoom)) slice.sliceZoom = 100;
@@ -6040,6 +6081,7 @@ function makeSlice(defaults){
     hue: Math.round((slices.length * 137.508) % 360),
     customColor: null,
     sliceZoom: 100,
+    rotation: 0,
     titleSize: 12,
     titleOffsetX: 0,
     titleOffsetY: 0,
@@ -6135,9 +6177,16 @@ function computeSlice(s){
     resX = s.pxW; resY = s.pxH;
   }
   const zoomFactor = (s.sliceZoom || 100) / 100;
+  const nativeResX = Math.max(1, Math.round(resX * zoomFactor));
+  const nativeResY = Math.max(1, Math.round(resY * zoomFactor));
+  /* Voetafdruk op het canvas: bij 90° of 270° wisselen breedte en hoogte. De
+     eigen (ongedraaide) afmeting blijft in nativeResX/Y staan. */
+  const swap = sliceRotated90(s);
   return {
-    resX: Math.max(1, Math.round(resX * zoomFactor)),
-    resY: Math.max(1, Math.round(resY * zoomFactor))
+    resX: swap ? nativeResY : nativeResX,
+    resY: swap ? nativeResX : nativeResY,
+    nativeResX,
+    nativeResY
   };
 }
 
@@ -6274,6 +6323,28 @@ function stepCornerRadius(id, delta){
   s.cornerRadiusPct = Math.max(0, Math.min(50, (parseInt(s.cornerRadiusPct)||0) + delta));
   renderSlices();
   recalcAll();
+  commitHistory();
+}
+
+function sliceRotationRowHTML(s, link){
+  const cur = sliceRotation(s);
+  const buttons = [0, 90, 180, 270].map(deg=>{
+    const title = link
+      ? 'Gekoppelde slices kun je niet draaien. Ontkoppel eerst.'
+      : `Draai de hele slice ${deg}° (incl. kruis, cirkel, tekst en namen)`;
+    return `<button type="button" class="${cur===deg?'active':''}" ${link?'disabled':''} onclick="setSliceRotation(${s.id}, ${deg})" title="${title}">${deg}°</button>`;
+  }).join('');
+  return `<div class="rot-row"><span>Rotatie</span>${buttons}</div>`;
+}
+
+function setSliceRotation(id, deg){
+  const s = slices.find(x=>x.id===id);
+  if(!s || getSliceLinkInfo(s)) return;
+  readSliceInputs();
+  s.rotation = sliceRotation({ rotation: deg });
+  renderSlices();
+  recalcAll();
+  syncStageLayoutWithSlices(false);
   commitHistory();
 }
 
@@ -6511,6 +6582,7 @@ function renderSlices(){
         <button type="button" class="rgb-copy" onclick="copySliceColor(${s.id}, this)" title="Kopieer RGB als 'r, g, b'"><svg class="ic ic-xs" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg></button>
         <button type="button" class="rgb-copy" onclick="pasteSliceColor(${s.id}, this)" title="Plak gekopieerde kleur op dit object"><svg class="ic ic-xs" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4V3h6v1"/><path d="M9 11h6M9 15h4"/></svg></button>
       </div>
+      ${sliceRotationRowHTML(s, link)}
 
       ${(s.type==='slice' && s.mode==='panels') ? imGroupHTML(s) : ''}
       <div class="properties-group">
@@ -7500,12 +7572,13 @@ function drawComposition(svgId, comp, opts){
     const textColor = sliceTextColor(c.slice);
     const x = ox + c.slice.posX*scale, y = oy + c.slice.posY*scale;
     const w = c.resX*scale, h = c.resY*scale;
-    const shape = shapeSVG(c, idx, x, y, w, h, '22', isReal);
+    const fr = sliceFrame(c, x, y, w, h);
+    const shape = shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '22', isReal);
     let labels = '';
     if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
       const titleSize = c.slice.titleSize || 12;
-      const bb = occupiedPixelBox(c.slice, x, y, w, h);
+      const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
       if(c.slice.showPosition !== false) labels += `<text x="${bb.x+8}" y="${bb.y+16}" font-size="10" fill="${textColor}" opacity="0.85" style="pointer-events:none">${fmt(c.slice.posX)},${fmt(c.slice.posY)}</text>`;
       const namePos = titleNamePos(c.slice, bb);
       if(c.slice.showTitle !== false) labels += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${titleSize}" font-weight="600" fill="${textColor}" style="pointer-events:none">${c.slice.name}</text>`);
@@ -7521,9 +7594,9 @@ function drawComposition(svgId, comp, opts){
       const selectedBox = selectedSliceIds.has(c.slice.id)
         ? `<rect x="${x-3}" y="${y-3}" width="${Math.max(w+6,1)}" height="${Math.max(h+6,1)}" fill="none" stroke="var(--scaled)" stroke-width="2.5" stroke-dasharray="6,3" pointer-events="none"/>`
         : '';
-      rects += `<g data-id="${c.slice.id}" style="cursor:grab" onmousedown="startDrag(event, ${c.slice.id})">${shape}${labels}${selectedBox}</g>`;
+      rects += `<g data-id="${c.slice.id}" style="cursor:grab" onmousedown="startDrag(event, ${c.slice.id})">${fr.open}${shape}${labels}${fr.close}${selectedBox}</g>`;
     } else {
-      rects += shape + labels;
+      rects += fr.open + shape + labels + fr.close;
     }
   });
 
@@ -7563,13 +7636,15 @@ function drawComposition(svgId, comp, opts){
       const x = scx + c.slice.posX*combinedScale, y = scy + c.slice.posY*combinedScale;
       const w = c.resX*combinedScale, h = c.resY*combinedScale;
       const scaledTextColor = sliceTextColor(c.slice);
-      innerRects += shapeSVG(c, idx, x, y, w, h, '33', false);
+      const fr = sliceFrame(c, x, y, w, h);
+      const mark = innerRects.length;
+      innerRects += shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '33', false);
       if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
         const scaledResX = Math.max(1, Math.round(c.resX*realScale));
         const scaledResY = Math.max(1, Math.round(c.resY*realScale));
         const scaledPosX = Math.round(c.slice.posX*realScale);
         const scaledPosY = Math.round(c.slice.posY*realScale);
-        const bb = occupiedPixelBox(c.slice, x, y, w, h);
+        const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
         const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
         if(c.slice.showPosition !== false) innerRects += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${fmt(scaledPosX)},${fmt(scaledPosY)}</text>`;
         const namePos = titleNamePos(c.slice, bb);
@@ -7582,6 +7657,7 @@ function drawComposition(svgId, comp, opts){
           innerRects += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
         });
       }
+      innerRects = sliceFrameWrap(innerRects, mark, fr);
     });
     svg.innerHTML = outer + canvasFrame + innerRects;
     return;
@@ -7831,8 +7907,9 @@ function drawStageLayout(comp){
       autoSize.w > 0 ? (c.slice.stageW / autoSize.w) : 1,
       autoSize.h > 0 ? (c.slice.stageH / autoSize.h) : 1
     );
-    const stageComp = Object.assign({}, c, { slice: Object.assign({}, c.slice, { roundedCorners: false }) });
-    const shape = shapeSVG(stageComp, idx, x, y, w, h, '33', false, relScale);
+    const fr = sliceFrame(c, x, y, w, h);
+    const stageComp = Object.assign({}, fr.comp, { slice: Object.assign({}, fr.comp.slice, { roundedCorners: false }) });
+    const shape = shapeSVG(stageComp, idx, fr.x, fr.y, fr.w, fr.h, '33', false, relScale);
     const selectedBox = selectedSliceIds.has(c.slice.id)
       ? `<rect x="${x-3}" y="${y-3}" width="${Math.max(w+6,1)}" height="${Math.max(h+6,1)}" fill="none" stroke="var(--scaled)" stroke-width="2.5" stroke-dasharray="6,3" pointer-events="none"/>`
       : '';
@@ -7840,7 +7917,7 @@ function drawStageLayout(comp){
     if(w > 65 && h > 28 && !sliceTestPatternActive(c.slice)){
       labels += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${sliceTextColor(c.slice)}" style="pointer-events:none">${c.slice.name}</text>`;
     }
-    rects += `<g data-id="${c.slice.id}" style="cursor:${hasSelection ? 'pointer' : 'default'}" onmousedown="startStageDrag(event, ${c.slice.id})">${shape}${labels}${selectedBox}</g>`;
+    rects += `<g data-id="${c.slice.id}" style="cursor:${hasSelection ? 'pointer' : 'default'}" onmousedown="startStageDrag(event, ${c.slice.id})">${fr.open}${shape}${labels}${fr.close}${selectedBox}</g>`;
   });
 
   let guideLines = '';
@@ -7923,8 +8000,9 @@ function drawOverviewLayout(comp){
       autoSize.w > 0 ? (c.slice.stageW / autoSize.w) : 1,
       autoSize.h > 0 ? (c.slice.stageH / autoSize.h) : 1
     );
-    const stageComp = Object.assign({}, c, { slice: Object.assign({}, c.slice, { roundedCorners: false }) });
-    const shape = shapeSVG(stageComp, idx, x, y, w, h, '33', false, relScale);
+    const fr = sliceFrame(c, x, y, w, h);
+    const stageComp = Object.assign({}, fr.comp, { slice: Object.assign({}, fr.comp.slice, { roundedCorners: false }) });
+    const shape = shapeSVG(stageComp, idx, fr.x, fr.y, fr.w, fr.h, '33', false, relScale);
     const selectedBox = selectedSliceIds.has(c.slice.id)
       ? `<rect x="${x-3}" y="${y-3}" width="${Math.max(w+6,1)}" height="${Math.max(h+6,1)}" fill="none" stroke="var(--stage)" stroke-width="2.5" stroke-dasharray="6,3" pointer-events="none"/>`
       : '';
@@ -7932,7 +8010,7 @@ function drawOverviewLayout(comp){
     if(w > 65 && h > 28 && !sliceTestPatternActive(c.slice)){
       labels += `<text x="${x+w/2}" y="${y+h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${sliceTextColor(c.slice)}" style="pointer-events:none">${c.slice.name}</text>`;
     }
-    rects += `<g data-id="${c.slice.id}" style="cursor:${hasSelection?'pointer':'grab'}" onmousedown="startStageDrag(event, ${c.slice.id})">${shape}${labels}${selectedBox}</g>`;
+    rects += `<g data-id="${c.slice.id}" style="cursor:${hasSelection?'pointer':'grab'}" onmousedown="startStageDrag(event, ${c.slice.id})">${fr.open}${shape}${labels}${fr.close}${selectedBox}</g>`;
   });
 
   let guideLines = '';
@@ -8531,12 +8609,13 @@ function buildStageLayoutSVGString(comp, stage, targetW, targetH){
       autoSize.w > 0 ? (c.slice.stageW / autoSize.w) : 1,
       autoSize.h > 0 ? (c.slice.stageH / autoSize.h) : 1
     );
-    const stageComp = Object.assign({}, c, { slice: Object.assign({}, c.slice, { roundedCorners: false }) });
-    const shape = shapeSVG(stageComp, idx, x, y, w, h, '33', false, relScale);
+    const fr = sliceFrame(c, x, y, w, h);
+    const stageComp = Object.assign({}, fr.comp, { slice: Object.assign({}, fr.comp.slice, { roundedCorners: false }) });
+    const shape = shapeSVG(stageComp, idx, fr.x, fr.y, fr.w, fr.h, '33', false, relScale);
     let labels = '';
     const stageTextColor = sliceTextColor(c.slice);
     if(w > 60 && h > 28 && !sliceTestPatternActive(c.slice)){
-      const bb = occupiedPixelBox(c.slice, x, y, w, h);
+      const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
       if(c.slice.showPosition !== false) labels += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="${stageTextColor}" opacity="0.85">${fmt(Math.round(c.slice.stagePosX))},${fmt(Math.round(c.slice.stagePosY))}</text>`;
       const namePos = titleNamePos(c.slice, bb);
@@ -8549,7 +8628,7 @@ function buildStageLayoutSVGString(comp, stage, targetW, targetH){
         labels += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="${stageTextColor}" opacity="0.85">${line}</text>`;
       });
     }
-    rects += shape + labels;
+    rects += fr.open + shape + labels + fr.close;
   });
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${targetW}" height="${targetH}" viewBox="0 0 ${targetW} ${targetH}"><rect x="0" y="0" width="${targetW}" height="${targetH}" fill="#0e1113"/><rect x="${ox}" y="${oy}" width="${stage.w*scale}" height="${stage.h*scale}" fill="#000000" stroke="#ff9f43" stroke-width="1.5" rx="2"/>${background}${rects}</svg>`;
@@ -8592,11 +8671,13 @@ function buildCompositionSVGString(comp, targetW, targetH, scale, labelScale){
     const y = c.slice.posY*scale;
     const cw = c.resX*scale;
     const ch = c.resY*scale;
-    content += shapeSVG(c, idx, x, y, cw, ch, '22', false);
+    const fr = sliceFrame(c, x, y, cw, ch);
+    const mark = content.length;
+    content += shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '22', false);
     if(cw>50 && ch>24 && !sliceTestPatternActive(c.slice)){
       const titleSize = (c.slice.titleSize || 12) * labelScale;
       const smallSize = 10 * labelScale;
-      const bb = occupiedPixelBox(c.slice, x, y, cw, ch);
+      const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
       const textColor = sliceTextColor(c.slice);
       if(c.slice.showPosition !== false) content += `<text x="${bb.x+8}" y="${bb.y+smallSize*1.5}" font-size="${smallSize}" font-family="monospace" fill="${textColor}" opacity="0.85">${Math.round(bb.x)},${Math.round(bb.y)}</text>`;
@@ -8610,6 +8691,7 @@ function buildCompositionSVGString(comp, targetW, targetH, scale, labelScale){
         content += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="${smallSize}" font-family="monospace" fill="${textColor}" opacity="0.85">${line}</text>`;
       });
     }
+    content = sliceFrameWrap(content, mark, fr);
   });
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${targetW}" height="${targetH}" viewBox="0 0 ${targetW} ${targetH}">${content}</svg>`;
 }
@@ -10241,6 +10323,7 @@ function buildLiveSnapshot(comp){
       w: c.resX*scale,
       h: c.resY*scale,
       color: colorForSlice(s),
+      rot: sliceRotation(s),
       name: s.name || '',
       panelsX: isPanels ? (s.panelsX||1) : 0,
       panelsY: isPanels ? (s.panelsY||1) : 0,
@@ -10274,7 +10357,8 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
   const px = 1/Math.max(0.0001, Math.min(sx, sy));
   const alpha = opts.solid ? 1 : 0.13;
 
-  model.slices.forEach(s=>{
+  model.slices.forEach(sl=>{
+    const s = liveSliceFrame(sl, ctx);
     const r = s.roundedCorners ? Math.max(1, Math.min(16, Math.min(s.w, s.h)*0.08)) : 0;
     ctx.globalAlpha = alpha;
     if(r > 0){ liveRoundRect(ctx, s.x, s.y, s.w, s.h, r); ctx.fillStyle = s.color; ctx.fill(); }
@@ -10361,9 +10445,23 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
         });
       }
     }
+    ctx.restore();
   });
   ctx.globalAlpha = 1;
   ctx.restore();
+}
+
+/* Canvas-variant van sliceFrame: draait het context om het midden van de slice
+   en geeft de ongedraaide (lokale) maat terug voor het tekenen. */
+function liveSliceFrame(sl, ctx){
+  ctx.save();
+  if(!sl.rot) return sl;
+  const cx = sl.x + sl.w/2, cy = sl.y + sl.h/2;
+  ctx.translate(cx, cy);
+  ctx.rotate(sl.rot * Math.PI / 180);
+  ctx.translate(-cx, -cy);
+  const lw = sl.h, lh = sl.w;
+  return Object.assign({}, sl, { x: cx - lw/2, y: cy - lh/2, w: lw, h: lh });
 }
 
 function liveIsOpen(){
@@ -10408,13 +10506,15 @@ function buildLiveScaledSVG(comp, canvasArg){
     const x = scx + c.slice.posX*combinedScale, y = scy + c.slice.posY*combinedScale;
     const w = c.resX*combinedScale, h = c.resY*combinedScale;
     const scaledTextColor = sliceTextColor(c.slice);
-    out += shapeSVG(c, idx, x, y, w, h, '33', false);
+    const fr = sliceFrame(c, x, y, w, h);
+    const mark = out.length;
+    out += shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '33', false);
     if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
       const scaledResX = Math.max(1, Math.round(c.resX*realScale));
       const scaledResY = Math.max(1, Math.round(c.resY*realScale));
       const scaledPosX = Math.round(c.slice.posX*realScale);
       const scaledPosY = Math.round(c.slice.posY*realScale);
-      const bb = occupiedPixelBox(c.slice, x, y, w, h);
+      const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
       if(c.slice.showPosition !== false) out += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${fmt(scaledPosX)},${fmt(scaledPosY)}</text>`;
       const namePos = titleNamePos(c.slice, bb);
@@ -10427,6 +10527,7 @@ function buildLiveScaledSVG(comp, canvasArg){
         out += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
       });
     }
+    out = sliceFrameWrap(out, mark, fr);
   });
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 640" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">${out}</svg>`;
@@ -10457,13 +10558,15 @@ function buildLiveScaledCanvasSVG(comp, canvasArg){
     const w = Math.max(1, Math.round(c.resX * scale));
     const h = Math.max(1, Math.round(c.resY * scale));
     const textColor = sliceTextColor(c.slice);
-    out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1, 'lsc'+canvas.id);
+    const fr = sliceFrame(c, x, y, w, h);
+    const mark = out.length;
+    out += shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, 'ff', false, 1, 'lsc'+canvas.id);
     if(w > 60 && h > 28 && !sliceTestPatternActive(c.slice)){
       const scaledResX = Math.max(1, Math.round(c.resX * scale));
       const scaledResY = Math.max(1, Math.round(c.resY * scale));
       const scaledPosX = Math.round(c.slice.posX * scale);
       const scaledPosY = Math.round(c.slice.posY * scale);
-      const bb = occupiedPixelBox(c.slice, x, y, w, h);
+      const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
       const hasPanelInfo = c.slice.type === 'slice' && c.slice.mode === 'panels';
       if(c.slice.showPosition !== false) out += `<text x="${bb.x+8}" y="${bb.y+16}" font-size="10" fill="${textColor}" opacity="0.85" style="pointer-events:none">${fmt(scaledPosX)},${fmt(scaledPosY)}</text>`;
       const namePos = titleNamePos(c.slice, bb);
@@ -10476,6 +10579,7 @@ function buildLiveScaledCanvasSVG(comp, canvasArg){
         out += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="10" fill="${textColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
       });
     }
+    out = sliceFrameWrap(out, mark, fr);
   });
   out += `<rect x="1" y="1" width="${Math.max(1, scaledCanvasW-2)}" height="${Math.max(1, scaledCanvasH-2)}" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.95"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${scaledCanvasW} ${scaledCanvasH}" preserveAspectRatio="xMinYMin meet" width="${scaledCanvasW}" height="${scaledCanvasH}">${out}</svg>`;
@@ -10509,9 +10613,11 @@ function buildLiveNativeSVG(comp, canvasArg){
     const s = c.slice;
     const x = s.posX, y = s.posY, w = c.resX, h = c.resY;
     const textColor = sliceTextColor(s);
-    out += shapeSVG(c, idx, x, y, w, h, 'ff', false, 1, 'ln'+canvas.id);
+    const fr = sliceFrame(c, x, y, w, h);
+    const mark = out.length;
+    out += shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, 'ff', false, 1, 'ln'+canvas.id);
     if(w > 60 && h > 28 && !sliceTestPatternActive(s)){
-      const bb = occupiedPixelBox(s, x, y, w, h);
+      const bb = occupiedPixelBox(s, fr.x, fr.y, fr.w, fr.h);
       const fs = (9.5 * labelScale).toFixed(2);
       if(s.showPosition !== false){
         out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + 15*labelScale}" font-size="${fs}" fill="${textColor}" opacity="0.85">${fmt(Math.round(x))},${fmt(Math.round(y))}</text>`;
@@ -10529,6 +10635,7 @@ function buildLiveNativeSVG(comp, canvasArg){
         out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + bb.h - yOff}" font-size="${fs}" fill="${textColor}" opacity="0.85">${line}</text>`;
       });
     }
+    out = sliceFrameWrap(out, mark, fr);
   });
   }
   /* Witte canvasrand: altijd zichtbaar in de output, ook als het scherm
