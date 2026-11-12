@@ -4377,7 +4377,8 @@ function sliceFrame(c, x, y, w, h){
   const rot = sliceRotation(c.slice);
   if(!rot) return { comp: c, x, y, w, h, open: '', close: '' };
   const cx = x + w/2, cy = y + h/2;
-  const lw = h, lh = w;
+  const swap = sliceRotated90(c.slice);
+  const lw = swap ? h : w, lh = swap ? w : h;
   return {
     comp: Object.assign({}, c, { resX: c.nativeResX || lw, resY: c.nativeResY || lh }),
     x: cx - lw/2, y: cy - lh/2, w: lw, h: lh,
@@ -10460,7 +10461,8 @@ function liveSliceFrame(sl, ctx){
   ctx.translate(cx, cy);
   ctx.rotate(sl.rot * Math.PI / 180);
   ctx.translate(-cx, -cy);
-  const lw = sl.h, lh = sl.w;
+  const swap = sl.rot === 90 || sl.rot === 270;
+  const lw = swap ? sl.h : sl.w, lh = swap ? sl.w : sl.h;
   return Object.assign({}, sl, { x: cx - lw/2, y: cy - lh/2, w: lw, h: lh });
 }
 
