@@ -6224,12 +6224,27 @@ function panelGridBox(c, x, y, w, h){
     return { x, y, w, h, strips: [] };
   }
   const sc = w / Math.max(1, c.resX);
+  const sl = (c.slice || {});
+  const nX = Math.max(1, sl.panelsX|0), nY = Math.max(1, sl.panelsY|0);
+  /* Halve stroken bestaan uit dezelfde panelen als het raster: boven en onder
+     net zoveel panelen breed als een rij, links en rechts net zo hoog als een
+     kolom. dir 'h' = cellen naast elkaar, 'v' = cellen onder elkaar. */
   const strips = [];
-  if(pl.l) strips.push({ x, y: y + pl.t*sc, w: pl.l*sc, h: pl.mh*sc });
-  if(pl.r) strips.push({ x: x + (pl.l+pl.mw)*sc, y: y + pl.t*sc, w: pl.r*sc, h: pl.mh*sc });
-  if(pl.t) strips.push({ x, y, w: w, h: pl.t*sc });
-  if(pl.b) strips.push({ x, y: y + (pl.t+pl.mh)*sc, w: w, h: pl.b*sc });
+  if(pl.l) strips.push({ x: x, y: y + pl.t*sc, w: pl.l*sc, h: pl.mh*sc, dir: 'v', n: nY });
+  if(pl.r) strips.push({ x: x + (pl.l+pl.mw)*sc, y: y + pl.t*sc, w: pl.r*sc, h: pl.mh*sc, dir: 'v', n: nY });
+  if(pl.t) strips.push({ x: x + pl.l*sc, y: y, w: pl.mw*sc, h: pl.t*sc, dir: 'h', n: nX });
+  if(pl.b) strips.push({ x: x + pl.l*sc, y: y + (pl.t+pl.mh)*sc, w: pl.mw*sc, h: pl.b*sc, dir: 'h', n: nX });
   return { x: x + pl.l*sc, y: y + pl.t*sc, w: pl.mw*sc, h: pl.mh*sc, strips };
+}
+
+/* Splitst een halve strook in de panelen waaruit hij bestaat. */
+function stripCells(st){
+  const out = [];
+  for(let i=0;i<st.n;i++){
+    if(st.dir === 'h') out.push({ x: st.x + i*st.w/st.n, y: st.y, w: st.w/st.n, h: st.h });
+    else out.push({ x: st.x, y: st.y + i*st.h/st.n, w: st.w, h: st.h/st.n });
+  }
+  return out;
 }
 
 function readSliceInputs(){
@@ -7345,9 +7360,9 @@ function imPanelCells(s, x, y, w, h, ls, interactive, idNs, c){
       }
     }
   }
-  gb.strips.forEach(st=>{
-    cells += `<rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" fill="${GREY}" stroke="${WHITE}" stroke-width="${1*ls}"/>`;
-  });
+  gb.strips.forEach(st=> stripCells(st).forEach(cl=>{
+    cells += `<rect x="${cl.x}" y="${cl.y}" width="${cl.w}" height="${cl.h}" fill="${GREY}" stroke="${WHITE}" stroke-width="${1*ls}"/>`;
+  }));
   cells += overlayMarks(s, x, y, w, h, ls, idNs);
   return cells;
 }
@@ -7606,9 +7621,9 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, id
         }
       }
     }
-    gb.strips.forEach(st=>{
-      cells += `<rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" fill="${color}" stroke="${border}" stroke-width="${1*ls}"/>`;
-    });
+    gb.strips.forEach(st=> stripCells(st).forEach(cl=>{
+      cells += `<rect x="${cl.x}" y="${cl.y}" width="${cl.w}" height="${cl.h}" fill="${color}" stroke="${border}" stroke-width="${1*ls}"/>`;
+    }));
     cells += overlayMarks(s, x, y, w, h, ls, idNs);
     inner = cells;
   } else {
@@ -10455,8 +10470,8 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
     if(r > 0){ liveRoundRect(ctx, s.x, s.y, s.w, s.h, r); ctx.fillStyle = s.color; ctx.fill(); }
     else { ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h); }
 
-    const g = s.pl ? panelGridBox({ panelLayout: s.pl, resX: s.pl.l + s.pl.mw + s.pl.r }, s.x, s.y, s.w, s.h) : { x: s.x, y: s.y, w: s.w, h: s.h, strips: [] };
-    g.strips.forEach(st=>{ ctx.fillStyle = s.color; ctx.fillRect(st.x, st.y, st.w, st.h); });
+    const g = s.pl ? panelGridBox({ panelLayout: s.pl, resX: s.pl.l + s.pl.mw + s.pl.r, slice: { panelsX: s.panelsX, panelsY: s.panelsY } }, s.x, s.y, s.w, s.h) : { x: s.x, y: s.y, w: s.w, h: s.h, strips: [] };
+    g.strips.forEach(st=> stripCells(st).forEach(cl=>{ ctx.fillStyle = s.color; ctx.fillRect(cl.x, cl.y, cl.w, cl.h); }));
 
     const isPanels = s.panelsX > 0 && s.panelsY > 0;
     const cellW = isPanels ? g.w/s.panelsX : 0;
