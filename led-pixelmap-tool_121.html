@@ -7388,7 +7388,12 @@ function imPanelCells(s, x, y, w, h, ls, interactive, idNs, c){
       }
     }
   }
+  /* Halve panelen krijgen nummers die doorlopen na het laatste paneel van het
+     raster: eerst de linkerstrook, dan de rechter, de bovenstrook en de
+     onderstrook. Per half paneel tellen de IM's links naar rechts, rij voor rij. */
+  let halfNo = panelIdCounter;
   gb.strips.forEach(st=> stripCells(st).forEach(cl=>{
+    halfNo++;
     cells += `<rect x="${cl.x}" y="${cl.y}" width="${cl.w}" height="${cl.h}" fill="${GREY}" stroke="${WHITE}" stroke-width="${1*ls}"/>`;
     const hs = halfImSegments(s, st, seg);
     const sw = cl.w/hs.segX, sh = cl.h/hs.segY;
@@ -7396,6 +7401,17 @@ function imPanelCells(s, x, y, w, h, ls, interactive, idNs, c){
     for(let gi=1; gi<hs.segX; gi++) hl += `<line x1="${cl.x+gi*sw}" y1="${cl.y}" x2="${cl.x+gi*sw}" y2="${cl.y+cl.h}"/>`;
     for(let gj=1; gj<hs.segY; gj++) hl += `<line x1="${cl.x}" y1="${cl.y+gj*sh}" x2="${cl.x+cl.w}" y2="${cl.y+gj*sh}"/>`;
     if(hl) cells += `<g stroke="${WHITE}" stroke-width="${1*ls}" pointer-events="none">${hl}</g>`;
+    if(s.imShowIds && sw>14 && sh>10){
+      const imIdScale = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct)||100)/100));
+      const imFontSize = Math.max(4, Math.min(96, Math.min(sw,sh)*0.2)) * imIdScale;
+      for(let gj=0; gj<hs.segY; gj++){
+        for(let gi=0; gi<hs.segX; gi++){
+          const imNo = gj*hs.segX + gi + 1;
+          const tx = cl.x + gi*sw + sw/2, ty = cl.y + gj*sh + sh/2;
+          cells += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="${imFontSize.toFixed(2)}" fill="${sliceTextColor(s)}" opacity="0.85" style="pointer-events:none">${halfNo}.${imNo}</text>`;
+        }
+      }
+    }
   }));
   cells += overlayMarks(s, x, y, w, h, ls, idNs);
   return cells;
