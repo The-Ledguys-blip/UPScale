@@ -6241,6 +6241,14 @@ function panelGridBox(c, x, y, w, h){
   return { x: x + pl.l*sc, y: y + pl.t*sc, w: pl.mw*sc, h: pl.mh*sc, strips };
 }
 
+/* IM-verdeling van een halve strook. Verticaal (boven/onder) halveert de
+   rijen van de paneel-IM, horizontaal (links/rechts) de kolommen. Een 2x4
+   paneel geeft dus een verticaal half paneel van 2x2. */
+function halfImSegments(s, st, seg){
+  if(st.dir === 'h') return { segX: seg.segX, segY: Math.max(1, Math.round(seg.segY/2)) };
+  return { segX: Math.max(1, Math.round(seg.segX/2)), segY: seg.segY };
+}
+
 /* Splitst een halve strook in de panelen waaruit hij bestaat. */
 function stripCells(st){
   const out = [];
@@ -6400,6 +6408,9 @@ function halfPanelControlsHTML(s){
   const pw = Math.round(Number(s.pxPanelW)||0), ph = Math.round(Number(s.pxPanelH)||0);
   const hw = Math.max(1, Math.round(pw/2)), hh = Math.max(1, Math.round(ph/2));
   const cb = (f, label)=>`<label><input type="checkbox" data-f="${f}" ${s[f]?'checked':''} onchange="recalcAll(); renderSlices();"> ${label}</label>`;
+  const seg = imSegments(s, 1e9);
+  const halfSeg = vertical ? { segX: seg.segX, segY: Math.max(1, Math.round(seg.segY/2)) } : { segX: Math.max(1, Math.round(seg.segX/2)), segY: seg.segY };
+  const imLine = s.imMode ? `<div class="hint-input" style="margin-bottom:8px;">IM half paneel: ${halfSeg.segX} × ${halfSeg.segY} (volgt IM van het paneel: ${seg.segX} × ${seg.segY})</div>` : '';
   return `
       <div class="rot-row half-mode-row">
         <span>Half paneel</span>
@@ -6409,7 +6420,7 @@ function halfPanelControlsHTML(s){
       <div class="overlay-row" style="margin-bottom:8px;flex-wrap:wrap;gap:10px;">
         ${vertical ? cb('halfTop','boven') + cb('halfBottom','onder') : cb('halfLeft','links') + cb('halfRight','rechts')}
       </div>
-      <div class="hint-input" style="margin-bottom:8px;">Automatisch: ${vertical ? `${pw} × ${hh} px (paneelbreedte × halve hoogte)` : `${hw} × ${ph} px (halve breedte × paneelhoogte)`}</div>`;
+      <div class="hint-input" style="margin-bottom:8px;">Automatisch: ${vertical ? `${pw} × ${hh} px (paneelbreedte × halve hoogte)` : `${hw} × ${ph} px (halve breedte × paneelhoogte)`}</div>${imLine}`;
 }
 
 function setHalfMode(id, mode){
@@ -7379,6 +7390,12 @@ function imPanelCells(s, x, y, w, h, ls, interactive, idNs, c){
   }
   gb.strips.forEach(st=> stripCells(st).forEach(cl=>{
     cells += `<rect x="${cl.x}" y="${cl.y}" width="${cl.w}" height="${cl.h}" fill="${GREY}" stroke="${WHITE}" stroke-width="${1*ls}"/>`;
+    const hs = halfImSegments(s, st, seg);
+    const sw = cl.w/hs.segX, sh = cl.h/hs.segY;
+    let hl = '';
+    for(let gi=1; gi<hs.segX; gi++) hl += `<line x1="${cl.x+gi*sw}" y1="${cl.y}" x2="${cl.x+gi*sw}" y2="${cl.y+cl.h}"/>`;
+    for(let gj=1; gj<hs.segY; gj++) hl += `<line x1="${cl.x}" y1="${cl.y+gj*sh}" x2="${cl.x+cl.w}" y2="${cl.y+gj*sh}"/>`;
+    if(hl) cells += `<g stroke="${WHITE}" stroke-width="${1*ls}" pointer-events="none">${hl}</g>`;
   }));
   cells += overlayMarks(s, x, y, w, h, ls, idNs);
   return cells;
