@@ -6174,13 +6174,17 @@ function halfPanelDims(s){
   const on = !!s.halfPanel && s.type==='slice' && s.mode==='panels';
   const pw = Math.max(1, Number(s.pxPanelW) || 1);
   const ph = Math.max(1, Number(s.pxPanelH) || 1);
-  const hw = Math.max(1, Number(s.halfPxW) || Math.round(pw/2));
-  const hh = Math.max(1, Number(s.halfPxH) || Math.round(ph/2));
+  /* Verticaal: de helft van de paneelhoogte, als strook boven/onder.
+     Horizontaal: de helft van de paneelbreedte, als strook links/rechts.
+     De maat volgt altijd de paneel-pixels; er is geen aparte invoer. */
+  const vertical = (s.halfMode || 'vertical') === 'vertical';
+  const hh = Math.max(1, Math.round(ph/2));
+  const hw = Math.max(1, Math.round(pw/2));
   return {
-    l: on && s.halfLeft ? hw : 0,
-    r: on && s.halfRight ? hw : 0,
-    t: on && s.halfTop ? hh : 0,
-    b: on && s.halfBottom ? hh : 0
+    l: on && !vertical && s.halfLeft ? hw : 0,
+    r: on && !vertical && s.halfRight ? hw : 0,
+    t: on && vertical && s.halfTop ? hh : 0,
+    b: on && vertical && s.halfBottom ? hh : 0
   };
 }
 
@@ -6267,10 +6271,6 @@ function readSliceInputs(){
         const box = c.querySelector('[data-f=half'+side+']');
         if(box) s['half'+side] = box.checked;
       });
-      const hpw = c.querySelector('[data-f=halfPxW]');
-      if(hpw) s.halfPxW = Math.max(1, parseFloat(hpw.value)||1);
-      const hph = c.querySelector('[data-f=halfPxH]');
-      if(hph) s.halfPxH = Math.max(1, parseFloat(hph.value)||1);
     } else {
       s.pxW = Math.max(1, parseInt(c.querySelector('[data-f=pxW]').value)||1);
       s.pxH = Math.max(1, parseInt(c.querySelector('[data-f=pxH]').value)||1);
@@ -6390,6 +6390,33 @@ function stepCornerRadius(id, delta){
   if(!s) return;
   readSliceInputs();
   s.cornerRadiusPct = Math.max(0, Math.min(50, (parseInt(s.cornerRadiusPct)||0) + delta));
+  renderSlices();
+  recalcAll();
+  commitHistory();
+}
+
+function halfPanelControlsHTML(s){
+  const vertical = (s.halfMode || 'vertical') === 'vertical';
+  const pw = Math.round(Number(s.pxPanelW)||0), ph = Math.round(Number(s.pxPanelH)||0);
+  const hw = Math.max(1, Math.round(pw/2)), hh = Math.max(1, Math.round(ph/2));
+  const cb = (f, label)=>`<label><input type="checkbox" data-f="${f}" ${s[f]?'checked':''} onchange="recalcAll(); renderSlices();"> ${label}</label>`;
+  return `
+      <div class="rot-row half-mode-row">
+        <span>Half paneel</span>
+        <button type="button" class="${vertical?'active':''}" onclick="setHalfMode(${s.id}, 'vertical')" title="Halveert de paneelhoogte: een strook boven of onder">Verticaal</button>
+        <button type="button" class="${vertical?'':'active'}" onclick="setHalfMode(${s.id}, 'horizontal')" title="Halveert de paneelbreedte: een strook links of rechts">Horizontaal</button>
+      </div>
+      <div class="overlay-row" style="margin-bottom:8px;flex-wrap:wrap;gap:10px;">
+        ${vertical ? cb('halfTop','boven') + cb('halfBottom','onder') : cb('halfLeft','links') + cb('halfRight','rechts')}
+      </div>
+      <div class="hint-input" style="margin-bottom:8px;">Automatisch: ${vertical ? `${pw} × ${hh} px (paneelbreedte × halve hoogte)` : `${hw} × ${ph} px (halve breedte × paneelhoogte)`}</div>`;
+}
+
+function setHalfMode(id, mode){
+  const s = slices.find(x=>x.id===id);
+  if(!s) return;
+  readSliceInputs();
+  s.halfMode = mode === 'horizontal' ? 'horizontal' : 'vertical';
   renderSlices();
   recalcAll();
   commitHistory();
@@ -6930,17 +6957,7 @@ function renderSlices(){
       <div class="overlay-row" style="margin:6px 0 8px;">
         <label><input type="checkbox" data-f="halfPanel" ${s.halfPanel?'checked':''} onchange="recalcAll(); renderSlices();"> Half paneel</label>
       </div>
-      ${s.halfPanel ? `
-      <div class="overlay-row" style="margin-bottom:8px;flex-wrap:wrap;gap:10px;">
-        <label><input type="checkbox" data-f="halfLeft" ${s.halfLeft?'checked':''} onchange="recalcAll(); renderSlices();"> links</label>
-        <label><input type="checkbox" data-f="halfRight" ${s.halfRight?'checked':''} onchange="recalcAll(); renderSlices();"> rechts</label>
-        <label><input type="checkbox" data-f="halfTop" ${s.halfTop?'checked':''} onchange="recalcAll(); renderSlices();"> boven</label>
-        <label><input type="checkbox" data-f="halfBottom" ${s.halfBottom?'checked':''} onchange="recalcAll(); renderSlices();"> onder</label>
-      </div>
-      <div class="field-grid">
-        <div class="field"><label>Half paneel (b px)</label><input type="text" inputmode="decimal" class="calc" data-f="halfPxW" value="${s.halfPxW || Math.round(s.pxPanelW/2)}" oninput="recalcAll()"></div>
-        <div class="field"><label>Half paneel (h px)</label><input type="text" inputmode="decimal" class="calc" data-f="halfPxH" value="${s.halfPxH || Math.round(s.pxPanelH/2)}" oninput="recalcAll()"></div>
-      </div>` : ''}
+      ${s.halfPanel ? halfPanelControlsHTML(s) : ''}
       <div class="panel-preview-frame" id="previewFrame-${s.id}">
         <div class="panel-preview" id="preview-${s.id}" style="grid-template-columns:repeat(${s.panelsX},1fr); grid-template-rows:repeat(${s.panelsY},1fr); --panel-color:${color}; --panel-border:#ffffff;"></div>
       </div>` : `
