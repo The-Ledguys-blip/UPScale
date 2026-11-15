@@ -1137,6 +1137,8 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           </div>
           <button class="export-btn" onclick="exportScaledPNG()"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></svg> Exporteer 1:1 + Scaled Output map als PNG</button>
           <div class="export-hint" id="exportHint"></div>
+          <button class="export-btn" onclick="exportSlicesLayeredPDF()"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></svg> Exporteer slices als vector-PDF met lagen (Illustrator / Vector Craft)</button>
+          <div class="export-hint" id="layerPdfHint"></div>
         </div>
       </div>
 
@@ -9263,6 +9265,233 @@ async function exportScaledPNG(){
 
   rasterizeSVGToPNG(svg1, w1, h1, filename1, checkDone);
   rasterizeSVGToPNG(svg2, w2, h2, filename2, checkDone);
+}
+
+/* ---- Export: vector-PDF met één laag per slice (Illustrator / Vector Craft) ---- */
+function pdfNum(n){ return String(Math.round(n*1000)/1000); }
+function pdfTextStr(str){
+  let h = 'FEFF';
+  for(let i=0;i<str.length;i++) h += str.charCodeAt(i).toString(16).padStart(4,'0');
+  return '<' + h + '>';
+}
+function pdfBytesStr(str){
+  let h = '';
+  for(const ch of String(str)){
+    const c = ch.charCodeAt(0);
+    h += (c < 256 ? c : 63).toString(16).padStart(2,'0');
+  }
+  return '<' + h + '>';
+}
+function pdfRgbOp(r, g, b){
+  return pdfNum(r/255) + ' ' + pdfNum(g/255) + ' ' + pdfNum(b/255);
+}
+function pdfHexRgb(hex){
+  const h = String(hex || '').replace('#', '');
+  if(h.length !== 6) return { r: 255, g: 255, b: 255 };
+  return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+}
+
+/* Roteert een punt rond (cx,cy) met dezelfde zin als SVG rotate(): y-omlaag. */
+function pdfRotPt(p, cx, cy, deg){
+  const rad = deg * Math.PI / 180;
+  const dx = p.x - cx, dy = p.y - cy;
+  return { x: cx + dx*Math.cos(rad) - dy*Math.sin(rad), y: cy + dx*Math.sin(rad) + dy*Math.cos(rad) };
+}
+
+/* Tekenopdrachten voor één slice, in canvaspixels (y omlaag). Alles wat je op
+   het canvas ziet hoort erbij: paneelraster, halve panelen, IM-lijnen, rotatie
+   en de labels. Testpatronen worden als omtrek getekend. */
+function sliceLayerOps(s, W, H){
+  const c = computeSlice(s);
+  const rot = sliceRotation(s);
+  const cx = s.posX + c.resX/2, cy = s.posY + c.resY/2;
+  const nw = c.nativeResX, nh = c.nativeResY;
+  const lx = cx - nw/2, ly = cy - nh/2;
+  const comp = { resX: nw, slice: s, panelLayout: c.panelLayout };
+  const isPanels = s.type === 'slice' && s.mode === 'panels';
+  const gb = isPanels ? panelGridBox(comp, lx, ly, nw, nh) : { x: lx, y: ly, w: nw, h: nh, strips: [] };
+  const testActive = sliceTestPatternActive(s);
+  const col = sliceRgb(s);
+  const fillCol = (s.imMode && isPanels) ? { r:225, g:225, b:225 } : col;
+  const toPdf = p => { const q = pdfRotPt(p, cx, cy, rot); return { x: q.x, y: H - q.y }; };
+  const ops = [];
+
+  function polyOps(corners){
+    const pts = corners.map(toPdf);
+    return pts.map((p,i)=> pdfNum(p.x) + ' ' + pdfNum(p.y) + (i===0 ? ' m' : ' l')).join(' ') + ' h';
+  }
+  function rectOp(x, y, w, h, fill, stroke, lw){
+    const corners = [{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}];
+    let out = polyOps(corners) + ' ';
+    if(fill && stroke){ out += pdfRgbOp(fill.r,fill.g,fill.b) + ' rg ' + pdfRgbOp(stroke.r,stroke.g,stroke.b) + ' RG ' + pdfNum(lw) + ' w B'; }
+    else if(fill){ out += pdfRgbOp(fill.r,fill.g,fill.b) + ' rg f'; }
+    else if(stroke){ out += pdfRgbOp(stroke.r,stroke.g,stroke.b) + ' RG ' + pdfNum(lw) + ' w S'; }
+    else out += 'n';
+    return out;
+  }
+  function lineOp(x1, y1, x2, y2, col2, lw){
+    const a = toPdf({x:x1,y:y1}), b = toPdf({x:x2,y:y2});
+    return pdfRgbOp(col2.r,col2.g,col2.b) + ' RG ' + pdfNum(lw) + ' w ' + pdfNum(a.x)+' '+pdfNum(a.y)+' m '+pdfNum(b.x)+' '+pdfNum(b.y)+' l S';
+  }
+  const white = { r:255, g:255, b:255 };
+  const black = { r:0, g:0, b:0 };
+
+  if(testActive){
+    ops.push(rectOp(gb.x, gb.y, gb.w, gb.h, null, col, 1));
+  } else if(isPanels){
+    const seg = imSegments(s, 4000);
+    const removed = s.removedPanels || [];
+    const cellW = gb.w / s.panelsX, cellH = gb.h / s.panelsY;
+    for(let j=0;j<s.panelsY;j++){
+      for(let i=0;i<s.panelsX;i++){
+        const x = gb.x + i*cellW, y = gb.y + j*cellH;
+        if(removed.includes(i+'_'+j)){ ops.push(rectOp(x, y, cellW, cellH, black, null, 0)); continue; }
+        ops.push(rectOp(x, y, cellW, cellH, fillCol, white, 1));
+        if(s.imMode){
+          const sw = cellW/seg.segX, sh = cellH/seg.segY;
+          for(let gi=1; gi<seg.segX; gi++) ops.push(lineOp(x+gi*sw, y, x+gi*sw, y+cellH, white, 1));
+          for(let gj=1; gj<seg.segY; gj++) ops.push(lineOp(x, y+gj*sh, x+cellW, y+gj*sh, white, 1));
+        }
+      }
+    }
+    gb.strips.forEach(st=> stripCells(st).forEach(cl=>{
+      ops.push(rectOp(cl.x, cl.y, cl.w, cl.h, fillCol, white, 1));
+      if(s.imMode){
+        const hs = halfImSegments(s, st, seg);
+        const sw = cl.w/hs.segX, sh = cl.h/hs.segY;
+        for(let gi=1; gi<hs.segX; gi++) ops.push(lineOp(cl.x+gi*sw, cl.y, cl.x+gi*sw, cl.y+cl.h, white, 1));
+        for(let gj=1; gj<hs.segY; gj++) ops.push(lineOp(cl.x, cl.y+gj*sh, cl.x+cl.w, cl.y+gj*sh, white, 1));
+      }
+    }));
+  } else {
+    ops.push(rectOp(gb.x, gb.y, gb.w, gb.h, fillCol, null, 0));
+  }
+
+  /* Labels: alleen als het vak groot genoeg is, zoals op het canvas. */
+  if(!testActive && gb.w > 60 && gb.h > 28){
+    const tc = pdfHexRgb(sliceTextColor(s));
+    const textOp = (text, ax, ay, size, bold, align)=>{
+      const width = String(text).length * size * 0.5;
+      const dx = align === 'center' ? -width/2 : 0;
+      const pdfAng = -rot * Math.PI / 180;
+      const rr = rot*Math.PI/180;
+      const start = { x: ax + dx*Math.cos(rr) - size*0.35*Math.sin(rr), y: ay + dx*Math.sin(rr) + size*0.35*Math.cos(rr) };
+      const p = toPdf(start);
+      const a = Math.cos(pdfAng), b = Math.sin(pdfAng);
+      return 'BT ' + pdfRgbOp(tc.r,tc.g,tc.b) + ' rg /F1 ' + pdfNum(size) + ' Tf ' +
+        pdfNum(a) + ' ' + pdfNum(b) + ' ' + pdfNum(-b) + ' ' + pdfNum(a) + ' ' + pdfNum(p.x) + ' ' + pdfNum(p.y) +
+        ' Tm ' + pdfBytesStr(text) + ' Tj ET';
+    };
+    const bbx = gb.x, bby = gb.y;
+    const name = s.name || '';
+    if(s.showTitle !== false) ops.push(textOp(name, gb.x + gb.w/2, gb.y + gb.h/2, s.titleSize || 12, true, 'center'));
+    if(s.showPosition !== false) ops.push(textOp(Math.round(s.posX)+','+Math.round(s.posY), bbx + 8, bby + 16, 10, false, 'left'));
+    const resLine = (s.showResolution !== false) ? (Math.round(c.resX)+'×'+Math.round(c.resY)+' px') : '';
+    if(resLine) ops.push(textOp(resLine, bbx + 8, bby + gb.h - 8, 10, false, 'left'));
+  }
+  return ops.filter(Boolean).join('\n');
+}
+
+/* Schrijft een PDF met een Optional Content Group per laag. `layers` staat
+   bovenaan in het lagenpaneel; de tekenvolgorde is omgekeerd, zodat de
+   bovenste laag ook op het beeld bovenaan ligt. */
+function buildLayeredPdf(layers, W, H){
+  const n = layers.length;
+  const ocgNum = i => 6 + i;
+  const ocgRefs = layers.map((_,i)=> ocgNum(i) + ' 0 R').join(' ');
+  const contentParts = [];
+  for(let i=layers.length-1; i>=0; i--){
+    contentParts.push('/OC /MC' + i + ' BDC\nq\n' + layers[i].ops + '\nQ\nEMC');
+  }
+  const content = contentParts.join('\n');
+  const props = layers.map((_,i)=> '/MC' + i + ' ' + ocgNum(i) + ' 0 R').join(' ');
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [' + ocgRefs + '] /D << /Order [' + ocgRefs + '] /ON [' + ocgRefs + '] >> >> >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pdfNum(W) + ' ' + pdfNum(H) + '] /Contents 5 0 R /Resources << /Font << /F1 4 0 R >> /Properties << ' + props + ' >> >> >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream'
+  ];
+  layers.forEach(l=>{ objs.push('<< /Type /OCG /Name ' + pdfTextStr(l.name) + ' >>'); });
+  let out = '%PDF-1.7\n%\u00e2\u00e3\u00cf\u00d3\n';
+  const offsets = [];
+  objs.forEach((body, i)=>{
+    offsets.push(out.length);
+    out += (i+1) + ' 0 obj\n' + body + '\nendobj\n';
+  });
+  const xref = out.length;
+  out += 'xref\n0 ' + (objs.length+1) + '\n0000000000 65535 f \n';
+  offsets.forEach(o=>{ out += String(o).padStart(10,'0') + ' 00000 n \n'; });
+  out += 'trailer\n<< /Size ' + (objs.length+1) + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  const bytes = new Uint8Array(out.length);
+  for(let i=0;i<out.length;i++) bytes[i] = out.charCodeAt(i) & 255;
+  return bytes;
+}
+
+function savePdfBytes(bytes, filename, onDone){
+  const blob = new Blob([bytes], { type: 'application/pdf' });
+  if(window.py && typeof window.py.save_file === 'function'){
+    const reader = new FileReader();
+    reader.onload = function(){
+      const b64 = reader.result.split(',')[1];
+      let called = false;
+      try{
+        window.py.save_file(filename, b64, function(ok){ called = true; onDone(!!ok); });
+      }catch(e){}
+      setTimeout(function(){
+        if(called) return;
+        try{
+          const ret = window.py.save_file(filename, b64);
+          if(typeof ret === 'boolean') onDone(ret);
+        }catch(e){ onDone(false); }
+      }, 300);
+    };
+    reader.readAsDataURL(blob);
+    return;
+  }
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = URL.createObjectURL(blob);
+  link.click();
+  URL.revokeObjectURL(link.href);
+  onDone(true);
+}
+
+async function exportSlicesLayeredPDF(){
+  const hint = el('layerPdfHint');
+  const comp = getComposition();
+  const canvas = getCanvasSize();
+  const W = Math.max(1, Math.round(canvas.w)), H = Math.max(1, Math.round(canvas.h));
+  const items = visibleComps(comp);
+  if(!items.length){
+    if(hint) hint.textContent = 'Geen actieve slices om te exporteren.';
+    return;
+  }
+  if(W > 14000 || H > 14000){
+    if(hint) hint.textContent = 'Canvas is groter dan een PDF-pagina kan (max 14.000 pt).';
+    return;
+  }
+  const projectName = projectDisplayName(lastSavedFilename);
+  const filename = `${projectName}-slices-lagen.pdf`;
+  if(hint) hint.textContent = 'Bezig met de PDF…';
+
+  const bridgeReady = await pyBridgeReady(1500);
+  if(bridgeReady && !window.__upscaleSkipOverwritePrompt){
+    if(await exportFileNameExists(filename)){
+      const choice = await askExportOverwrite([filename]);
+      if(choice !== 'overwrite'){
+        if(hint) hint.textContent = 'Export geannuleerd — bestaand bestand is niet gewijzigd.';
+        return;
+      }
+    }
+  }
+
+  const layers = items.map(c=>({ name: c.slice.name || 'Slice', ops: sliceLayerOps(c.slice, W, H) }));
+  layers.push({ name: 'Canvas', ops: `${pdfRgbOp(0,0,0)} rg 0 0 ${pdfNum(W)} ${pdfNum(H)} re f` });
+  const bytes = buildLayeredPdf(layers, W, H);
+  savePdfBytes(bytes, filename, ok=>{
+    if(hint) hint.textContent = ok ? `PDF met ${items.length} lagen geëxporteerd: ${filename}` : 'Export mislukt.';
+  });
 }
 
 function getScaled(comp){
