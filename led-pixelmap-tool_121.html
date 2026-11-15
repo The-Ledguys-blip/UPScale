@@ -211,6 +211,21 @@
 
   .rgb-row{display:flex;align-items:center;gap:5px;margin:0 0 10px;}
   .rot-row{display:flex;align-items:center;gap:5px;margin:0 0 10px;}
+  .plan2d-layers{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+  .curve-tools{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+  .curve-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--font-sans);font-size:12px;color:var(--text-dim);}
+  .curve-row>span:first-child{min-width:70px;color:var(--text-faint);font-size:11px;text-transform:uppercase;letter-spacing:.06em;}
+  .curve-row select,.curve-row button{background:var(--panel-3);border:1px solid var(--line);color:var(--text);font-family:var(--font-sans);font-size:12px;padding:4px 8px;border-radius:5px;cursor:pointer;}
+  .curve-row button:hover,.curve-step:hover{border-color:var(--stage);}
+  .curve-step{width:28px;}
+  .curve-count{font-family:var(--font-mono);min-width:26px;text-align:center;color:var(--text);}
+  .curve-note{color:var(--text-faint);font-size:11px;}
+  .curve-body{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:start;}
+  .curve-preview{background:#0b0e10;border:1px solid var(--line);border-radius:8px;padding:8px;}
+  .curve-joints{max-height:480px;overflow:auto;display:flex;flex-direction:column;gap:4px;}
+  .curve-joint{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--text-dim);}
+  .curve-joint select{background:var(--panel-3);border:1px solid var(--line);color:var(--text);font-size:11px;padding:2px 4px;border-radius:4px;}
+  @media(max-width:900px){.curve-body{grid-template-columns:1fr;}}
   .rot-row>span{font-family:var(--font-sans);font-size:11px;color:var(--text-faint);margin-right:4px;min-width:54px;}
   .rot-row button{appearance:none;flex:1;background:var(--panel-3);border:1px solid var(--line);color:var(--text-dim);font-family:var(--font-sans);font-size:11px;font-weight:600;padding:4px 0;border-radius:5px;cursor:pointer;}
   .rot-row button:hover:not(:disabled){border-color:var(--stage);color:var(--text);}
@@ -1024,6 +1039,9 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
     <button class="tab-btn" data-tab="overview" style="--tab-accent:var(--stage)" onclick="switchTab('overview')">
       <span class="dot"></span> Overview
     </button>
+    <button class="tab-btn" data-tab="plan2d" style="--tab-accent:var(--stage)" onclick="switchTab('plan2d')">
+      <span class="dot"></span> 2D plan
+    </button>
     <button class="tab-btn" data-tab="data" style="--tab-accent:var(--stage)" onclick="switchTab('data')">
       <span class="dot"></span> Data plan
     </button>
@@ -1385,6 +1403,41 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
   </div>
 
   <!-- TAB: DATA PLAN -->
+  <div class="panel" id="panel-plan2d">
+    <div class="diagram-card">
+      <div class="diagram-card-head">
+        <h2>2D plan · Visueel</h2>
+        <span class="val" id="curveSummary"></span>
+      </div>
+      <div class="plan2d-layers">
+        <button class="stage-btn stage-btn-accent" type="button">Visueel</button>
+        <button class="stage-btn" type="button" disabled title="Komt in een volgende stap">Data</button>
+        <button class="stage-btn" type="button" disabled title="Komt in een volgende stap">Stroom</button>
+        <button class="stage-btn" type="button" disabled title="Komt in een volgende stap">Rigging</button>
+      </div>
+      <div class="curve-tools">
+        <div class="curve-row">
+          <span>Tegels</span>
+          <button type="button" class="curve-step" onclick="curveChangeTiles(-1)">−</button>
+          <span class="curve-count" id="curveTileCount">6</span>
+          <button type="button" class="curve-step" onclick="curveChangeTiles(1)">+</button>
+          <span class="curve-note">500 mm breed · 108 mm diep · 192 px per tegel</span>
+        </div>
+        <div class="curve-row">
+          <span>Alle joints</span>
+          <select id="curveAllDeg"><option value="0">vlak</option><option value="2.5">2,5°</option><option value="5">5°</option><option value="7.5">7,5°</option><option value="10">10°</option><option value="15">15°</option></select>
+          <select id="curveAllSide"><option value="convex">convex</option><option value="concave">concaaf</option></select>
+          <button type="button" onclick="curveApplyAll()">Toepassen</button>
+          <button type="button" onclick="curveFlatten()">Vlak</button>
+        </div>
+      </div>
+      <div class="curve-body">
+        <div class="curve-preview"><svg id="curveSvg" viewBox="0 0 1000 480" width="100%"></svg></div>
+        <div class="curve-joints" id="curveJoints"></div>
+      </div>
+    </div>
+  </div>
+
   <div class="panel" id="panel-data">
     <div class="grid2">
       <div class="slices-col">
@@ -6052,7 +6105,7 @@ function setAspectPreset(w, h){
 }
 
 function switchTab(name){
-  const valid = ['real','scaled','stage','overview','data','power','live'];
+  const valid = ['real','scaled','stage','overview','plan2d','data','power','live'];
   const prev = activeTab;
   activeTab = valid.includes(name) ? name : 'real';
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===activeTab));
@@ -6060,6 +6113,8 @@ function switchTab(name){
   el('panel-scaled').classList.toggle('active', activeTab==='scaled');
   el('panel-stage').classList.toggle('active', activeTab==='stage');
   const pov = el('panel-overview'); if(pov) pov.classList.toggle('active', activeTab==='overview');
+  const pplan = el('panel-plan2d'); if(pplan) pplan.classList.toggle('active', activeTab==='plan2d');
+  if(activeTab==='plan2d' && typeof renderCurveBuilder==='function') renderCurveBuilder();
   const pdata = el('panel-data'); if(pdata) pdata.classList.toggle('active', activeTab==='data');
   const ppower = el('panel-power'); if(ppower) ppower.classList.toggle('active', activeTab==='power');
   const plive = el('panel-live'); if(plive) plive.classList.toggle('active', activeTab==='live');
@@ -6635,6 +6690,141 @@ function setType(id, type){
   renderSlices();
   recalcAll();
   commitHistory();
+}
+
+/* ---- 2D plan · Visueel: curve van LED-tegels ---- */
+const CURVE_STEPS = [0, 2.5, 5, 7.5, 10, 15];
+const CURVE_STORAGE_KEY = 'upscale-curve-builder-v1';
+const CURVE_TILE_MM = 500, CURVE_DEPTH_MM = 108, CURVE_PX_TILE = 192, CURVE_MAX_TILES = 40;
+let curveState = loadCurveState();
+
+function loadCurveState(){
+  const fallback = { tiles: 6, joints: [] };
+  try{
+    const raw = JSON.parse(localStorage.getItem(CURVE_STORAGE_KEY) || 'null');
+    if(raw && Number.isFinite(raw.tiles)) return curveNormalize(raw);
+  }catch(e){}
+  return curveNormalize(fallback);
+}
+
+function curveNormalize(raw){
+  const tiles = Math.max(2, Math.min(CURVE_MAX_TILES, Math.round(Number(raw.tiles) || 6)));
+  const joints = [];
+  for(let i=0;i<tiles-1;i++){
+    const j = (raw.joints && raw.joints[i]) || {};
+    const deg = CURVE_STEPS.includes(Number(j.deg)) ? Number(j.deg) : 0;
+    joints.push({ deg, side: j.side === 'concave' ? 'concave' : 'convex' });
+  }
+  return { tiles, joints };
+}
+
+function saveCurveState(){
+  try{ localStorage.setItem(CURVE_STORAGE_KEY, JSON.stringify(curveState)); }catch(e){}
+}
+
+function curveDegLabel(d){ return d === 0 ? 'vlak' : String(d).replace('.', ',') + '°'; }
+
+/* Geometrie in mm: de voorkant van de tegels als keten van punten. Een
+   convexe joint buigt de richting één kant op, een concaaf joint de andere. */
+function curveGeometry(){
+  const pts = [{ x: 0, y: 0 }];
+  const headings = [];
+  let heading = 0;
+  let totalBend = 0;
+  for(let i=0;i<curveState.tiles;i++){
+    headings.push(heading);
+    const p = pts[pts.length-1];
+    pts.push({ x: p.x + Math.cos(heading) * CURVE_TILE_MM, y: p.y + Math.sin(heading) * CURVE_TILE_MM });
+    if(i < curveState.joints.length){
+      const j = curveState.joints[i];
+      const sign = j.side === 'convex' ? 1 : -1;
+      heading += sign * j.deg * Math.PI / 180;
+      totalBend += sign * j.deg;
+    }
+  }
+  return { pts, headings, totalBend };
+}
+
+function renderCurveBuilder(){
+  const svg = el('curveSvg');
+  const jointsHost = el('curveJoints');
+  if(!svg || !jointsHost) return;
+  const g = curveGeometry();
+  const st = curveState;
+  el('curveTileCount').textContent = st.tiles;
+
+  /* Tekening: achterkant = voorkant + diepte naar binnen (loodrecht op de tegel). */
+  const back = g.pts.map((p, i)=>{
+    const h = i < g.headings.length ? g.headings[i] : g.headings[g.headings.length-1];
+    return { x: p.x - Math.sin(h) * CURVE_DEPTH_MM, y: p.y + Math.cos(h) * CURVE_DEPTH_MM };
+  });
+  const all = g.pts.concat(back);
+  const minX = Math.min(...all.map(p=>p.x)), maxX = Math.max(...all.map(p=>p.x));
+  const minY = Math.min(...all.map(p=>p.y)), maxY = Math.max(...all.map(p=>p.y));
+  const pad = 80;
+  const spanX = Math.max(1, maxX - minX), spanY = Math.max(1, maxY - minY);
+  const scale = Math.min((1000 - pad*2) / spanX, (480 - pad*2) / spanY);
+  const tx = p => pad + (p.x - minX) * scale + ((1000 - pad*2) - spanX*scale) / 2;
+  const ty = p => 480 - (pad + (p.y - minY) * scale + ((480 - pad*2) - spanY*scale) / 2);
+
+  let out = '';
+  for(let i=0;i<st.tiles;i++){
+    const a = g.pts[i], b = g.pts[i+1], ba = back[i], bb = back[i+1];
+    const fill = i % 2 ? '#2b3640' : '#34414c';
+    out += `<polygon points="${tx(a)},${ty(a)} ${tx(b)},${ty(b)} ${tx(bb)},${ty(bb)} ${tx(ba)},${ty(ba)}" fill="${fill}" stroke="#ffffff" stroke-width="1.2"/>`;
+    const mx = (a.x + b.x + ba.x + bb.x) / 4, my = (a.y + b.y + ba.y + bb.y) / 4;
+    out += `<text x="${tx({x:mx,y:my})}" y="${ty({x:mx,y:my})}" text-anchor="middle" dominant-baseline="middle" font-size="13" fill="#ffffff" opacity="0.85">${i+1}</text>`;
+  }
+  for(let i=0;i<st.joints.length;i++){
+    const j = st.joints[i];
+    if(!j.deg) continue;
+    const p = g.pts[i+1];
+    out += `<text x="${tx(p)+6}" y="${ty(p)-6}" font-size="11" fill="${j.side==='convex'?'#ff9f43':'#4fae5d'}">${curveDegLabel(j.deg)}</text>`;
+  }
+  svg.setAttribute('viewBox', '0 0 1000 480');
+  svg.innerHTML = out;
+
+  const totalBend = g.totalBend;
+  const arcMM = st.tiles * CURVE_TILE_MM;
+  const radius = Math.abs(totalBend) > 0 ? (arcMM / (Math.abs(totalBend) * Math.PI / 180)) : null;
+  const pxTotal = st.tiles * CURVE_PX_TILE;
+  el('curveSummary').textContent = `${st.tiles} tegels · totale buiging ${totalBend === 0 ? 'vlak' : (totalBend>0?'+':'') + String(Math.round(totalBend*10)/10).replace('.', ',') + '°'} · boog ${(arcMM/1000).toFixed(2).replace('.', ',')} m · ${radius ? 'straal ≈ ' + (radius/1000).toFixed(2).replace('.', ',') + ' m' : 'recht'} · ${pxTotal} px breed`;
+
+  jointsHost.innerHTML = st.joints.map((j, i)=>`
+    <div class="curve-joint">
+      <span>${i+1}–${i+2}</span>
+      <select onchange="curveSetJoint(${i}, 'deg', this.value)">${CURVE_STEPS.map(d=>`<option value="${d}" ${d===j.deg?'selected':''}>${curveDegLabel(d)}</option>`).join('')}</select>
+      <select onchange="curveSetJoint(${i}, 'side', this.value)"><option value="convex" ${j.side==='convex'?'selected':''}>convex</option><option value="concave" ${j.side==='concave'?'selected':''}>concaaf</option></select>
+    </div>`).join('') || '<div class="curve-note">Eén tegel: geen joints.</div>';
+}
+
+function curveChangeTiles(delta){
+  curveState = curveNormalize({ tiles: curveState.tiles + delta, joints: curveState.joints });
+  saveCurveState();
+  renderCurveBuilder();
+}
+
+function curveSetJoint(i, field, value){
+  const j = curveState.joints[i];
+  if(!j) return;
+  if(field === 'deg') j.deg = CURVE_STEPS.includes(Number(value)) ? Number(value) : 0;
+  if(field === 'side') j.side = value === 'concave' ? 'concave' : 'convex';
+  saveCurveState();
+  renderCurveBuilder();
+}
+
+function curveApplyAll(){
+  const deg = Number(el('curveAllDeg').value) || 0;
+  const side = el('curveAllSide').value === 'concave' ? 'concave' : 'convex';
+  curveState.joints.forEach(j=>{ j.deg = deg; j.side = side; });
+  saveCurveState();
+  renderCurveBuilder();
+}
+
+function curveFlatten(){
+  curveState.joints.forEach(j=>{ j.deg = 0; });
+  saveCurveState();
+  renderCurveBuilder();
 }
 
 function renderSlices(){
