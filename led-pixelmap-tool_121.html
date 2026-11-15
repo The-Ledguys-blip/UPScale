@@ -6167,20 +6167,43 @@ function toggleTestPattern(id){
   scheduleHistoryPush();
 }
 
+/* Half paneel: een extra strook van de gekozen breedte (links/rechts) of
+   hoogte (boven/onder) die aan het paneelraster wordt vastgeplakt. Alleen voor
+   slices in panelen-modus. Maten zijn in eigen pixels, zonder zoom. */
+function halfPanelDims(s){
+  const on = !!s.halfPanel && s.type==='slice' && s.mode==='panels';
+  const pw = Math.max(1, Number(s.pxPanelW) || 1);
+  const ph = Math.max(1, Number(s.pxPanelH) || 1);
+  const hw = Math.max(1, Number(s.halfPxW) || Math.round(pw/2));
+  const hh = Math.max(1, Number(s.halfPxH) || Math.round(ph/2));
+  return {
+    l: on && s.halfLeft ? hw : 0,
+    r: on && s.halfRight ? hw : 0,
+    t: on && s.halfTop ? hh : 0,
+    b: on && s.halfBottom ? hh : 0
+  };
+}
+
 function computeSlice(s){
   ensureSliceZoom(s);
-  let resX, resY;
-  if(s.type==='object'){
-    resX = s.pxW; resY = s.pxH;
-  } else if(s.mode==='panels'){
-    resX = s.panelsX * s.pxPanelW;
-    resY = s.panelsY * s.pxPanelH;
-  } else {
-    resX = s.pxW; resY = s.pxH;
-  }
   const zoomFactor = (s.sliceZoom || 100) / 100;
-  const nativeResX = Math.max(1, Math.round(resX * zoomFactor));
-  const nativeResY = Math.max(1, Math.round(resY * zoomFactor));
+  let nativeResX, nativeResY, panelLayout = null;
+  if(s.type==='object'){
+    nativeResX = Math.max(1, Math.round(s.pxW * zoomFactor));
+    nativeResY = Math.max(1, Math.round(s.pxH * zoomFactor));
+  } else if(s.mode==='panels'){
+    const hd = halfPanelDims(s);
+    const mw = Math.max(1, Math.round(s.panelsX * s.pxPanelW * zoomFactor));
+    const mh = Math.max(1, Math.round(s.panelsY * s.pxPanelH * zoomFactor));
+    const l = Math.round(hd.l * zoomFactor), r = Math.round(hd.r * zoomFactor);
+    const t = Math.round(hd.t * zoomFactor), b = Math.round(hd.b * zoomFactor);
+    nativeResX = l + mw + r;
+    nativeResY = t + mh + b;
+    panelLayout = { l, t, mw, mh, r, b };
+  } else {
+    nativeResX = Math.max(1, Math.round(s.pxW * zoomFactor));
+    nativeResY = Math.max(1, Math.round(s.pxH * zoomFactor));
+  }
   /* Voetafdruk op het canvas: bij 90° of 270° wisselen breedte en hoogte. De
      eigen (ongedraaide) afmeting blijft in nativeResX/Y staan. */
   const swap = sliceRotated90(s);
@@ -6188,8 +6211,25 @@ function computeSlice(s){
     resX: swap ? nativeResY : nativeResX,
     resY: swap ? nativeResX : nativeResY,
     nativeResX,
-    nativeResY
+    nativeResY,
+    panelLayout
   };
+}
+
+/* Het paneelraster binnen de slice (zonder halve stroken), in dezelfde
+   uitvoerpixels als het vak (x,y,w,h). Met `strips` de halve stroken. */
+function panelGridBox(c, x, y, w, h){
+  const pl = c && c.panelLayout;
+  if(!pl || (!pl.l && !pl.r && !pl.t && !pl.b)){
+    return { x, y, w, h, strips: [] };
+  }
+  const sc = w / Math.max(1, c.resX);
+  const strips = [];
+  if(pl.l) strips.push({ x, y: y + pl.t*sc, w: pl.l*sc, h: pl.mh*sc });
+  if(pl.r) strips.push({ x: x + (pl.l+pl.mw)*sc, y: y + pl.t*sc, w: pl.r*sc, h: pl.mh*sc });
+  if(pl.t) strips.push({ x, y, w: w, h: pl.t*sc });
+  if(pl.b) strips.push({ x, y: y + (pl.t+pl.mh)*sc, w: w, h: pl.b*sc });
+  return { x: x + pl.l*sc, y: y + pl.t*sc, w: pl.mw*sc, h: pl.mh*sc, strips };
 }
 
 function readSliceInputs(){
@@ -6206,6 +6246,16 @@ function readSliceInputs(){
       s.panelsY = Math.max(1, parseInt(c.querySelector('[data-f=panelsY]').value)||1);
       s.pxPanelW = Math.max(1, parseFloat(c.querySelector('[data-f=pxPanelW]').value)||1);
       s.pxPanelH = Math.max(1, parseFloat(c.querySelector('[data-f=pxPanelH]').value)||1);
+      const halfOn = c.querySelector('[data-f=halfPanel]');
+      if(halfOn) s.halfPanel = halfOn.checked;
+      ['Left','Right','Top','Bottom'].forEach(side=>{
+        const box = c.querySelector('[data-f=half'+side+']');
+        if(box) s['half'+side] = box.checked;
+      });
+      const hpw = c.querySelector('[data-f=halfPxW]');
+      if(hpw) s.halfPxW = Math.max(1, parseFloat(hpw.value)||1);
+      const hph = c.querySelector('[data-f=halfPxH]');
+      if(hph) s.halfPxH = Math.max(1, parseFloat(hph.value)||1);
     } else {
       s.pxW = Math.max(1, parseInt(c.querySelector('[data-f=pxW]').value)||1);
       s.pxH = Math.max(1, parseInt(c.querySelector('[data-f=pxH]').value)||1);
@@ -6862,6 +6912,20 @@ function renderSlices(){
         <div class="field"><label>Px / paneel (b)</label><input type="text" inputmode="decimal" class="calc" data-f="pxPanelW" value="${s.pxPanelW}" oninput="recalcAll()"></div>
         <div class="field"><label>Px / paneel (h)</label><input type="text" inputmode="decimal" class="calc" data-f="pxPanelH" value="${s.pxPanelH}" oninput="recalcAll()"></div>
       </div>
+      <div class="overlay-row" style="margin:6px 0 8px;">
+        <label><input type="checkbox" data-f="halfPanel" ${s.halfPanel?'checked':''} onchange="recalcAll(); renderSlices();"> Half paneel</label>
+      </div>
+      ${s.halfPanel ? `
+      <div class="overlay-row" style="margin-bottom:8px;flex-wrap:wrap;gap:10px;">
+        <label><input type="checkbox" data-f="halfLeft" ${s.halfLeft?'checked':''} onchange="recalcAll(); renderSlices();"> links</label>
+        <label><input type="checkbox" data-f="halfRight" ${s.halfRight?'checked':''} onchange="recalcAll(); renderSlices();"> rechts</label>
+        <label><input type="checkbox" data-f="halfTop" ${s.halfTop?'checked':''} onchange="recalcAll(); renderSlices();"> boven</label>
+        <label><input type="checkbox" data-f="halfBottom" ${s.halfBottom?'checked':''} onchange="recalcAll(); renderSlices();"> onder</label>
+      </div>
+      <div class="field-grid">
+        <div class="field"><label>Half paneel (b px)</label><input type="text" inputmode="decimal" class="calc" data-f="halfPxW" value="${s.halfPxW || Math.round(s.pxPanelW/2)}" oninput="recalcAll()"></div>
+        <div class="field"><label>Half paneel (h px)</label><input type="text" inputmode="decimal" class="calc" data-f="halfPxH" value="${s.halfPxH || Math.round(s.pxPanelH/2)}" oninput="recalcAll()"></div>
+      </div>` : ''}
       <div class="panel-preview-frame" id="previewFrame-${s.id}">
         <div class="panel-preview" id="preview-${s.id}" style="grid-template-columns:repeat(${s.panelsX},1fr); grid-template-rows:repeat(${s.panelsY},1fr); --panel-color:${color}; --panel-border:#ffffff;"></div>
       </div>` : `
@@ -7223,17 +7287,18 @@ function onImCountInput(id){
   recalcAll(); updatePanelPreviews();
 }
 
-function imPanelCells(s, x, y, w, h, ls, interactive, idNs){
+function imPanelCells(s, x, y, w, h, ls, interactive, idNs, c){
   const GREY = '#e1e1e1', WHITE = '#ffffff';
-  const cellW = w / s.panelsX, cellH = h / s.panelsY;
+  const gb = panelGridBox(c, x, y, w, h);
+  const cellW = gb.w / s.panelsX, cellH = gb.h / s.panelsY;
   const seg = imSegments(s, 4000);
   const removedSet = s.removedPanels || [];
-  let cells = `<path d="${occupiedOutlinePath(s,x,y,w,h)}" fill="none" stroke="#ffffff" stroke-width="${1*ls}"/>`;
+  let cells = `<path d="${occupiedOutlinePath(s,gb.x,gb.y,gb.w,gb.h)}" fill="none" stroke="#ffffff" stroke-width="${1*ls}"/>`;
   let panelIdCounter = 0;
   for(let j=0;j<s.panelsY;j++){
     for(let i=0;i<s.panelsX;i++){
       const removed = removedSet.includes(i+'_'+j);
-      const cx = x + i*cellW, cy = y + j*cellH;
+      const cx = gb.x + i*cellW, cy = gb.y + j*cellH;
       if(removed){
         if(interactive){
           cells += `<rect x="${cx}" y="${cy}" width="${cellW}" height="${cellH}" fill="#000000" style="cursor:pointer" ondblclick="handlePanelDblClick(event,${s.id},${i},${j})"/>`;
@@ -7280,6 +7345,9 @@ function imPanelCells(s, x, y, w, h, ls, interactive, idNs){
       }
     }
   }
+  gb.strips.forEach(st=>{
+    cells += `<rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" fill="${GREY}" stroke="${WHITE}" stroke-width="${1*ls}"/>`;
+  });
   cells += overlayMarks(s, x, y, w, h, ls, idNs);
   return cells;
 }
@@ -7498,17 +7566,18 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, id
   const shapeH = Math.max(useRounded ? h : (h-1), 1);
   let inner;
   if(s.type==='slice' && s.mode==='panels' && s.imMode){
-    inner = imPanelCells(s, x, y, w, h, ls, interactive, idNs);
+    inner = imPanelCells(s, x, y, w, h, ls, interactive, idNs, c);
   } else if(s.type==='slice' && s.mode==='panels'){
-    const cellW = w / s.panelsX, cellH = h / s.panelsY;
-    let cells = `<path d="${occupiedOutlinePath(s,x,y,w,h)}" fill="none" stroke="${color}" stroke-width="${1*ls}"/>`;
+    const gb = panelGridBox(c, x, y, w, h);
+    const cellW = gb.w / s.panelsX, cellH = gb.h / s.panelsY;
+    let cells = `<path d="${occupiedOutlinePath(s,gb.x,gb.y,gb.w,gb.h)}" fill="none" stroke="${color}" stroke-width="${1*ls}"/>`;
     const removedSet = s.removedPanels || [];
     let panelIdCounter = 0;
     for(let j=0;j<s.panelsY;j++){
       for(let i=0;i<s.panelsX;i++){
         const key = i+'_'+j;
         const removed = removedSet.includes(key);
-        const cx = x + i*cellW, cy = y + j*cellH;
+        const cx = gb.x + i*cellW, cy = gb.y + j*cellH;
         if(removed){
           if(interactive){
             cells += `<rect x="${cx}" y="${cy}" width="${cellW}" height="${cellH}" fill="#000000" style="cursor:pointer" ondblclick="handlePanelDblClick(event,${s.id},${i},${j})"/>`;
@@ -7537,6 +7606,9 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, id
         }
       }
     }
+    gb.strips.forEach(st=>{
+      cells += `<rect x="${st.x}" y="${st.y}" width="${st.w}" height="${st.h}" fill="${color}" stroke="${border}" stroke-width="${1*ls}"/>`;
+    });
     cells += overlayMarks(s, x, y, w, h, ls, idNs);
     inner = cells;
   } else {
@@ -10342,6 +10414,7 @@ function buildLiveSnapshot(comp){
       h: c.resY*scale,
       color: colorForSlice(s),
       rot: sliceRotation(s),
+      pl: c.panelLayout ? { l: c.panelLayout.l*scale, t: c.panelLayout.t*scale, mw: c.panelLayout.mw*scale, mh: c.panelLayout.mh*scale, r: c.panelLayout.r*scale, b: c.panelLayout.b*scale } : null,
       name: s.name || '',
       panelsX: isPanels ? (s.panelsX||1) : 0,
       panelsY: isPanels ? (s.panelsY||1) : 0,
@@ -10382,9 +10455,12 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
     if(r > 0){ liveRoundRect(ctx, s.x, s.y, s.w, s.h, r); ctx.fillStyle = s.color; ctx.fill(); }
     else { ctx.fillStyle = s.color; ctx.fillRect(s.x, s.y, s.w, s.h); }
 
+    const g = s.pl ? panelGridBox({ panelLayout: s.pl, resX: s.pl.l + s.pl.mw + s.pl.r }, s.x, s.y, s.w, s.h) : { x: s.x, y: s.y, w: s.w, h: s.h, strips: [] };
+    g.strips.forEach(st=>{ ctx.fillStyle = s.color; ctx.fillRect(st.x, st.y, st.w, st.h); });
+
     const isPanels = s.panelsX > 0 && s.panelsY > 0;
-    const cellW = isPanels ? s.w/s.panelsX : 0;
-    const cellH = isPanels ? s.h/s.panelsY : 0;
+    const cellW = isPanels ? g.w/s.panelsX : 0;
+    const cellH = isPanels ? g.h/s.panelsY : 0;
     const removed = s.removedKeys || [];
 
     if(isPanels && removed.length){
@@ -10394,7 +10470,7 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
         const parts = String(k).split('_');
         const i = +parts[0], j = +parts[1];
         if(!isFinite(i) || !isFinite(j)) return;
-        ctx.fillRect(s.x+i*cellW, s.y+j*cellH, cellW, cellH);
+        ctx.fillRect(g.x+i*cellW, g.y+j*cellH, cellW, cellH);
       });
     }
 
@@ -10406,8 +10482,8 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
       else { ctx.strokeRect(s.x, s.y, s.w, s.h); }
       if(isPanels){
         ctx.beginPath();
-        for(let i=1;i<s.panelsX;i++){ ctx.moveTo(s.x+i*cellW, s.y); ctx.lineTo(s.x+i*cellW, s.y+s.h); }
-        for(let j=1;j<s.panelsY;j++){ ctx.moveTo(s.x, s.y+j*cellH); ctx.lineTo(s.x+s.w, s.y+j*cellH); }
+        for(let i=1;i<s.panelsX;i++){ ctx.moveTo(g.x+i*cellW, g.y); ctx.lineTo(g.x+i*cellW, g.y+g.h); }
+        for(let j=1;j<s.panelsY;j++){ ctx.moveTo(g.x, g.y+j*cellH); ctx.lineTo(g.x+g.w, g.y+j*cellH); }
         ctx.stroke();
       }
     }
@@ -10423,7 +10499,7 @@ function drawLiveCanvas(ctx, model, opts, outW, outH){
         for(let i=0;i<s.panelsX;i++){
           if(removed.indexOf(i+'_'+j) >= 0) continue;
           n++;
-          ctx.fillText(String(n), s.x+i*cellW+cellW/2, s.y+j*cellH+cellH/2);
+          ctx.fillText(String(n), g.x+i*cellW+cellW/2, g.y+j*cellH+cellH/2);
         }
       }
     }
