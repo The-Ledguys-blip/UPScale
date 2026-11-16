@@ -6833,6 +6833,8 @@ function renderSlices(){
   const displayOrder = selectedSliceIds.size === 1
     ? [...slices].sort((a,b)=> (selectedSliceIds.has(a.id) ? -1 : selectedSliceIds.has(b.id) ? 1 : 0))
     : slices;
+  const sliceListEl = el('slicesList');
+  const keepScrollTop = sliceListEl ? sliceListEl.scrollTop : 0;
   el('slicesList').innerHTML = displayOrder.map((s,idx)=>{
     ensureSliceZoom(s);
     ensureSliceEnabled(s);
@@ -7201,7 +7203,10 @@ function renderSlices(){
   refreshSidebarSelectionStyles();
   applySliceTabOrder();
   applySliceEnabledState();
-  scrollSelectedSliceCardToTop();
+  /* Een veldwijziging herbouwt de lijst, maar mag de scrollpositie niet
+     veranderen. Naar de geselecteerde slice scrollen gebeurt alleen bij een
+     nieuwe selectie (syncSidebarSelection). */
+  if(sliceListEl) sliceListEl.scrollTop = keepScrollTop;
 }
 
 function setSliceEnabled(id, enabled){
