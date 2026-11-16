@@ -453,6 +453,11 @@
   .link-layout-selected{padding:0 12px 10px;border-bottom:1px solid var(--line-soft);}
   .link-layout-selected-name{font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:7px;}
   .link-layout-xy{display:flex;gap:8px;}
+  .link-layout-rot{display:flex;gap:4px;align-items:center;margin-top:8px;}
+  .link-layout-rot>span{font-size:10px;color:var(--text-faint);min-width:52px;text-transform:uppercase;letter-spacing:.06em;}
+  .link-layout-rot button{flex:1;background:var(--panel-3);border:1px solid var(--line);color:var(--text-dim);font-family:var(--font-sans);font-size:11px;font-weight:600;padding:4px 0;border-radius:5px;cursor:pointer;}
+  .link-layout-rot button:hover{border-color:var(--stage);color:var(--text);}
+  .link-layout-rot button.active{background:var(--stage);border-color:transparent;color:#08131f;}
   .link-layout-xy label{display:flex;align-items:center;gap:5px;flex:1;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);}
   .link-layout-xy input{width:100%;min-width:0;background:var(--panel-3);border:1px solid var(--line);color:var(--text);font-family:var(--font-mono);font-size:11.5px;padding:5px 6px;border-radius:5px;outline:none;}
   .link-layout-xy input:focus{border-color:var(--scaled);}
@@ -1653,6 +1658,13 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <div class="link-layout-xy">
             <label>X <input type="number" id="linkLayoutX" min="0" step="1" inputmode="numeric"></label>
             <label>Y <input type="number" id="linkLayoutY" min="0" step="1" inputmode="numeric"></label>
+          </div>
+          <div class="link-layout-rot">
+            <span>Rotatie</span>
+            <button type="button" data-rot="0" onclick="setLinkLayoutRotation(0)">0°</button>
+            <button type="button" data-rot="90" onclick="setLinkLayoutRotation(90)">90°</button>
+            <button type="button" data-rot="180" onclick="setLinkLayoutRotation(180)">180°</button>
+            <button type="button" data-rot="270" onclick="setLinkLayoutRotation(270)">270°</button>
           </div>
         </div>
         <div class="link-layout-side-head">Volgorde</div>
@@ -5008,6 +5020,8 @@ function openLinkLayoutEditor(gid, isNew){
     members,
     slots,
     initialSlots: cloneLinkSlots(slots),
+    rot: linkRotMap(members),
+    initialRot: linkRotMap(members),
     selectedId: members[0].id,
     fitScale: 1,
     zoom: 1,
@@ -5110,7 +5124,7 @@ function buildLinkLayoutTiles(){
     if(m.id === leaderId) classes.push('leader');
     return `<div class="${classes.join(' ')}" data-link-tile="${m.id}" style="left:${(s.ox*ed.scale).toFixed(2)}px;top:${(s.oy*ed.scale).toFixed(2)}px;width:${w.toFixed(2)}px;height:${h.toFixed(2)}px;">
       <div class="link-layout-tile-name">${escapeHtmlText(m.name)}</div>
-      <div class="link-layout-tile-res">${s.resX}×${s.resY}</div>
+      <div class="link-layout-tile-res">${s.resX}×${s.resY}${linkEditorRot(m) ? ' · ' + linkEditorRot(m) + '°' : ''}</div>
       <div class="link-layout-tile-pos">${s.ox}, ${s.oy}</div>
     </div>`;
   }).join('');
@@ -5276,6 +5290,7 @@ function updateLinkLayoutTileSelection(){
 function renderLinkLayoutInfo(){
   const ed = linkLayoutEditor;
   if(!ed) return;
+  updateLinkLayoutRotButtons();
   const list = el('linkLayoutOrderList');
   const ordered = ed.members.slice().sort((a,b)=>{
     const sa = ed.slots[a.id], sb = ed.slots[b.id];
@@ -5373,7 +5388,7 @@ function applyLinkLayoutPreset(mode){
   if(mode === 'col'){
     let y = 0;
     ordered.forEach(m=>{
-      const c = computeSlice(m);
+      const c = linkEditorFootprint(m);
       slots[m.id] = { ox: 0, oy: y, resX: c.resX, resY: c.resY };
       y += c.resY;
     });
@@ -5383,7 +5398,7 @@ function applyLinkLayoutPreset(mode){
     rows.forEach(row=>{
       let x = 0, rowH = 1;
       row.members.forEach(it=>{
-        const c = computeSlice(it.m);
+        const c = linkEditorFootprint(it.m);
         slots[it.m.id] = { ox: x, oy: y, resX: c.resX, resY: c.resY };
         x += c.resX;
         rowH = Math.max(rowH, c.resY);
@@ -5393,7 +5408,7 @@ function applyLinkLayoutPreset(mode){
   } else {
     let x = 0;
     ordered.forEach(m=>{
-      const c = computeSlice(m);
+      const c = linkEditorFootprint(m);
       slots[m.id] = { ox: x, oy: 0, resX: c.resX, resY: c.resY };
       x += c.resX;
     });
@@ -5409,10 +5424,61 @@ function resetLinkLayoutEditor(){
   const ed = linkLayoutEditor;
   if(!ed) return;
   ed.slots = cloneLinkSlots(ed.initialSlots);
+  ed.rot = Object.assign({}, ed.initialRot);
   configureLinkLayoutWorkspace(true);
   buildLinkLayoutTiles();
   renderLinkLayoutInfo();
   updateLinkLayoutScaleLabel();
+}
+
+/* Rotatie per slice in de editor. Gekoppelde slices draaien alleen hier, zodat
+   de virtuele indeling altijd met de juiste footprint is vastgelegd. */
+function linkRotMap(members){
+  const out = {};
+  members.forEach(m=>{ out[m.id] = sliceRotation(m); });
+  return out;
+}
+
+function linkFootprintFor(m, rot){
+  const c = computeSlice(m);
+  const swap = rot === 90 || rot === 270;
+  return { resX: swap ? c.nativeResY : c.nativeResX, resY: swap ? c.nativeResX : c.nativeResY };
+}
+
+function linkEditorRot(m){
+  const ed = linkLayoutEditor;
+  if(ed && ed.rot && ed.rot[m.id] !== undefined) return ed.rot[m.id];
+  return sliceRotation(m);
+}
+
+function linkEditorFootprint(m){
+  return linkFootprintFor(m, linkEditorRot(m));
+}
+
+function setLinkLayoutRotation(deg){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const m = ed.members.find(x=> x.id === ed.selectedId);
+  const slot = m ? ed.slots[m.id] : null;
+  if(!slot) return;
+  const rot = [0, 90, 180, 270].includes(Number(deg)) ? Number(deg) : 0;
+  ed.rot[m.id] = rot;
+  const f = linkFootprintFor(m, rot);
+  slot.resX = f.resX;
+  slot.resY = f.resY;
+  growLinkLayoutWorkspaceFor(slot);
+  buildLinkLayoutTiles();
+  renderLinkLayoutInfo();
+}
+
+function updateLinkLayoutRotButtons(){
+  const ed = linkLayoutEditor;
+  if(!ed) return;
+  const m = ed.members.find(x=> x.id === ed.selectedId);
+  const cur = m ? linkEditorRot(m) : 0;
+  document.querySelectorAll('.link-layout-rot button').forEach(btn=>{
+    btn.classList.toggle('active', Number(btn.getAttribute('data-rot')) === cur);
+  });
 }
 
 /* Groepeer de vrije posities in rijen/kolommen voor de statusregel. */
@@ -5457,6 +5523,7 @@ function applyLinkLayoutEditor(){
   const counts = customLinkCounts(entries);
   const gid = ed.isNew ? nextLinkGroupId() : (Number(ed.gid) || 0);
   const members = entries.map(e=> e.m);
+  members.forEach(m=>{ m.rotation = linkEditorRot(m); });
   members.forEach((m,i)=>{
     m.linkGroup = gid;
     m.linkOrder = i;
@@ -6494,7 +6561,7 @@ function sliceRotationRowHTML(s, link){
   const cur = sliceRotation(s);
   const buttons = [0, 90, 180, 270].map(deg=>{
     const title = link
-      ? 'Gekoppelde slices kun je niet draaien. Ontkoppel eerst.'
+      ? 'Gekoppelde slices draai je in Indeling… (Koppel custom). Dat houdt de virtuele indeling kloppend.'
       : `Draai de hele slice ${deg}° (incl. kruis, cirkel, tekst en namen)`;
     return `<button type="button" class="${cur===deg?'active':''}" ${link?'disabled':''} onclick="setSliceRotation(${s.id}, ${deg})" title="${title}">${deg}°</button>`;
   }).join('');
@@ -7387,12 +7454,30 @@ function overlayMarks(s, x, y, w, h, lineScale, idNs){
     m.type==='slice' && m.mode==='panels' && m.removedPanels && m.removedPanels.length>0
   ) : hasHoles;
 
-  let out = '';
+  /* Een gekoppelde, gedraaide slice: het virtuele vlak ligt in canvasoriëntatie
+     (de footprint). Die tekenen we daarom in de footprint en draaien de hele
+     overlay terug, zodat het kruis en de cirkel op het virtuele vlak blijven
+     liggen terwijl de slice zelf draait. */
+  const linkRot = link ? sliceRotation(s) : 0;
+  const nat = { x, y, w, h };
+  let wrapOpen = '', wrapClose = '';
+  let holeWrapOpen = '', holeWrapClose = '';
+  if(linkRot){
+    const cx0 = x + w/2, cy0 = y + h/2;
+    const swap = linkRot === 90 || linkRot === 270;
+    const fw = swap ? h : w, fh = swap ? w : h;
+    x = cx0 - fw/2; y = cy0 - fh/2; w = fw; h = fh;
+    wrapOpen = `<g transform="rotate(${-linkRot} ${cx0} ${cy0})">`;
+    wrapClose = '</g>';
+    holeWrapOpen = `<g transform="rotate(${linkRot} ${cx0} ${cy0})">`;
+    holeWrapClose = '</g>';
+  }
+  let out = wrapOpen;
   let clipOpen = '', clipClose = '';
   if((hasHoles || link) && (showCircle || showCross)){
     const clipId = (link ? 'link-clip-' : 'occ-clip-') + (idNs ? (idNs + '-s' + s.id + '-marks') : clipIdCounter++);
     const clipRects = hasHoles
-      ? occupiedClipRects(s, x, y, w, h)
+      ? (linkRot ? holeWrapOpen + occupiedClipRects(s, nat.x, nat.y, nat.w, nat.h) + holeWrapClose : occupiedClipRects(s, x, y, w, h))
       : `<rect x="${x}" y="${y}" width="${Math.max(1,w)}" height="${Math.max(1,h)}"/>`;
     out += `<clipPath id="${clipId}">${clipRects}</clipPath>`;
     clipOpen = `<g clip-path="url(#${clipId})">`;
@@ -7453,7 +7538,7 @@ function overlayMarks(s, x, y, w, h, lineScale, idNs){
   if(!link && hasHoles && showCross){
     out += `<path d="${occupiedOutlinePath(s, x, y, w, h)}" stroke="${markColor}" stroke-width="${1*ls}" fill="none" pointer-events="none"/>`;
   }
-  return out;
+  return out + wrapClose;
 }
 
 function cropClipRect(s, x, y, w, h, resX, resY){

@@ -88,7 +88,8 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Toepassen legt de vrije indeling vast; Annuleren laat de slices ongemoeid
 - [x] Bestaande koppeling aanpassen via **Indeling…** in de Koppeling-sectie
 - [x] Slice roteren 0/90/180/270 draait kruis, cirkel, tekst en namen mee in alle weergaven en exports
-- [x] Gekoppelde slices blokkeren rotatie (ontkoppel eerst)
+- [x] Gekoppelde slices blokkeren rotatie op de kaart; draai ze in **Indeling…** (custom koppelen) met de knoppen 0°/90°/180°/270° in het zijpaneel
+- [x] Kruis en cirkel van een gedraaide gekoppelde slice blijven op het virtuele vlak liggen
 - [x] Custom-menu onthoudt de toegepaste posities bij opnieuw openen
 - [x] Na ontkoppelen start het custom-menu weer met de standaardindeling
 - [x] Vrije indeling blijft bewaard na undo/redo, herladen en autosave
