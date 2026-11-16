@@ -4532,13 +4532,19 @@ function normalizeLinkSlot(slot){
   const resX = Math.round(Number(slot.resX));
   const resY = Math.round(Number(slot.resY));
   if(!(resX > 0) || !(resY > 0)) return null;
-  return {
+  const out = {
     row: Math.max(0, Math.round(Number(slot.row) || 0)),
     col: Math.max(0, Math.round(Number(slot.col) || 0)),
     ox: Math.max(0, Math.round(Number(slot.ox) || 0)),
     oy: Math.max(0, Math.round(Number(slot.oy) || 0)),
     resX, resY
   };
+  /* Eigen maat (ongedraaid) en virtuele rotatie: los van de rotatie van de
+     slice zelf. Ontbreken ze (oudere projecten), dan blijft het gedrag gelijk. */
+  const nw = Math.round(Number(slot.nw)), nh = Math.round(Number(slot.nh));
+  if(nw > 0 && nh > 0){ out.nw = nw; out.nh = nh; }
+  if(slot.rot === 0 || slot.rot === 90 || slot.rot === 180 || slot.rot === 270) out.rot = slot.rot;
+  return out;
 }
 
 function normalizeLinkVirtual(virtual){
@@ -4562,7 +4568,9 @@ function captureLinkLayout(members, layoutInfo, mode){
   info.layout.forEach(slot=>{
     const m = slot.m;
     if(!m) return;
-    m.linkSlot = { row: slot.row, col: slot.col, ox: slot.ox, oy: slot.oy, resX: slot.resX, resY: slot.resY };
+    const nat = computeSlice(m);
+    const vrot = [0, 90, 180, 270].includes(slot.rot) ? slot.rot : sliceRotation(m);
+    m.linkSlot = { row: slot.row, col: slot.col, ox: slot.ox, oy: slot.oy, resX: slot.resX, resY: slot.resY, nw: nat.nativeResX, nh: nat.nativeResY, rot: vrot };
     m.linkVirtual = { w: info.virtualW, h: info.virtualH, rows: info.rowCount, cols: info.colCount, mode: finalMode };
   });
   return info;
@@ -5435,7 +5443,10 @@ function resetLinkLayoutEditor(){
    de virtuele indeling altijd met de juiste footprint is vastgelegd. */
 function linkRotMap(members){
   const out = {};
-  members.forEach(m=>{ out[m.id] = sliceRotation(m); });
+  members.forEach(m=>{
+    const slot = normalizeLinkSlot(m.linkSlot);
+    out[m.id] = slot && slot.rot !== undefined ? slot.rot : sliceRotation(m);
+  });
   return out;
 }
 
@@ -5448,7 +5459,8 @@ function linkFootprintFor(m, rot){
 function linkEditorRot(m){
   const ed = linkLayoutEditor;
   if(ed && ed.rot && ed.rot[m.id] !== undefined) return ed.rot[m.id];
-  return sliceRotation(m);
+  const slot = normalizeLinkSlot(m.linkSlot);
+  return slot && slot.rot !== undefined ? slot.rot : sliceRotation(m);
 }
 
 function linkEditorFootprint(m){
@@ -5523,14 +5535,14 @@ function applyLinkLayoutEditor(){
   const counts = customLinkCounts(entries);
   const gid = ed.isNew ? nextLinkGroupId() : (Number(ed.gid) || 0);
   const members = entries.map(e=> e.m);
-  members.forEach(m=>{ m.rotation = linkEditorRot(m); });
+
   members.forEach((m,i)=>{
     m.linkGroup = gid;
     m.linkOrder = i;
     m.linkAxis = 'h';
   });
   captureLinkLayout(members, {
-    layout: entries.map(e=>({ m: e.m, ox: e.ox, oy: e.oy, row: 0, col: 0, resX: e.resX, resY: e.resY })),
+    layout: entries.map(e=>({ m: e.m, ox: e.ox, oy: e.oy, row: 0, col: 0, resX: e.resX, resY: e.resY, rot: linkEditorRot(e.m) })),
     rowSizes: [entries.length],
     rowCount: counts.rows,
     colCount: counts.cols,
@@ -6560,17 +6572,20 @@ function setHalfMode(id, mode){
 function sliceRotationRowHTML(s, link){
   const cur = sliceRotation(s);
   const buttons = [0, 90, 180, 270].map(deg=>{
-    const title = link
-      ? 'Gekoppelde slices draai je in Indeling… (Koppel custom). Dat houdt de virtuele indeling kloppend.'
-      : `Draai de hele slice ${deg}° (incl. kruis, cirkel, tekst en namen)`;
-    return `<button type="button" class="${cur===deg?'active':''}" ${link?'disabled':''} onclick="setSliceRotation(${s.id}, ${deg})" title="${title}">${deg}°</button>`;
+    const locked = !!(link && link.mode !== 'custom');
+    const title = locked
+      ? 'Rijen-, kolom- en rasterkoppelingen kun je niet draaien. Ontkoppel eerst.'
+      : `Draai de hele slice ${deg}° (incl. kruis, cirkel, tekst en namen). Bij custom koppelen verandert de virtuele indeling niet.`;
+    return `<button type="button" class="${cur===deg?'active':''}" ${locked?'disabled':''} onclick="setSliceRotation(${s.id}, ${deg})" title="${title}">${deg}°</button>`;
   }).join('');
   return `<div class="rot-row"><span>Rotatie</span>${buttons}</div>`;
 }
 
 function setSliceRotation(id, deg){
   const s = slices.find(x=>x.id===id);
-  if(!s || getSliceLinkInfo(s)) return;
+  if(!s) return;
+  const link = getSliceLinkInfo(s);
+  if(link && link.mode !== 'custom') return;
   readSliceInputs();
   s.rotation = sliceRotation({ rotation: deg });
   renderSlices();
@@ -7493,8 +7508,12 @@ function overlayMarks(s, x, y, w, h, lineScale, idNs){
        naar beneden). */
     const cur = link.slot;
     if(cur){
-      const scX = w / Math.max(1, cur.resX);
-      const scY = h / Math.max(1, cur.resY);
+      /* Schaal via de eigen (ongedraaide) maat van de slice: de virtuele
+         rotatie van de tegel verandert zo niets aan de schaal of aan de
+         rotatie van de slice zelf. */
+      const nat = cur.nw ? computeSlice(s) : null;
+      const scX = nat ? nat.nativeResX / Math.max(1, cur.nw) : w / Math.max(1, cur.resX);
+      const scY = nat ? nat.nativeResY / Math.max(1, cur.nh) : h / Math.max(1, cur.resY);
       const gx = x - cur.ox * scX;
       const gy = y - cur.oy * scY;
       const gw = Math.max(1, link.virtualW * scX);
