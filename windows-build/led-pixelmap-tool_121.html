@@ -212,6 +212,13 @@
   .rgb-row{display:flex;align-items:center;gap:5px;margin:0 0 10px;}
   .rot-row{display:flex;align-items:center;gap:5px;margin:0 0 10px;}
   .plan2d-layers{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+  .input-zoom{display:flex;align-items:center;gap:6px;}
+  .input-zoom .val{min-width:48px;text-align:center;font-family:var(--font-mono);}
+  .input-hint{font-size:11.5px;color:var(--text-faint);margin-bottom:10px;line-height:1.45;}
+  .input-scroll{height:620px;overflow:auto;background:#060809;border:1px solid var(--line);border-radius:8px;}
+  #inputSvg{display:block;cursor:default;}
+  #inputSvg [data-input-id]{cursor:grab;}
+  #inputSvg [data-input-id].dragging{cursor:grabbing;}
   .curve-tools{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
   .curve-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-family:var(--font-sans);font-size:12px;color:var(--text-dim);}
   .curve-row>span:first-child{min-width:70px;color:var(--text-faint);font-size:11px;text-transform:uppercase;letter-spacing:.06em;}
@@ -1035,6 +1042,9 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
       <span class="tab-canvas-name" id="canvasTabName">Canvas 1</span>
       <svg class="ic ic-xs tab-caret" viewBox="0 0 24 24" onclick="onCanvasCaretClick(event)" style="cursor:pointer"><path d="M6 9l6 6 6-6"/></svg>
     </button>
+    <button class="tab-btn" data-tab="input" style="--tab-accent:var(--real)" onclick="switchTab('input')">
+      <span class="dot"></span> Stage (input)
+    </button>
     <button class="tab-btn" data-tab="scaled" style="--tab-accent:var(--scaled)" onclick="switchTab('scaled')">
       <span class="dot"></span> Scaled Output
     </button>
@@ -1410,6 +1420,22 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
   </div>
 
   <!-- TAB: DATA PLAN -->
+  <div class="panel" id="panel-input">
+    <div class="diagram-card">
+      <div class="diagram-card-head">
+        <h2>Stage (input) · zelfde pixelmaten als 1:1</h2>
+        <div class="input-zoom">
+          <button type="button" class="stage-btn" onclick="inputZoomBy(0.8)" title="Uitzoomen">−</button>
+          <span class="val" id="inputZoomLabel">100%</span>
+          <button type="button" class="stage-btn" onclick="inputZoomBy(1.25)" title="Inzoomen">+</button>
+          <button type="button" class="stage-btn" onclick="inputFit()" title="Passend maken">Fit</button>
+        </div>
+      </div>
+      <div class="input-hint">Sleep een slice naar zijn plek. Wat je hier zet, staat meteen in 1:1 (en andersom). Het canvas is het gele kader; het werkvlak eromheen is groter zodat je buiten het canvas kunt bouwen.</div>
+      <div class="input-scroll" id="inputScroll"><svg id="inputSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    </div>
+  </div>
+
   <div class="panel" id="panel-plan2d">
     <div class="diagram-card">
       <div class="diagram-card-head">
@@ -6186,7 +6212,7 @@ function setAspectPreset(w, h){
 }
 
 function switchTab(name){
-  const valid = ['real','scaled','stage','overview','plan2d','data','power','live'];
+  const valid = ['real','input','scaled','stage','overview','plan2d','data','power','live'];
   const prev = activeTab;
   activeTab = valid.includes(name) ? name : 'real';
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===activeTab));
@@ -6195,6 +6221,7 @@ function switchTab(name){
   el('panel-stage').classList.toggle('active', activeTab==='stage');
   const pov = el('panel-overview'); if(pov) pov.classList.toggle('active', activeTab==='overview');
   const pplan = el('panel-plan2d'); if(pplan) pplan.classList.toggle('active', activeTab==='plan2d');
+  const pinput = el('panel-input'); if(pinput) pinput.classList.toggle('active', activeTab==='input');
   if(activeTab==='plan2d' && typeof renderCurveBuilder==='function') renderCurveBuilder();
   const pdata = el('panel-data'); if(pdata) pdata.classList.toggle('active', activeTab==='data');
   const ppower = el('panel-power'); if(ppower) ppower.classList.toggle('active', activeTab==='power');
@@ -6910,6 +6937,138 @@ function curveFlatten(){
   saveCurveState();
   renderCurveBuilder();
 }
+
+/* ---- Stage (input): zelfde slices als 1:1, op een groter werkvlak ---- */
+let inputZoom = null;
+let inputDrag = null;
+
+function inputWorkspaceSize(comp){
+  const canvas = getCanvasSize();
+  let maxR = canvas.w, maxB = canvas.h;
+  visibleComps(comp).forEach(c=>{
+    maxR = Math.max(maxR, c.slice.posX + c.resX);
+    maxB = Math.max(maxB, c.slice.posY + c.resY);
+  });
+  const W = Math.round(maxR + Math.max(600, maxR * 0.5));
+  const H = Math.round(maxB + Math.max(600, maxB * 0.5));
+  return { W, H, canvas };
+}
+
+function drawInputStage(comp){
+  const svg = el('inputSvg');
+  const scroll = el('inputScroll');
+  if(!svg || !scroll) return;
+  const { W, H, canvas } = inputWorkspaceSize(comp);
+  if(inputZoom === null){
+    inputZoom = Math.max(0.05, Math.min(1, (scroll.clientWidth || 900) / W));
+  }
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', Math.round(W * inputZoom));
+  svg.setAttribute('height', Math.round(H * inputZoom));
+  el('inputZoomLabel').textContent = Math.round(inputZoom * 100) + '%';
+
+  let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#0b0e10"/>`;
+  out += `<rect x="0" y="0" width="${canvas.w}" height="${canvas.h}" fill="#000000" stroke="#ffe066" stroke-width="${Math.max(2, W/600)}" stroke-dasharray="${Math.max(8, W/80)},${Math.max(6, W/100)}"/>`;
+  out += `<text x="${Math.max(10, W/200)}" y="${Math.max(18, W/120)}" font-size="${Math.max(14, W/90)}" fill="#ffe066" style="pointer-events:none">canvas · ${fmt(canvas.w)}×${fmt(canvas.h)} px</text>`;
+
+  const fs = Math.max(12, W/110);
+  visibleComps(comp).forEach((c, idx)=>{
+    const s = c.slice;
+    const fr = sliceFrame(c, s.posX, s.posY, c.resX, c.resY);
+    const color = colorForSlice(s);
+    const shape = shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '55', true, 1, 'inp');
+    const tc = sliceTextColor(s);
+    const x = s.posX, y = s.posY;
+    let labels = '';
+    if(c.resX > 60 && c.resY > 28){
+      labels += `<text x="${x + fs*0.6}" y="${y + fs*1.3}" font-size="${fs*0.8}" fill="${tc}" opacity="0.85" style="pointer-events:none">${fmt(s.posX)},${fmt(s.posY)}</text>`;
+      labels += `<text x="${x + c.resX/2}" y="${y + c.resY/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fs*1.2}" font-weight="600" fill="${tc}" style="pointer-events:none">${s.name}</text>`;
+      labels += `<text x="${x + fs*0.6}" y="${y + c.resY - fs*0.6}" font-size="${fs*0.8}" fill="${tc}" opacity="0.85" style="pointer-events:none">${fmt(c.resX)}×${fmt(c.resY)} px</text>`;
+    }
+    const selected = selectedSliceIds.has(s.id)
+      ? `<rect x="${x-3}" y="${y-3}" width="${c.resX+6}" height="${c.resY+6}" fill="none" stroke="var(--scaled)" stroke-width="${Math.max(2, W/500)}" stroke-dasharray="6,3" pointer-events="none"/>`
+      : '';
+    out += `<g data-input-id="${s.id}">${fr.open}${shape}${labels}${fr.close}${selected}</g>`;
+  });
+  svg.innerHTML = out;
+}
+
+function inputZoomBy(factor){
+  inputZoom = Math.max(0.03, Math.min(4, (inputZoom || 0.3) * factor));
+  renderComposition();
+}
+
+function inputFit(){
+  const scroll = el('inputScroll');
+  const { W } = inputWorkspaceSize(getComposition());
+  inputZoom = Math.max(0.03, Math.min(4, (scroll ? scroll.clientWidth : 900) / W));
+  renderComposition();
+}
+
+function inputSvgPoint(ev){
+  const svg = el('inputSvg');
+  const rect = svg.getBoundingClientRect();
+  const vb = svg.viewBox.baseVal;
+  const sx = vb.width / rect.width, sy = vb.height / rect.height;
+  return { x: (ev.clientX - rect.left) * sx, y: (ev.clientY - rect.top) * sy };
+}
+
+function inputPointerDown(ev){
+  if(ev.button !== 0) return;
+  const g = ev.target.closest && ev.target.closest('[data-input-id]');
+  if(!g) return;
+  const id = parseInt(g.getAttribute('data-input-id'), 10);
+  const s = slices.find(x=>x.id === id);
+  if(!s) return;
+  ev.preventDefault();
+  const p = inputSvgPoint(ev);
+  selectedSliceIds = new Set([id]);
+  selectedSliceId = id;
+  inputDrag = { id, startX: p.x, startY: p.y, baseX: s.posX, baseY: s.posY, moved: false };
+  g.classList.add('dragging');
+  window.addEventListener('pointermove', inputPointerMove);
+  window.addEventListener('pointerup', inputPointerUp);
+}
+
+function inputPointerMove(ev){
+  if(!inputDrag) return;
+  const s = slices.find(x=>x.id === inputDrag.id);
+  if(!s) return;
+  const p = inputSvgPoint(ev);
+  const nx = Math.max(0, Math.round(inputDrag.baseX + (p.x - inputDrag.startX)));
+  const ny = Math.max(0, Math.round(inputDrag.baseY + (p.y - inputDrag.startY)));
+  if(nx === s.posX && ny === s.posY) return;
+  s.posX = nx; s.posY = ny;
+  inputDrag.moved = true;
+  renderComposition();
+  const g = el('inputSvg').querySelector(`[data-input-id="${inputDrag.id}"]`);
+  if(g) g.classList.add('dragging');
+}
+
+function inputPointerUp(){
+  window.removeEventListener('pointermove', inputPointerMove);
+  window.removeEventListener('pointerup', inputPointerUp);
+  const d = inputDrag;
+  inputDrag = null;
+  if(!d) return;
+  const s = slices.find(x=>x.id === d.id);
+  if(d.moved && s){
+    /* Zelfde plek in 1:1: de posities op de kaart bijwerken en de geschiedenis vastleggen. */
+    const x = document.querySelector(`#card-${s.id} [data-f=posX]`);
+    const y = document.querySelector(`#card-${s.id} [data-f=posY]`);
+    if(x) x.value = s.posX;
+    if(y) y.value = s.posY;
+    commitHistory();
+  }
+  renderSlices();
+  renderComposition();
+}
+
+(function initInputStage(){
+  const svg = el('inputSvg');
+  if(!svg) return;
+  svg.addEventListener('pointerdown', inputPointerDown);
+})();
 
 function renderSlices(){
   const displayOrder = selectedSliceIds.size === 1
@@ -9746,6 +9905,8 @@ function renderComposition(){
   } else if(activeTab === 'power'){
     drawPowerPlan();
     renderPowerPlanControls();
+  } else if(activeTab === 'input'){
+    drawInputStage(comp);
   } else if(activeTab === 'live'){
     if(typeof renderLiveOutput==='function') renderLiveOutput(comp);
   } else if(activeTab === 'overview'){
