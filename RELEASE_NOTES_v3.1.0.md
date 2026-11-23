@@ -90,6 +90,7 @@ UPScale v3.1.0 voegt slice-koppeling toe. Als een object groter is dan één sli
 - [x] Slice roteren 0/90/180/270 draait kruis, cirkel, tekst en namen mee in alle weergaven en exports
 - [x] Gekoppelde slices blokkeren rotatie op de kaart; draai ze in **Indeling…** (custom koppelen) met de knoppen 0°/90°/180°/270° in het zijpaneel
 - [x] Kruis en cirkel van een gedraaide gekoppelde slice blijven op het virtuele vlak liggen
+- [x] Stage (input) en 1:1 hebben aparte posities per slice. In Stage kies je het beeldstuk van het canvas (input), in 1:1 waar de slice in de output staat. Verplaatsen in 1:1 verandert het beeldstuk niet, en andersom.
 - [x] Custom koppelen: de virtuele rotatie van een tegel staat los van de rotatie van de slice zelf. Je kunt een slice op de kaart draaien zonder de virtuele indeling te veranderen, en andersom.
 - [x] Custom-menu onthoudt de toegepaste posities bij opnieuw openen
 - [x] Na ontkoppelen start het custom-menu weer met de standaardindeling
