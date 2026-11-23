@@ -7052,6 +7052,7 @@ function drawInputStage(comp){
     const shape = patternOn
       ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="none" stroke="#ffffff" stroke-width="${Math.max(2, W/500)}"/>`
       : shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '55', true, 1, 'inp');
+    const hitRect = patternOn ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>` : '';
     const tc = sliceTextColor(s);
     const x = s.inX, y = s.inY;
     let labels = '';
@@ -7063,7 +7064,7 @@ function drawInputStage(comp){
     const selected = selectedSliceIds.has(s.id)
       ? `<rect x="${x-3}" y="${y-3}" width="${c.resX+6}" height="${c.resY+6}" fill="none" stroke="var(--scaled)" stroke-width="${Math.max(2, W/500)}" stroke-dasharray="6,3" pointer-events="none"/>`
       : '';
-    out += `<g data-input-id="${s.id}">${fr.open}${shape}${labels}${fr.close}${selected}</g>`;
+    out += `<g data-input-id="${s.id}">${fr.open}${hitRect}${shape}${labels}${fr.close}${selected}</g>`;
   });
   svg.innerHTML = out;
 }
@@ -7103,6 +7104,7 @@ function inputSetTestPattern(type){
   const c = getActiveCanvas();
   if(!c) return;
   liveSetCanvasTestPattern(c.id, type);
+  renderSlices();
   renderComposition();
 }
 
@@ -8314,19 +8316,16 @@ function drawComposition(svgId, comp, opts){
     }), { x: ox, y: oy, w: opts.canvasW*scale, h: opts.canvasH*scale }, 'rc' + (getActiveCanvas() ? getActiveCanvas().id : 0), scale);
   }
   visibleComps(comp).forEach((c, idx)=>{
-    if(canvasPatOn){
-      const x = ox + c.slice.posX*scale, y = oy + c.slice.posY*scale;
-      const w = c.resX*scale, h = c.resY*scale;
-      const fr = sliceFrame(c, x, y, w, h);
-      rects += `<g data-id="${c.slice.id}" style="cursor:grab" onmousedown="startDrag(event, ${c.slice.id})">${fr.open}<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>${fr.close}${selectedSliceIds.has(c.slice.id) ? `<rect x="${x-3}" y="${y-3}" width="${Math.max(w+6,1)}" height="${Math.max(h+6,1)}" fill="none" stroke="var(--scaled)" stroke-width="2.5" stroke-dasharray="6,3" pointer-events="none"/>` : ''}</g>`;
-      return;
-    }
     const color = colorForSlice(c.slice);
     const textColor = sliceTextColor(c.slice);
     const x = ox + c.slice.posX*scale, y = oy + c.slice.posY*scale;
     const w = c.resX*scale, h = c.resY*scale;
     const fr = sliceFrame(c, x, y, w, h);
-    const shape = shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '22', isReal);
+    /* Met testpatroon op 1:1 blijft het patroon de achtergrond. Het vak is
+       volledig klikbaar, en de markeringen (cirkel/kruis) volgen de Properties. */
+    const shape = canvasPatOn
+      ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>` + overlayMarks(c.slice, fr.x, fr.y, fr.w, fr.h, 1, 'pat' + c.slice.id)
+      : shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '22', isReal);
     let labels = '';
     if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
@@ -11913,11 +11912,35 @@ function livePushTestPattern(){
   scheduleLivePreviewDraw();
 }
 
+/* Weergave-opties per slice (titel, positie, resolutie, paneelaantal, ID's,
+   cirkel, kruis). Bij een testpatroon staan die standaard uit; de vorige
+   instellingen komen terug zodra het testpatroon weer uit gaat. */
+const TP_DISPLAY_FLAGS = ['showTitle','showPosition','showResolution','showPanelCount','showPanelIds','showCircle','showCross'];
+
+function applyCanvasPatternDisplayFlags(canvas, patternOn){
+  const list = canvas.id === activeCanvasId ? slices : (Array.isArray(canvas.slices) ? canvas.slices : []);
+  list.forEach(s=>{
+    if(patternOn){
+      if(!s.tpSavedFlags){
+        s.tpSavedFlags = {};
+        TP_DISPLAY_FLAGS.forEach(f=>{ s.tpSavedFlags[f] = !!s[f]; });
+      }
+      TP_DISPLAY_FLAGS.forEach(f=>{ s[f] = false; });
+    } else if(s.tpSavedFlags){
+      TP_DISPLAY_FLAGS.forEach(f=>{ s[f] = !!s.tpSavedFlags[f]; });
+      delete s.tpSavedFlags;
+    }
+  });
+}
+
 function liveSetCanvasTestPattern(canvasId, type){
   const c = canvases.find(x=>x.id === canvasId);
   if(!c) return;
   const t = ensureCanvasLiveTest(c);
+  const wasOn = t.type !== 'none';
   t.type = LIVE_TEST_TYPES.indexOf(type) >= 0 ? type : 'none';
+  const nowOn = t.type !== 'none';
+  if(wasOn !== nowOn) applyCanvasPatternDisplayFlags(c, nowOn);
   if(t.type === 'colorbars-100h'){ t.horizontal = false; t.vertical = true; }
   else if(t.type === 'colorbars-100'){ t.horizontal = true; t.vertical = false; }
   renderLiveControls();
