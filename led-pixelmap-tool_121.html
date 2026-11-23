@@ -214,6 +214,9 @@
   .plan2d-layers{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
   .input-zoom{display:flex;align-items:center;gap:6px;}
   .input-zoom .val{min-width:48px;text-align:center;font-family:var(--font-mono);}
+  .input-zoom .input-canvas-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);}
+  .input-zoom #inputCanvasSize{min-width:110px;}
+  .input-sep{width:1px;height:18px;background:var(--line);margin:0 4px;}
   .input-hint{font-size:11.5px;color:var(--text-faint);margin-bottom:10px;line-height:1.45;}
   .input-scroll{height:620px;overflow:auto;background:#060809;border:1px solid var(--line);border-radius:8px;}
   #inputSvg{display:block;cursor:default;}
@@ -1425,6 +1428,12 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
       <div class="diagram-card-head">
         <h2>Stage (input) · zelfde pixelmaten als 1:1</h2>
         <div class="input-zoom">
+          <span class="input-canvas-label">Canvas</span>
+          <button type="button" class="stage-btn" onclick="inputCanvasStep(-1)" title="Canvas kleiner (zelfde verhouding)">−</button>
+          <span class="val" id="inputCanvasSize">—</span>
+          <button type="button" class="stage-btn" onclick="inputCanvasStep(1)" title="Canvas groter (zelfde verhouding)">+</button>
+          <span class="input-sep"></span>
+          <span class="input-canvas-label">Weergave</span>
           <button type="button" class="stage-btn" onclick="inputZoomBy(0.8)" title="Uitzoomen">−</button>
           <span class="val" id="inputZoomLabel">100%</span>
           <button type="button" class="stage-btn" onclick="inputZoomBy(1.25)" title="Inzoomen">+</button>
@@ -6966,6 +6975,7 @@ function drawInputStage(comp){
   svg.setAttribute('width', Math.round(W * inputZoom));
   svg.setAttribute('height', Math.round(H * inputZoom));
   el('inputZoomLabel').textContent = Math.round(inputZoom * 100) + '%';
+  el('inputCanvasSize').textContent = `${fmt(canvas.w)} × ${fmt(canvas.h)} px`;
 
   let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#0b0e10"/>`;
   out += `<rect x="0" y="0" width="${canvas.w}" height="${canvas.h}" fill="#000000" stroke="#ffe066" stroke-width="${Math.max(2, W/600)}" stroke-dasharray="${Math.max(8, W/80)},${Math.max(6, W/100)}"/>`;
@@ -6991,6 +7001,26 @@ function drawInputStage(comp){
     out += `<g data-input-id="${s.id}">${fr.open}${shape}${labels}${fr.close}${selected}</g>`;
   });
   svg.innerHTML = out;
+}
+
+/* Canvas groter of kleiner met + en −, in dezelfde verhouding als het huidige
+   canvas. Het gaat via dezelfde velden als 1:1, dus beide tabbladen blijven gelijk. */
+function inputCanvasStep(dir){
+  const c = getCanvasSize();
+  const cw = Math.round(c.w), ch = Math.round(c.h);
+  const g = Math.max(1, gcd(cw, ch));
+  const aw = cw / g, ah = ch / g;
+  const f = dir > 0 ? 1.1 : 1/1.1;
+  let k = Math.max(1, Math.round(c.w * f / aw));
+  if(k * aw === cw) k += dir > 0 ? 1 : -1;
+  k = Math.max(1, k);
+  while(k * aw > 16000 || k * ah > 16000) k--;
+  while(k * aw < 16 || k * ah < 16) k++;
+  const w = k * aw, h = k * ah;
+  el('canvasW').value = w;
+  el('canvasH').value = h;
+  updateCanvasRatio();
+  recalcAll();
 }
 
 function inputZoomBy(factor){
