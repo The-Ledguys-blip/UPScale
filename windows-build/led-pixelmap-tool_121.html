@@ -6960,6 +6960,25 @@ function curveFlatten(){
   renderCurveBuilder();
 }
 
+/* Testpatroon van het canvas, geknipt op de vakken van de slices. Het patroon
+   zit op canvascoördinaten, dus het loopt door over meerdere slices heen.
+   toBox(c) geeft het vak van een slice in de uitvoerruimte, canvasBox het
+   hele canvas in dezelfde ruimte. */
+function canvasPatternOnSlicesSVG(lt, comp, toBox, canvasBox, seed){
+  const rects = visibleComps(comp).map(c=>{
+    const b = toBox(c);
+    const fr = sliceFrame(c, b.x, b.y, b.w, b.h);
+    const rot = sliceRotation(c.slice);
+    const tr = rot ? ` transform="rotate(${rot} ${fr.x + fr.w/2} ${fr.y + fr.h/2})"` : '';
+    return `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}"${tr}/>`;
+  }).join('');
+  const clipId = 'pclip-' + seed;
+  return `<defs><clipPath id="${clipId}">${rects}</clipPath></defs>` +
+    `<g clip-path="url(#${clipId})">` + testPatternSVG(lt.type, canvasBox.x, canvasBox.y, canvasBox.w, canvasBox.h, {
+      motion: lt.motion, horizontal: lt.horizontal, vertical: lt.vertical, speed: lt.speed
+    }, 'pt' + seed) + `</g>`;
+}
+
 /* ---- Stage (input): zelfde slices als 1:1, op een groter werkvlak ---- */
 let inputZoom = null;
 let inputDrag = null;
@@ -6999,20 +7018,11 @@ function drawInputStage(comp){
   out += `<rect x="0" y="0" width="${canvas.w}" height="${canvas.h}" fill="#000000" stroke="#ffe066" stroke-width="${Math.max(2, W/600)}" stroke-dasharray="${Math.max(8, W/80)},${Math.max(6, W/100)}"/>`;
   /* Testpatroon over het hele canvas: zelfde bank en instellingen als de
      live-uitgang, toegepast op de canvasresolutie. */
-  /* Alleen binnen de slices: het patroon zit op canvascoördinaten (dus het loopt
-     door over meerdere slices), maar wordt geknipt op de vakken van de slices. */
+  /* Stage toont het patroon over het hele canvas; de slices staan erbovenop als omtrek. */
   if(patternOn){
-    const clipRects = visibleComps(comp).map(c=>{
-      const fr = sliceFrame(c, c.slice.posX, c.slice.posY, c.resX, c.resY);
-      const rot = sliceRotation(c.slice);
-      const tr = rot ? ` transform="rotate(${rot} ${fr.x + fr.w/2} ${fr.y + fr.h/2})"` : '';
-      return `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}"${tr}/>`;
-    }).join('');
-    const clipId = 'inpclip' + canvasRec.id;
-    out += `<defs><clipPath id="${clipId}">${clipRects}</clipPath></defs>`;
-    out += `<g clip-path="url(#${clipId})">` + testPatternSVG(lt.type, 0, 0, canvas.w, canvas.h, {
+    out += testPatternSVG(lt.type, 0, 0, canvas.w, canvas.h, {
       motion: lt.motion, horizontal: lt.horizontal, vertical: lt.vertical, speed: lt.speed
-    }, 'inpt' + canvasRec.id) + `</g>`;
+    }, 'inpt' + canvasRec.id);
   }
   out += `<text x="${Math.max(10, W/200)}" y="${Math.max(18, W/120)}" font-size="${Math.max(14, W/90)}" fill="#ffe066" stroke="#000000" stroke-width="${Math.max(3, W/400)}" paint-order="stroke" style="pointer-events:none">canvas · ${fmt(canvas.w)}×${fmt(canvas.h)} px</text>`;
 
@@ -8279,8 +8289,22 @@ function drawComposition(svgId, comp, opts){
   }
 
   const isReal = svgId==='realSvg';
+  const canvasLt = isReal ? canvasLiveTest(getActiveCanvas()) : null;
+  const canvasPatOn = !!(canvasLt && canvasLt.type !== 'none' && opts.canvasW && opts.canvasH);
   let rects = '';
+  if(canvasPatOn){
+    rects += canvasPatternOnSlicesSVG(canvasLt, comp, c=>({
+      x: ox + c.slice.posX*scale, y: oy + c.slice.posY*scale, w: c.resX*scale, h: c.resY*scale
+    }), { x: ox, y: oy, w: opts.canvasW*scale, h: opts.canvasH*scale }, 'rc' + (getActiveCanvas() ? getActiveCanvas().id : 0));
+  }
   visibleComps(comp).forEach((c, idx)=>{
+    if(canvasPatOn){
+      const x = ox + c.slice.posX*scale, y = oy + c.slice.posY*scale;
+      const w = c.resX*scale, h = c.resY*scale;
+      const fr = sliceFrame(c, x, y, w, h);
+      rects += `<g data-id="${c.slice.id}" style="cursor:grab" onmousedown="startDrag(event, ${c.slice.id})">${fr.open}<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>${fr.close}${selectedSliceIds.has(c.slice.id) ? `<rect x="${x-3}" y="${y-3}" width="${Math.max(w+6,1)}" height="${Math.max(h+6,1)}" fill="none" stroke="var(--scaled)" stroke-width="2.5" stroke-dasharray="6,3" pointer-events="none"/>` : ''}</g>`;
+      return;
+    }
     const color = colorForSlice(c.slice);
     const textColor = sliceTextColor(c.slice);
     const x = ox + c.slice.posX*scale, y = oy + c.slice.posY*scale;
@@ -11440,16 +11464,10 @@ function buildLiveScaledSVG(comp, canvasArg){
   out += `<text x="${oox}" y="${ooy-8}" font-size="11" fill="var(--scaled,#ff9f43)">canvas · ${fmt(s.maxW)}×${fmt(s.maxH)} px</text>`;
   out += `<rect x="${scx}" y="${scy}" width="${scW}" height="${scH}" fill="#000000" stroke="#ffffff" stroke-width="1" rx="2"/>`;
   out += `<text x="${scx}" y="${scy+scH+16}" font-size="9.5" fill="#ffffff" opacity="0.8">1:1 canvas geschaald · ${fmt(Math.round(srcCanvas.w*realScale))}×${fmt(Math.round(srcCanvas.h*realScale))} px</text>`;
+  /* Testpatroon alleen binnen de slices, op de geschaalde canvasmaat. */
   if(liveTest.type !== 'none'){
-    /* Testpatroon over de hele canvas: geen slices, labels of andere
-       overlays, zodat de preview exact het live-signaal toont. */
-    out += testPatternSVG(liveTest.type, scx, scy, scW, scH, {
-      motion: liveTest.motion,
-      horizontal: liveTest.horizontal,
-      vertical: liveTest.vertical,
-      speed: liveTest.speed
-    }, 'lst' + canvas.id);
-  } else {
+    out += canvasPatternOnSlicesSVG(liveTest, comp, c=>({ x: scx + c.slice.posX*combinedScale, y: scy + c.slice.posY*combinedScale, w: c.resX*combinedScale, h: c.resY*combinedScale }), { x: scx, y: scy, w: scW, h: scH }, 'lst' + canvas.id);
+  } else
   visibleComps(comp).forEach((c, idx)=>{
     const x = scx + c.slice.posX*combinedScale, y = scy + c.slice.posY*combinedScale;
     const w = c.resX*combinedScale, h = c.resY*combinedScale;
@@ -11477,7 +11495,6 @@ function buildLiveScaledSVG(comp, canvasArg){
     }
     out = sliceFrameWrap(out, mark, fr);
   });
-  }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 640" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">${out}</svg>`;
 }
 
@@ -11547,16 +11564,10 @@ function buildLiveNativeSVG(comp, canvasArg){
   if(!canvasArg || canvasArg.id === activeCanvasId){ liveTargetW = W; liveTargetH = H; }
   const labelScale = Math.max(1, Math.min(W/1300, H/640));
   let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#000000"/>`;
+  /* Testpatroon alleen binnen de slices, op canvasresolutie (1 SVG-eenheid = 1 pixel). */
   if(liveTest.type !== 'none'){
-    /* Testpatroon over de volledige output op exact de canvasresolutie:
-       1 SVG-eenheid = 1 uitvoerpixel, vanaf 0,0. */
-    out += testPatternSVG(liveTest.type, 0, 0, W, H, {
-      motion: liveTest.motion,
-      horizontal: liveTest.horizontal,
-      vertical: liveTest.vertical,
-      speed: liveTest.speed
-    }, 'lnt' + canvas.id);
-  } else {
+    out += canvasPatternOnSlicesSVG(liveTest, comp, c=>({ x: c.slice.posX, y: c.slice.posY, w: c.resX, h: c.resY }), { x: 0, y: 0, w: W, h: H }, 'lnt' + canvas.id);
+  } else
   visibleComps(comp).forEach((c, idx)=>{
     const s = c.slice;
     const x = s.posX, y = s.posY, w = c.resX, h = c.resY;
@@ -11585,7 +11596,6 @@ function buildLiveNativeSVG(comp, canvasArg){
     }
     out = sliceFrameWrap(out, mark, fr);
   });
-  }
   /* Witte canvasrand: altijd zichtbaar in de output, ook als het scherm
      groter is dan de canvas. Ligt bovenop de objecten zodat hij nooit
      bedekt wordt. */
