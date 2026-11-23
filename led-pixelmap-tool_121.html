@@ -216,6 +216,9 @@
   .input-zoom .val{min-width:48px;text-align:center;font-family:var(--font-mono);}
   .input-zoom .input-canvas-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);}
   .input-zoom #inputCanvasSize{min-width:110px;}
+  .input-rot button{min-width:44px;}
+  .input-rot button.active{background:var(--stage);border-color:transparent;color:#08131f;}
+  .input-rot button:disabled{opacity:.4;cursor:not-allowed;}
   .input-sep{width:1px;height:18px;background:var(--line);margin:0 4px;}
   .input-test{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
   .input-test select{background:var(--panel-3);border:1px solid var(--line);color:var(--text);font-family:var(--font-sans);font-size:12px;padding:4px 8px;border-radius:5px;}
@@ -1431,6 +1434,13 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
     <div class="diagram-card">
       <div class="diagram-card-head">
         <h2>Stage (input) · zelfde pixelmaten als 1:1</h2>
+        <div class="input-zoom input-rot">
+          <span class="input-canvas-label">Draai slice (Stage)</span>
+          <button type="button" class="stage-btn" data-in-rot="0" onclick="inputSetRotation(0)">0°</button>
+          <button type="button" class="stage-btn" data-in-rot="90" onclick="inputSetRotation(90)">90°</button>
+          <button type="button" class="stage-btn" data-in-rot="180" onclick="inputSetRotation(180)">180°</button>
+          <button type="button" class="stage-btn" data-in-rot="270" onclick="inputSetRotation(270)">270°</button>
+        </div>
         <div class="input-zoom">
           <span class="input-canvas-label">Canvas</span>
           <button type="button" class="stage-btn" onclick="inputCanvasStep(-1)" title="Canvas kleiner (zelfde verhouding)">−</button>
@@ -6961,6 +6971,63 @@ function curveFlatten(){
   renderCurveBuilder();
 }
 
+/* Rotatie van een slice in Stage (input). Los van de rotatie op 1:1. */
+function inRot(s){
+  const r = Math.round(Number(s && s.inRotation) || 0);
+  return (r === 90 || r === 180 || r === 270) ? r : 0;
+}
+
+/* Kopie van een vergelijking met de Stage-rotatie: alleen de footprint en de
+   rotatie veranderen, de ongedraaide maat blijft gelijk. */
+function inputComp(c){
+  const rot = inRot(c.slice);
+  const swap = rot === 90 || rot === 270;
+  return Object.assign({}, c, {
+    resX: swap ? c.nativeResY : c.nativeResX,
+    resY: swap ? c.nativeResX : c.nativeResY,
+    slice: Object.assign({}, c.slice, { rotation: rot })
+  });
+}
+
+/* Paneel-ID's van de hoofdpanelen (of IM-ID's), los te tekenen zodat ze ook
+   werken als het testpatroon de achtergrond is. comp = de weergave-comp in de
+   lokale (ongedraaide) frame van de slice. */
+function panelIdsOverlaySVG(comp, x, y, w, h){
+  const s = comp && comp.slice;
+  if(!s || s.type !== 'slice' || s.mode !== 'panels') return '';
+  const im = !!s.imMode;
+  if(im ? !s.imShowIds : !s.showPanelIds) return '';
+  const gb = panelGridBox(comp, x, y, w, h);
+  const cellW = gb.w / s.panelsX, cellH = gb.h / s.panelsY;
+  const removed = s.removedPanels || [];
+  const seg = imSegments(s, 4000);
+  const tc = sliceTextColor(s);
+  const idScale = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct) || 100) / 100));
+  let out = '', n = 0;
+  for(let j=0; j<s.panelsY; j++){
+    for(let i=0; i<s.panelsX; i++){
+      if(removed.includes(i+'_'+j)) continue;
+      n++;
+      const cx = gb.x + i*cellW, cy = gb.y + j*cellH;
+      if(im){
+        const sW = cellW/seg.segX, sH = cellH/seg.segY;
+        if(!(sW > 14 && sH > 10)) continue;
+        const fs = Math.max(4, Math.min(96, Math.min(sW, sH)*0.2)) * idScale;
+        for(let gj=0; gj<seg.segY; gj++){
+          for(let gi=0; gi<seg.segX; gi++){
+            const tx = cx + gi*sW + sW/2, ty = cy + gj*sH + sH/2;
+            out += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(2)}" fill="${tc}" opacity="0.85" style="pointer-events:none">${n}.${gj*seg.segX + gi + 1}</text>`;
+          }
+        }
+      } else if(cellW > 14 && cellH > 10){
+        const fs = Math.max(5, Math.min(96, Math.min(cellW, cellH)*0.2)) * idScale;
+        out += `<text x="${cx+cellW/2}" y="${cy+cellH/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(2)}" fill="${tc}" opacity="0.75" style="pointer-events:none">${n}</text>`;
+      }
+    }
+  }
+  return out;
+}
+
 /* Input-positie (beeldstuk) van een slice. Ontbreekt die, dan start hij op de
    1:1-positie; daarna blijft hij los staan van posX/posY. */
 function ensureInputPos(s){
@@ -7002,7 +7069,8 @@ let inputDrag = null;
 function inputWorkspaceSize(comp){
   const canvas = getCanvasSize();
   let maxR = canvas.w, maxB = canvas.h;
-  visibleComps(comp).forEach(c=>{
+  visibleComps(comp).forEach(c0=>{
+    const c = inputComp(c0);
     ensureInputPos(c.slice);
     maxR = Math.max(maxR, c.slice.inX + c.resX);
     maxB = Math.max(maxB, c.slice.inY + c.resY);
@@ -7025,6 +7093,7 @@ function drawInputStage(comp){
   svg.setAttribute('height', Math.round(H * inputZoom));
   el('inputZoomLabel').textContent = Math.round(inputZoom * 100) + '%';
   el('inputCanvasSize').textContent = `${fmt(canvas.w)} × ${fmt(canvas.h)} px`;
+  inputSyncRotButtons();
 
   const canvasRec = getActiveCanvas();
   const lt = canvasLiveTest(canvasRec);
@@ -7044,13 +7113,14 @@ function drawInputStage(comp){
   out += `<text x="${Math.max(10, W/200)}" y="${Math.max(18, W/120)}" font-size="${Math.max(14, W/90)}" fill="#ffe066" stroke="#000000" stroke-width="${Math.max(3, W/400)}" paint-order="stroke" style="pointer-events:none">canvas · ${fmt(canvas.w)}×${fmt(canvas.h)} px</text>`;
 
   const fs = Math.max(12, W/110);
-  visibleComps(comp).forEach((c, idx)=>{
+  visibleComps(comp).forEach((c0, idx)=>{
+    const c = inputComp(c0);
     const s = c.slice;
     ensureInputPos(s);
     const fr = sliceFrame(c, s.inX, s.inY, c.resX, c.resY);
     const color = colorForSlice(s);
     const shape = patternOn
-      ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="none" stroke="#ffffff" stroke-width="${Math.max(2, W/500)}"/>`
+      ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="none" stroke="#ffffff" stroke-width="${Math.max(2, W/500)}"/>` + panelIdsOverlaySVG(fr.comp, fr.x, fr.y, fr.w, fr.h)
       : shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '55', true, 1, 'inp');
     const hitRect = patternOn ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>` : '';
     const tc = sliceTextColor(s);
@@ -7071,6 +7141,26 @@ function drawInputStage(comp){
 
 /* Canvas groter of kleiner met + en −, in dezelfde verhouding als het huidige
    canvas. Het gaat via dezelfde velden als 1:1, dus beide tabbladen blijven gelijk. */
+/* Draait de geselecteerde slice in Stage. Alleen de Stage-weergave verandert;
+   de rotatie op 1:1 blijft zoals die is. */
+function inputSetRotation(deg){
+  const id = selectedSliceId;
+  const s = slices.find(x=>x.id === id);
+  if(!s) return;
+  s.inRotation = [0, 90, 180, 270].includes(Number(deg)) ? Number(deg) : 0;
+  renderComposition();
+  commitHistory();
+}
+
+function inputSyncRotButtons(){
+  const s = slices.find(x=>x.id === selectedSliceId);
+  const cur = s && selectedSliceIds.size >= 1 ? inRot(s) : -1;
+  document.querySelectorAll('[data-in-rot]').forEach(btn=>{
+    btn.classList.toggle('active', Number(btn.getAttribute('data-in-rot')) === cur);
+    btn.disabled = !(s && selectedSliceIds.size >= 1);
+  });
+}
+
 function inputCanvasStep(dir){
   const c = getCanvasSize();
   const cw = Math.round(c.w), ch = Math.round(c.h);
@@ -8324,7 +8414,7 @@ function drawComposition(svgId, comp, opts){
     /* Met testpatroon op 1:1 blijft het patroon de achtergrond. Het vak is
        volledig klikbaar, en de markeringen (cirkel/kruis) volgen de Properties. */
     const shape = canvasPatOn
-      ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>` + overlayMarks(c.slice, fr.x, fr.y, fr.w, fr.h, 1, 'pat' + c.slice.id)
+      ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>` + overlayMarks(c.slice, fr.x, fr.y, fr.w, fr.h, 1, 'pat' + c.slice.id) + panelIdsOverlaySVG(fr.comp, fr.x, fr.y, fr.w, fr.h)
       : shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '22', isReal);
     let labels = '';
     if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
