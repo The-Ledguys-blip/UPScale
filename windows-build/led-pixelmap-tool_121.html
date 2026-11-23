@@ -217,6 +217,10 @@
   .input-zoom .input-canvas-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);}
   .input-zoom #inputCanvasSize{min-width:110px;}
   .input-sep{width:1px;height:18px;background:var(--line);margin:0 4px;}
+  .input-test{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .input-test select{background:var(--panel-3);border:1px solid var(--line);color:var(--text);font-family:var(--font-sans);font-size:12px;padding:4px 8px;border-radius:5px;}
+  .input-test-speed{display:flex;align-items:center;gap:6px;}
+  .input-test-flag{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-dim);cursor:pointer;}
   .input-hint{font-size:11.5px;color:var(--text-faint);margin-bottom:10px;line-height:1.45;}
   .input-scroll{height:620px;overflow:auto;background:#060809;border:1px solid var(--line);border-radius:8px;}
   #inputSvg{display:block;cursor:default;}
@@ -1439,6 +1443,15 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <button type="button" class="stage-btn" onclick="inputZoomBy(1.25)" title="Inzoomen">+</button>
           <button type="button" class="stage-btn" onclick="inputFit()" title="Passend maken">Fit</button>
         </div>
+      </div>
+      <div class="input-test">
+        <span class="input-canvas-label">Testpatroon (hele canvas)</span>
+        <select id="inputTestSelect" onchange="inputSetTestPattern(this.value)"></select>
+        <span class="input-test-speed" id="inputTestSpeedWrap">
+          <span class="input-canvas-label">Snelheid</span>
+          <input type="range" id="inputTestSpeed" min="1" max="10" step="1" value="2" oninput="inputSetTestSpeed(this.value)">
+        </span>
+        <label class="input-test-flag" id="inputTestMotionWrap"><input type="checkbox" id="inputTestMotion" onchange="inputSetTestMotion(this.checked)"> Motion</label>
       </div>
       <div class="input-hint">Sleep een slice naar zijn plek. Wat je hier zet, staat meteen in 1:1 (en andersom). Het canvas is het gele kader; het werkvlak eromheen is groter zodat je buiten het canvas kunt bouwen.</div>
       <div class="input-scroll" id="inputScroll"><svg id="inputSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
@@ -6977,16 +6990,30 @@ function drawInputStage(comp){
   el('inputZoomLabel').textContent = Math.round(inputZoom * 100) + '%';
   el('inputCanvasSize').textContent = `${fmt(canvas.w)} × ${fmt(canvas.h)} px`;
 
+  const canvasRec = getActiveCanvas();
+  const lt = canvasLiveTest(canvasRec);
+  syncInputTestControls(lt);
+  const patternOn = lt.type !== 'none';
+
   let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#0b0e10"/>`;
   out += `<rect x="0" y="0" width="${canvas.w}" height="${canvas.h}" fill="#000000" stroke="#ffe066" stroke-width="${Math.max(2, W/600)}" stroke-dasharray="${Math.max(8, W/80)},${Math.max(6, W/100)}"/>`;
-  out += `<text x="${Math.max(10, W/200)}" y="${Math.max(18, W/120)}" font-size="${Math.max(14, W/90)}" fill="#ffe066" style="pointer-events:none">canvas · ${fmt(canvas.w)}×${fmt(canvas.h)} px</text>`;
+  /* Testpatroon over het hele canvas: zelfde bank en instellingen als de
+     live-uitgang, toegepast op de canvasresolutie. */
+  if(patternOn){
+    out += testPatternSVG(lt.type, 0, 0, canvas.w, canvas.h, {
+      motion: lt.motion, horizontal: lt.horizontal, vertical: lt.vertical, speed: lt.speed
+    }, 'inpt' + canvasRec.id);
+  }
+  out += `<text x="${Math.max(10, W/200)}" y="${Math.max(18, W/120)}" font-size="${Math.max(14, W/90)}" fill="#ffe066" stroke="#000000" stroke-width="${Math.max(3, W/400)}" paint-order="stroke" style="pointer-events:none">canvas · ${fmt(canvas.w)}×${fmt(canvas.h)} px</text>`;
 
   const fs = Math.max(12, W/110);
   visibleComps(comp).forEach((c, idx)=>{
     const s = c.slice;
     const fr = sliceFrame(c, s.posX, s.posY, c.resX, c.resY);
     const color = colorForSlice(s);
-    const shape = shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '55', true, 1, 'inp');
+    const shape = patternOn
+      ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="none" stroke="#ffffff" stroke-width="${Math.max(2, W/500)}"/>`
+      : shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '55', true, 1, 'inp');
     const tc = sliceTextColor(s);
     const x = s.posX, y = s.posY;
     let labels = '';
@@ -7021,6 +7048,38 @@ function inputCanvasStep(dir){
   el('canvasH').value = h;
   updateCanvasRatio();
   recalcAll();
+}
+
+function syncInputTestControls(lt){
+  const sel = el('inputTestSelect');
+  if(!sel) return;
+  if(!sel.options.length) sel.innerHTML = liveTestPatternOptionsHtml('none');
+  if(sel.value !== lt.type) sel.value = lt.type;
+  const sp = el('inputTestSpeed'); if(sp && document.activeElement !== sp) sp.value = lt.speed;
+  const mo = el('inputTestMotion'); if(mo) mo.checked = !!lt.motion;
+  const sw = el('inputTestSpeedWrap'); if(sw) sw.style.display = lt.type === 'none' ? 'none' : '';
+  const mw = el('inputTestMotionWrap'); if(mw) mw.style.display = lt.type === 'none' ? 'none' : '';
+}
+
+function inputSetTestPattern(type){
+  const c = getActiveCanvas();
+  if(!c) return;
+  liveSetCanvasTestPattern(c.id, type);
+  renderComposition();
+}
+
+function inputSetTestSpeed(value){
+  const c = getActiveCanvas();
+  if(!c) return;
+  liveSetCanvasTestSpeed(c.id, value);
+  renderComposition();
+}
+
+function inputSetTestMotion(checked){
+  const c = getActiveCanvas();
+  if(!c) return;
+  liveSetCanvasTestFlag(c.id, 'motion', checked);
+  renderComposition();
 }
 
 function inputZoomBy(factor){
