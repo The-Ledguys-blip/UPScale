@@ -7124,15 +7124,18 @@ function drawInputStage(comp){
       : shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '55', true, 1, 'inp');
     const hitRect = patternOn ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>` : '';
     const tc = sliceTextColor(s);
-    const x = s.inX, y = s.inY;
+    /* Labels staan binnen de draaiing van de slice (lokale frame), zodat ze
+       meedraaien en binnen het vak blijven. */
+    const x = fr.x, y = fr.y, lw = fr.w, lh = fr.h;
     let labels = '';
-    if(c.resX > 60 && c.resY > 28){
+    if(lw > 60 && lh > 28){
       labels += `<text x="${x + fs*0.6}" y="${y + fs*1.3}" font-size="${fs*0.8}" fill="${tc}" opacity="0.85" style="pointer-events:none">${fmt(s.inX)},${fmt(s.inY)}</text>`;
-      labels += `<text x="${x + c.resX/2}" y="${y + c.resY/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fs*1.2}" font-weight="600" fill="${tc}" style="pointer-events:none">${s.name}</text>`;
-      labels += `<text x="${x + fs*0.6}" y="${y + c.resY - fs*0.6}" font-size="${fs*0.8}" fill="${tc}" opacity="0.85" style="pointer-events:none">${fmt(c.resX)}×${fmt(c.resY)} px</text>`;
+      labels += `<text x="${x + lw/2}" y="${y + lh/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fs*1.2}" font-weight="600" fill="${tc}" style="pointer-events:none">${s.name}</text>`;
+      labels += `<text x="${x + fs*0.6}" y="${y + lh - fs*0.6}" font-size="${fs*0.8}" fill="${tc}" opacity="0.85" style="pointer-events:none">${fmt(c.resX)}×${fmt(c.resY)} px</text>`;
     }
+    const sx = s.inX, sy = s.inY;
     const selected = selectedSliceIds.has(s.id)
-      ? `<rect x="${x-3}" y="${y-3}" width="${c.resX+6}" height="${c.resY+6}" fill="none" stroke="var(--scaled)" stroke-width="${Math.max(2, W/500)}" stroke-dasharray="6,3" pointer-events="none"/>`
+      ? `<rect x="${sx-3}" y="${sy-3}" width="${c.resX+6}" height="${c.resY+6}" fill="none" stroke="var(--scaled)" stroke-width="${Math.max(2, W/500)}" stroke-dasharray="6,3" pointer-events="none"/>`
       : '';
     out += `<g data-input-id="${s.id}">${fr.open}${hitRect}${shape}${labels}${fr.close}${selected}</g>`;
   });
