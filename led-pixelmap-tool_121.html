@@ -7092,7 +7092,9 @@ function drawInputStage(comp){
   svg.setAttribute('width', Math.round(W * inputZoom));
   svg.setAttribute('height', Math.round(H * inputZoom));
   el('inputZoomLabel').textContent = Math.round(inputZoom * 100) + '%';
-  el('inputCanvasSize').textContent = `${fmt(canvas.w)} × ${fmt(canvas.h)} px`;
+  const pctEl = el('inputCanvasSize');
+  pctEl.textContent = inputCanvasPercent(canvas.w) + '%';
+  pctEl.title = `${fmt(canvas.w)} × ${fmt(canvas.h)} px`;
   inputSyncRotButtons();
 
   const canvasRec = getActiveCanvas();
@@ -7110,7 +7112,7 @@ function drawInputStage(comp){
       motion: lt.motion, horizontal: lt.horizontal, vertical: lt.vertical, speed: lt.speed
     }, 'inpt' + canvasRec.id);
   }
-  out += `<text x="${Math.max(10, W/200)}" y="${Math.max(18, W/120)}" font-size="${Math.max(14, W/90)}" fill="#ffe066" stroke="#000000" stroke-width="${Math.max(3, W/400)}" paint-order="stroke" style="pointer-events:none">canvas · ${fmt(canvas.w)}×${fmt(canvas.h)} px</text>`;
+  out += `<text x="${Math.max(10, W/200)}" y="${Math.max(18, W/120)}" font-size="${Math.max(14, W/90)}" fill="#ffe066" stroke="#000000" stroke-width="${Math.max(3, W/400)}" paint-order="stroke" style="pointer-events:none">canvas · ${inputCanvasPercent(canvas.w)}%</text>`;
 
   const fs = Math.max(12, W/110);
   visibleComps(comp).forEach((c0, idx)=>{
@@ -7164,13 +7166,22 @@ function inputSyncRotButtons(){
   });
 }
 
+/* Canvas in procenten: 3840 × 2160 is 100%. + en − maken het groter of kleiner
+   in dezelfde verhouding als het huidige canvas. */
+const INPUT_BASE_W = 3840;
+
+function inputCanvasPercent(canvasW){
+  return Math.round(canvasW / INPUT_BASE_W * 100);
+}
+
 function inputCanvasStep(dir){
   const c = getCanvasSize();
   const cw = Math.round(c.w), ch = Math.round(c.h);
   const g = Math.max(1, gcd(cw, ch));
   const aw = cw / g, ah = ch / g;
-  const f = dir > 0 ? 1.1 : 1/1.1;
-  let k = Math.max(1, Math.round(c.w * f / aw));
+  const pct = c.w / INPUT_BASE_W * 100;
+  const newPct = dir > 0 ? pct * 1.1 : pct / 1.1;
+  let k = Math.max(1, Math.round(INPUT_BASE_W * newPct / 100 / aw));
   if(k * aw === cw) k += dir > 0 ? 1 : -1;
   k = Math.max(1, k);
   while(k * aw > 16000 || k * ah > 16000) k--;
