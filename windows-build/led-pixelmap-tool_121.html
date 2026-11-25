@@ -7003,6 +7003,7 @@ function panelIdsOverlaySVG(comp, x, y, w, h){
   if(!s || s.type !== 'slice' || s.mode !== 'panels') return '';
   const im = !!s.imMode;
   if(im ? !s.imShowIds : !s.showPanelIds) return '';
+  const idScale0 = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct) || 100) / 100));
   const gb = panelGridBox(comp, x, y, w, h);
   const cellW = gb.w / s.panelsX, cellH = gb.h / s.panelsY;
   const removed = s.removedPanels || [];
@@ -7031,6 +7032,26 @@ function panelIdsOverlaySVG(comp, x, y, w, h){
       }
     }
   }
+  /* Halve panelen: nummers lopen door na het raster, zoals op de paneelweergave. */
+  let halfNo = n;
+  gb.strips.forEach(st=> stripCells(st).forEach(cl=>{
+    halfNo++;
+    if(im){
+      const hs = halfImSegments(s, st, seg);
+      const sW = cl.w/hs.segX, sH = cl.h/hs.segY;
+      if(!(sW > 14 && sH > 10)) return;
+      const fs = Math.max(4, Math.min(96, Math.min(sW, sH)*0.2)) * idScale0;
+      for(let gj=0; gj<hs.segY; gj++){
+        for(let gi=0; gi<hs.segX; gi++){
+          const tx = cl.x + gi*sW + sW/2, ty = cl.y + gj*sH + sH/2;
+          out += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(2)}" fill="${tc}" opacity="0.85" style="pointer-events:none">${halfNo}.${gj*hs.segX + gi + 1}</text>`;
+        }
+      }
+    } else if(cl.w > 14 && cl.h > 10){
+      const fs = Math.max(5, Math.min(96, Math.min(cl.w, cl.h)*0.2)) * idScale0;
+      out += `<text x="${cl.x+cl.w/2}" y="${cl.y+cl.h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(2)}" fill="${tc}" opacity="0.75" style="pointer-events:none">${halfNo}</text>`;
+    }
+  }));
   return out;
 }
 
@@ -8457,8 +8478,15 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, id
         }
       }
     }
+    let halfNo = panelIdCounter;
     gb.strips.forEach(st=> stripCells(st).forEach(cl=>{
+      halfNo++;
       cells += `<rect x="${cl.x}" y="${cl.y}" width="${cl.w}" height="${cl.h}" fill="${color}" stroke="${border}" stroke-width="${1*ls}"/>`;
+      if(s.showPanelIds && cl.w>14 && cl.h>10){
+        const idScale = Math.max(0.4, Math.min(3, (Number(s.panelIdSizePct)||100)/100));
+        const fs = Math.max(5, Math.min(96, Math.min(cl.w, cl.h)*0.2)) * idScale;
+        cells += `<text x="${cl.x+cl.w/2}" y="${cl.y+cl.h/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fs.toFixed(2)}" fill="${sliceTextColor(s)}" opacity="0.75" style="pointer-events:none">${halfNo}</text>`;
+      }
     }));
     cells += overlayMarks(s, x, y, w, h, ls, idNs);
     inner = cells;
