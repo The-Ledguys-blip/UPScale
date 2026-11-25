@@ -11799,6 +11799,14 @@ function buildLiveNativeSVG(comp, canvasArg){
   /* Testpatroon alleen binnen de slices, op canvasresolutie (1 SVG-eenheid = 1 pixel). */
   if(liveTest.type !== 'none'){
     out += canvasPatternOnSlicesSVG(liveTest, comp, c=>({ x: c.slice.posX, y: c.slice.posY, w: c.resX, h: c.resY }), { x: 0, y: 0, w: W, h: H }, 'lnt' + canvas.id, 1);
+    /* Markeringen, ID's en labels bovenop het patroon, zoals op 1:1 (volgen de Properties). */
+    visibleComps(comp).forEach(c=>{
+      const fr = sliceFrame(c, c.slice.posX, c.slice.posY, c.resX, c.resY);
+      const ov = overlayMarks(c.slice, fr.x, fr.y, fr.w, fr.h, 1, 'lnp' + c.slice.id)
+        + panelIdsOverlaySVG(fr.comp, fr.x, fr.y, fr.w, fr.h)
+        + sliceLabelsSVG(c, fr, sliceTextColor(c.slice), 1/oneToOneScale(comp, canvas));
+      if(ov) out += fr.open + ov + fr.close;
+    });
   } else
   visibleComps(comp).forEach((c, idx)=>{
     const s = c.slice;
