@@ -217,6 +217,7 @@
   .input-zoom .input-canvas-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-faint);}
   .input-zoom #inputCanvasSize{min-width:110px;}
   .input-rot button{min-width:44px;}
+  #inputIdsBtn.active{background:var(--stage);border-color:transparent;color:#08131f;}
   .input-rot button.active{background:var(--stage);border-color:transparent;color:#08131f;}
   .input-rot button:disabled{opacity:.4;cursor:not-allowed;}
   .input-sep{width:1px;height:18px;background:var(--line);margin:0 4px;}
@@ -1462,6 +1463,7 @@ table.slice-table tbody tr:hover td{background:var(--panel-2);}
           <input type="range" id="inputTestSpeed" min="1" max="10" step="1" value="2" oninput="inputSetTestSpeed(this.value)">
         </span>
         <label class="input-test-flag" id="inputTestMotionWrap"><input type="checkbox" id="inputTestMotion" onchange="inputSetTestMotion(this.checked)"> Motion</label>
+        <button type="button" class="stage-btn" id="inputIdsBtn" onclick="inputToggleAllIds()" title="Zet de paneel-ID's (en IM-ID's) van alle slices aan of uit">ID's: uit</button>
       </div>
       <div class="input-hint">Sleep een slice naar zijn plek. Wat je hier zet, staat meteen in 1:1 (en andersom). Het canvas is het gele kader; het werkvlak eromheen is groter zodat je buiten het canvas kunt bouwen.</div>
       <div class="input-scroll" id="inputScroll"><svg id="inputSvg" xmlns="http://www.w3.org/2000/svg"></svg></div>
@@ -7139,6 +7141,7 @@ function drawInputStage(comp){
   pctEl.textContent = inputCanvasPercent(canvas.w) + '%';
   pctEl.title = `${fmt(canvas.w)} × ${fmt(canvas.h)} px`;
   inputSyncRotButtons();
+  inputSyncIdButton();
 
   const canvasRec = getActiveCanvas();
   const lt = canvasLiveTest(canvasRec);
@@ -7262,6 +7265,33 @@ function syncInputTestControls(lt){
   const mo = el('inputTestMotion'); if(mo) mo.checked = !!lt.motion;
   const sw = el('inputTestSpeedWrap'); if(sw) sw.style.display = lt.type === 'none' ? 'none' : '';
   const mw = el('inputTestMotionWrap'); if(mw) mw.style.display = lt.type === 'none' ? 'none' : '';
+}
+
+/* Alle ID's van alle slices in één keer aan of uit. Staat er een testpatroon
+   aan, dan wordt ook de onthouden instelling aangepast, zodat het uitzetten
+   van het patroon de keuze niet terugdraait. */
+function inputToggleAllIds(){
+  const panels = slices.filter(s=>s.type === 'slice' && s.mode === 'panels');
+  const anyOn = panels.some(s=> s.showPanelIds || s.imShowIds);
+  const value = !anyOn;
+  panels.forEach(s=>{
+    s.showPanelIds = value;
+    s.imShowIds = value;
+    if(s.tpSavedFlags){ s.tpSavedFlags.showPanelIds = value; }
+  });
+  inputSyncIdButton();
+  renderSlices();
+  renderComposition();
+  commitHistory();
+}
+
+function inputSyncIdButton(){
+  const btn = el('inputIdsBtn');
+  if(!btn) return;
+  const panels = slices.filter(s=>s.type === 'slice' && s.mode === 'panels');
+  const anyOn = panels.some(s=> s.showPanelIds || s.imShowIds);
+  btn.textContent = anyOn ? "ID's: aan" : "ID's: uit";
+  btn.classList.toggle('active', anyOn);
 }
 
 function inputSetTestPattern(type){
