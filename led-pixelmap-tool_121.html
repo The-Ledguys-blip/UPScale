@@ -7195,25 +7195,7 @@ function drawInputStage(comp){
     const tc = sliceTextColor(s);
     /* Labels staan binnen de draaiing van de slice (lokale frame), zodat ze
        meedraaien en binnen het vak blijven. */
-    /* Welke labels zichtbaar zijn, volgt de weergave-instellingen van de slice
-       (zelfde als op 1:1). Bij een testpatroon staan die standaard uit. */
-    const x = fr.x, y = fr.y, lw = fr.w, lh = fr.h;
-    let labels = '';
-    const fitFs2 = (base, text)=> Math.max(2, Math.min(base, (lw - 8) / (String(text).length * 0.62), (lh - 6) / 3));
-    if(lw > 14 && lh > 10){
-      if(s.showPosition !== false){
-        const pt = `${fmt(s.inX)},${fmt(s.inY)}`;
-        labels += `<text x="${x + fs*0.6}" y="${y + fs*1.3}" font-size="${fitFs2(fs*0.8, pt).toFixed(2)}" fill="${tc}" opacity="0.85" style="pointer-events:none">${pt}</text>`;
-      }
-      if(s.showTitle !== false) labels += `<text x="${x + lw/2}" y="${y + lh/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fitFs2(fs*1.2, s.name).toFixed(2)}" font-weight="600" fill="${tc}" style="pointer-events:none">${s.name}</text>`;
-      const bottom = [];
-      if(s.showResolution !== false) bottom.push(`${fmt(c.resX)}×${fmt(c.resY)} px`);
-      if(s.type === 'slice' && s.mode === 'panels' && s.showPanelCount !== false) bottom.push(`${s.panelsX}×${s.panelsY} panelen`);
-      bottom.forEach((line, li)=>{
-        const yOff = (bottom.length - li - 1) * fs*1.1 + fs*0.6;
-        labels += `<text x="${x + fs*0.6}" y="${y + lh - yOff}" font-size="${fitFs2(fs*0.8, line).toFixed(2)}" fill="${tc}" opacity="0.85" style="pointer-events:none">${line}</text>`;
-      });
-    }
+    const labels = sliceLabelsSVG(c, fr, tc, 1/oneToOneScale(comp, canvas), `${fmt(s.inX)},${fmt(s.inY)}`);
     const sx = s.inX, sy = s.inY;
     const selected = selectedSliceIds.has(s.id)
       ? `<rect x="${sx-3}" y="${sy-3}" width="${c.resX+6}" height="${c.resY+6}" fill="none" stroke="var(--scaled)" stroke-width="${Math.max(2, W/500)}" stroke-dasharray="6,3" pointer-events="none"/>`
@@ -8507,6 +8489,44 @@ function shapeSVG(c, idx, x, y, w, h, fillOpacityHex, interactive, lineScale, id
   return inner;
 }
 
+/* Schaal van de 1:1-preview (svg-eenheden per canvaspixel). De labels op 1:1,
+   in Stage en in de live-uitvoer worden met dezelfde verhouding getekend, zodat
+   ze er overal hetzelfde uitzien. */
+function oneToOneScale(comp, canvas){
+  const areaW = 1300 - 28, areaH = 640 - 36;
+  const dimW = Math.max(comp.resX, canvas.w), dimH = Math.max(comp.resY, canvas.h);
+  return Math.min(areaW/dimW, areaH/dimH);
+}
+
+/* Labels van één slice (naam, positie, resolutie, paneelaantal). base = grootte
+   van één eenheid in de weergave; op 1:1 is dat 1. Lettergrootte past zich aan
+   het vak aan, zodat de tekst altijd binnen het vak blijft. */
+function sliceLabelsSVG(c, fr, color, base, posOverride){
+  const s = c.slice;
+  if(sliceTestPatternActive(s)) return '';
+  const lw = fr.w, lh = fr.h;
+  if(!(lw > 14*base && lh > 10*base)) return '';
+  const fitFs = (b, text)=> Math.max(2.5*base, Math.min(b, (lw - 8*base)/(String(text).length * 0.62), (lh - 6*base)/3));
+  const hasPanelInfo = s.type === 'slice' && s.mode === 'panels';
+  const titleSize = s.titleSize || 12;
+  const bb = occupiedPixelBox(s, fr.x, fr.y, fr.w, fr.h);
+  let out = '';
+  if(s.showPosition !== false){
+    const posText = posOverride || `${fmt(s.posX)},${fmt(s.posY)}`;
+    out += `<text x="${bb.x+8*base}" y="${bb.y+16*base}" font-size="${fitFs(10*base, posText).toFixed(2)}" fill="${color}" opacity="0.85" style="pointer-events:none">${posText}</text>`;
+  }
+  const namePos = titleNamePos(s, bb);
+  if(s.showTitle !== false) out += applyTitleSqueeze(s, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${fitFs(titleSize*base, s.name).toFixed(2)}" font-weight="600" fill="${color}" style="pointer-events:none">${s.name}</text>`);
+  const bottom = [];
+  if(s.showResolution !== false) bottom.push(`${fmt(c.resX)}×${fmt(c.resY)} px`);
+  if(hasPanelInfo && s.showPanelCount !== false) bottom.push(`${s.panelsX}×${s.panelsY} panelen`);
+  bottom.forEach((line, li)=>{
+    const yOff = (bottom.length - li - 1) * 13*base + 8*base;
+    out += `<text x="${bb.x+8*base}" y="${bb.y+bb.h-yOff}" font-size="${fitFs(10*base, line).toFixed(2)}" fill="${color}" opacity="0.85" style="pointer-events:none">${line}</text>`;
+  });
+  return out;
+}
+
 function drawComposition(svgId, comp, opts){
   opts = opts || {};
   const svg = el(svgId);
@@ -8553,29 +8573,7 @@ function drawComposition(svgId, comp, opts){
     const shape = canvasPatOn
       ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>` + overlayMarks(c.slice, fr.x, fr.y, fr.w, fr.h, 1, 'pat' + c.slice.id) + panelIdsOverlaySVG(fr.comp, fr.x, fr.y, fr.w, fr.h)
       : shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '22', isReal);
-    let labels = '';
-    /* Kleine slices (bijv. 1 tegel) houden hun tekst: de letters schalen mee
-       met het vak, zodat de tekst altijd binnen het vak past. */
-    const lw = fr.w, lh = fr.h;
-    if(lw>14 && lh>10 && !sliceTestPatternActive(c.slice)){
-      const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
-      const fitFs = (base, text)=> Math.max(2.5, Math.min(base, (lw - 8) / (String(text).length * 0.62), (lh - 6) / 3));
-      const titleSize = c.slice.titleSize || 12;
-      const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
-      if(c.slice.showPosition !== false){
-        const posText = `${fmt(c.slice.posX)},${fmt(c.slice.posY)}`;
-        labels += `<text x="${bb.x+8}" y="${bb.y+16}" font-size="${fitFs(10, posText).toFixed(2)}" fill="${textColor}" opacity="0.85" style="pointer-events:none">${posText}</text>`;
-      }
-      const namePos = titleNamePos(c.slice, bb);
-      if(c.slice.showTitle !== false) labels += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${fitFs(titleSize, c.slice.name).toFixed(2)}" font-weight="600" fill="${textColor}" style="pointer-events:none">${c.slice.name}</text>`);
-      const bottomLines = [];
-      if(c.slice.showResolution !== false) bottomLines.push(`${fmt(c.resX)}×${fmt(c.resY)} px`);
-      if(hasPanelInfo && c.slice.showPanelCount !== false) bottomLines.push(`${c.slice.panelsX}×${c.slice.panelsY} panelen`);
-      bottomLines.forEach((line, li)=>{
-        const yOff = (bottomLines.length - li - 1) * 13 + 8;
-        labels += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="${fitFs(10, line).toFixed(2)}" fill="${textColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
-      });
-    }
+    const labels = sliceLabelsSVG(c, fr, textColor, 1);
     if(isReal){
       const selectedBox = selectedSliceIds.has(c.slice.id)
         ? `<rect x="${x-3}" y="${y-3}" width="${Math.max(w+6,1)}" height="${Math.max(h+6,1)}" fill="none" stroke="var(--scaled)" stroke-width="2.5" stroke-dasharray="6,3" pointer-events="none"/>`
@@ -11824,25 +11822,7 @@ function buildLiveNativeSVG(comp, canvasArg){
     const fr = sliceFrame(c, x, y, w, h);
     const mark = out.length;
     out += shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, 'ff', false, 1, 'ln'+canvas.id);
-    if(w > 60 && h > 28 && !sliceTestPatternActive(s)){
-      const bb = occupiedPixelBox(s, fr.x, fr.y, fr.w, fr.h);
-      const fs = (9.5 * labelScale).toFixed(2);
-      if(s.showPosition !== false){
-        out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + 15*labelScale}" font-size="${fs}" fill="${textColor}" opacity="0.85">${fmt(Math.round(x))},${fmt(Math.round(y))}</text>`;
-      }
-      const namePos = titleNamePos(s, bb);
-      if(s.showTitle !== false){
-        const ts = ((Number(s.titleSize) || 12) * labelScale).toFixed(2);
-        out += applyTitleSqueeze(s, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${ts}" font-weight="600" fill="${textColor}">${s.name}</text>`);
-      }
-      const lines = [];
-      if(s.showResolution !== false) lines.push(fmt(Math.round(w)) + '×' + fmt(Math.round(h)) + ' px');
-      if(s.type==='slice' && s.mode==='panels' && s.showPanelCount !== false) lines.push(s.panelsX + '×' + s.panelsY + ' panelen');
-      lines.forEach((line, li)=>{
-        const yOff = (lines.length - li - 1) * 12 * labelScale + 7 * labelScale;
-        out += `<text x="${bb.x + 8*labelScale}" y="${bb.y + bb.h - yOff}" font-size="${fs}" fill="${textColor}" opacity="0.85">${line}</text>`;
-      });
-    }
+    out += sliceLabelsSVG(c, fr, textColor, 1/oneToOneScale(comp, canvas));
     out = sliceFrameWrap(out, mark, fr);
   });
   /* Witte canvasrand: altijd zichtbaar in de output, ook als het scherm
