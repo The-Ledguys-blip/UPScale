@@ -11722,24 +11722,9 @@ function buildLiveScaledSVG(comp, canvasArg){
     const fr = sliceFrame(c, x, y, w, h);
     const mark = out.length;
     out += shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '33', false);
-    if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
-      const scaledResX = Math.max(1, Math.round(c.resX*realScale));
-      const scaledResY = Math.max(1, Math.round(c.resY*realScale));
-      const scaledPosX = Math.round(c.slice.posX*realScale);
-      const scaledPosY = Math.round(c.slice.posY*realScale);
-      const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
-      const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
-      if(c.slice.showPosition !== false) out += `<text x="${bb.x+8}" y="${bb.y+15}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${fmt(scaledPosX)},${fmt(scaledPosY)}</text>`;
-      const namePos = titleNamePos(c.slice, bb);
-      if(c.slice.showTitle !== false) out += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${c.slice.titleSize||12}" font-weight="600" fill="${scaledTextColor}" style="pointer-events:none">${c.slice.name}</text>`);
-      const bottomLines = [];
-      if(c.slice.showResolution !== false) bottomLines.push(`${fmt(scaledResX)}×${fmt(scaledResY)} px`);
-      if(hasPanelInfo && c.slice.showPanelCount !== false) bottomLines.push(`${c.slice.panelsX}×${c.slice.panelsY} panelen`);
-      bottomLines.forEach((line, li)=>{
-        const yOff = (bottomLines.length - li - 1) * 12 + 7;
-        out += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="9.5" fill="${scaledTextColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
-      });
-    }
+    /* Zelfde labels als op 1:1 (canvasmaten, zelfde verhouding), zodat de
+       preview geen geschaalde getallen toont en de tekst niet verdwijnt. */
+    out += sliceLabelsSVG(c, fr, scaledTextColor, combinedScale / oneToOneScale(comp, canvas));
     out = sliceFrameWrap(out, mark, fr);
   });
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 640" preserveAspectRatio="xMidYMid meet" width="100%" height="100%">${out}</svg>`;
