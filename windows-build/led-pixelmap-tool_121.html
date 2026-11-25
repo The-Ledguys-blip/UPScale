@@ -6264,7 +6264,7 @@ function switchTab(name){
 }
 
 function makeSlice(defaults){
-  return Object.assign({
+  const made = Object.assign({
     id: nextId++,
     name: 'Scherm ' + String.fromCharCode(64 + slices.length + 1),
     mode: 'panels',
@@ -6326,6 +6326,10 @@ function makeSlice(defaults){
     cropRight: 0,
     cropCollapsed: true
   }, defaults||{});
+  /* Nieuwe slice: de Stage-positie begint op dezelfde XY als in 1:1. */
+  made.inX = made.posX;
+  made.inY = made.posY;
+  return made;
 }
 
 function addSlice(){
@@ -7171,15 +7175,19 @@ function drawInputStage(comp){
        (zelfde als op 1:1). Bij een testpatroon staan die standaard uit. */
     const x = fr.x, y = fr.y, lw = fr.w, lh = fr.h;
     let labels = '';
-    if(lw > 60 && lh > 28){
-      if(s.showPosition !== false) labels += `<text x="${x + fs*0.6}" y="${y + fs*1.3}" font-size="${fs*0.8}" fill="${tc}" opacity="0.85" style="pointer-events:none">${fmt(s.inX)},${fmt(s.inY)}</text>`;
-      if(s.showTitle !== false) labels += `<text x="${x + lw/2}" y="${y + lh/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fs*1.2}" font-weight="600" fill="${tc}" style="pointer-events:none">${s.name}</text>`;
+    const fitFs2 = (base, text)=> Math.max(2, Math.min(base, (lw - 8) / (String(text).length * 0.62), (lh - 6) / 3));
+    if(lw > 14 && lh > 10){
+      if(s.showPosition !== false){
+        const pt = `${fmt(s.inX)},${fmt(s.inY)}`;
+        labels += `<text x="${x + fs*0.6}" y="${y + fs*1.3}" font-size="${fitFs2(fs*0.8, pt).toFixed(2)}" fill="${tc}" opacity="0.85" style="pointer-events:none">${pt}</text>`;
+      }
+      if(s.showTitle !== false) labels += `<text x="${x + lw/2}" y="${y + lh/2}" text-anchor="middle" dominant-baseline="middle" font-size="${fitFs2(fs*1.2, s.name).toFixed(2)}" font-weight="600" fill="${tc}" style="pointer-events:none">${s.name}</text>`;
       const bottom = [];
       if(s.showResolution !== false) bottom.push(`${fmt(c.resX)}×${fmt(c.resY)} px`);
       if(s.type === 'slice' && s.mode === 'panels' && s.showPanelCount !== false) bottom.push(`${s.panelsX}×${s.panelsY} panelen`);
       bottom.forEach((line, li)=>{
         const yOff = (bottom.length - li - 1) * fs*1.1 + fs*0.6;
-        labels += `<text x="${x + fs*0.6}" y="${y + lh - yOff}" font-size="${fs*0.8}" fill="${tc}" opacity="0.85" style="pointer-events:none">${line}</text>`;
+        labels += `<text x="${x + fs*0.6}" y="${y + lh - yOff}" font-size="${fitFs2(fs*0.8, line).toFixed(2)}" fill="${tc}" opacity="0.85" style="pointer-events:none">${line}</text>`;
       });
     }
     const sx = s.inX, sy = s.inY;
@@ -8488,19 +8496,26 @@ function drawComposition(svgId, comp, opts){
       ? `<rect x="${fr.x}" y="${fr.y}" width="${fr.w}" height="${fr.h}" fill="rgba(0,0,0,0)"/>` + overlayMarks(c.slice, fr.x, fr.y, fr.w, fr.h, 1, 'pat' + c.slice.id) + panelIdsOverlaySVG(fr.comp, fr.x, fr.y, fr.w, fr.h)
       : shapeSVG(fr.comp, idx, fr.x, fr.y, fr.w, fr.h, '22', isReal);
     let labels = '';
-    if(w>60 && h>28 && !sliceTestPatternActive(c.slice)){
+    /* Kleine slices (bijv. 1 tegel) houden hun tekst: de letters schalen mee
+       met het vak, zodat de tekst altijd binnen het vak past. */
+    const lw = fr.w, lh = fr.h;
+    if(lw>14 && lh>10 && !sliceTestPatternActive(c.slice)){
       const hasPanelInfo = c.slice.type==='slice' && c.slice.mode==='panels';
+      const fitFs = (base, text)=> Math.max(2.5, Math.min(base, (lw - 8) / (String(text).length * 0.62), (lh - 6) / 3));
       const titleSize = c.slice.titleSize || 12;
       const bb = occupiedPixelBox(c.slice, fr.x, fr.y, fr.w, fr.h);
-      if(c.slice.showPosition !== false) labels += `<text x="${bb.x+8}" y="${bb.y+16}" font-size="10" fill="${textColor}" opacity="0.85" style="pointer-events:none">${fmt(c.slice.posX)},${fmt(c.slice.posY)}</text>`;
+      if(c.slice.showPosition !== false){
+        const posText = `${fmt(c.slice.posX)},${fmt(c.slice.posY)}`;
+        labels += `<text x="${bb.x+8}" y="${bb.y+16}" font-size="${fitFs(10, posText).toFixed(2)}" fill="${textColor}" opacity="0.85" style="pointer-events:none">${posText}</text>`;
+      }
       const namePos = titleNamePos(c.slice, bb);
-      if(c.slice.showTitle !== false) labels += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${titleSize}" font-weight="600" fill="${textColor}" style="pointer-events:none">${c.slice.name}</text>`);
+      if(c.slice.showTitle !== false) labels += applyTitleSqueeze(c.slice, namePos.x, namePos.y, `<text x="${namePos.x}" y="${namePos.y}" text-anchor="middle" dominant-baseline="middle" font-size="${fitFs(titleSize, c.slice.name).toFixed(2)}" font-weight="600" fill="${textColor}" style="pointer-events:none">${c.slice.name}</text>`);
       const bottomLines = [];
       if(c.slice.showResolution !== false) bottomLines.push(`${fmt(c.resX)}×${fmt(c.resY)} px`);
       if(hasPanelInfo && c.slice.showPanelCount !== false) bottomLines.push(`${c.slice.panelsX}×${c.slice.panelsY} panelen`);
       bottomLines.forEach((line, li)=>{
         const yOff = (bottomLines.length - li - 1) * 13 + 8;
-        labels += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="10" fill="${textColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
+        labels += `<text x="${bb.x+8}" y="${bb.y+bb.h-yOff}" font-size="${fitFs(10, line).toFixed(2)}" fill="${textColor}" opacity="0.85" style="pointer-events:none">${line}</text>`;
       });
     }
     if(isReal){
