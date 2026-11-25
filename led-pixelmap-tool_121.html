@@ -7065,6 +7065,45 @@ function canvasPatternOnSlicesSVG(lt, comp, toBox, canvasBox, seed, scale){
 /* ---- Stage (input): zelfde slices als 1:1, op een groter werkvlak ---- */
 let inputZoom = null;
 let inputDrag = null;
+let inputGuides = null;
+
+/* Snap in Stage: de randen en het midden van de gesleepte slice springen naar
+   de randen en het midden van andere slices en naar het canvas. Alt schakelt
+   snap uit. Drempel in werkvlak-eenheden, zodat hij op elk zoomniveau gelijk aanvoelt. */
+function inputSnap(id, nx, ny, w, h, disable){
+  const canvas = getCanvasSize();
+  const comp = getComposition();
+  const xTargets = [0, canvas.w/2, canvas.w];
+  const yTargets = [0, canvas.h/2, canvas.h];
+  if(disable) return { x: nx, y: ny, guides: { x: null, y: null } };
+  visibleComps(comp).forEach(c0=>{
+    const c = inputComp(c0);
+    if(c.slice.id === id) return;
+    ensureInputPos(c.slice);
+    const ox = c.slice.inX, oy = c.slice.inY;
+    xTargets.push(ox, ox + c.resX/2, ox + c.resX);
+    yTargets.push(oy, oy + c.resY/2, oy + c.resY);
+  });
+  const threshold = 10 / Math.max(0.03, inputZoom || 0.3);
+  let bestX = null, bestY = null;
+  [0, w/2, w].forEach(edge=>{
+    xTargets.forEach(t=>{
+      const d = t - (nx + edge);
+      if(Math.abs(d) <= threshold && (!bestX || Math.abs(d) < Math.abs(bestX.d))) bestX = { d, at: t };
+    });
+  });
+  [0, h/2, h].forEach(edge=>{
+    yTargets.forEach(t=>{
+      const d = t - (ny + edge);
+      if(Math.abs(d) <= threshold && (!bestY || Math.abs(d) < Math.abs(bestY.d))) bestY = { d, at: t };
+    });
+  });
+  return {
+    x: Math.max(0, Math.round(nx + (bestX ? bestX.d : 0))),
+    y: Math.max(0, Math.round(ny + (bestY ? bestY.d : 0))),
+    guides: { x: bestX ? bestX.at : null, y: bestY ? bestY.at : null }
+  };
+}
 
 function inputWorkspaceSize(comp){
   const canvas = getCanvasSize();
@@ -7149,6 +7188,11 @@ function drawInputStage(comp){
       : '';
     out += `<g data-input-id="${s.id}">${fr.open}${hitRect}${shape}${labels}${fr.close}${selected}</g>`;
   });
+  if(inputGuides){
+    const gw = Math.max(2, W/900);
+    if(inputGuides.x !== null) out += `<line x1="${inputGuides.x}" y1="0" x2="${inputGuides.x}" y2="${H}" stroke="#00e5ff" stroke-width="${gw}" stroke-dasharray="${gw*6},${gw*4}" pointer-events="none"/>`;
+    if(inputGuides.y !== null) out += `<line x1="0" y1="${inputGuides.y}" x2="${W}" y2="${inputGuides.y}" stroke="#00e5ff" stroke-width="${gw}" stroke-dasharray="${gw*6},${gw*4}" pointer-events="none"/>`;
+  }
   svg.innerHTML = out;
 }
 
@@ -7277,9 +7321,13 @@ function inputPointerMove(ev){
   const s = slices.find(x=>x.id === inputDrag.id);
   if(!s) return;
   const p = inputSvgPoint(ev);
-  const nx = Math.max(0, Math.round(inputDrag.baseX + (p.x - inputDrag.startX)));
-  const ny = Math.max(0, Math.round(inputDrag.baseY + (p.y - inputDrag.startY)));
-  if(nx === s.inX && ny === s.inY) return;
+  const rawX = Math.max(0, inputDrag.baseX + (p.x - inputDrag.startX));
+  const rawY = Math.max(0, inputDrag.baseY + (p.y - inputDrag.startY));
+  const c = inputComp(visibleComps(getComposition()).find(x=>x.slice.id === s.id) || { slice: s, resX: 1, resY: 1, nativeResX: 1, nativeResY: 1 });
+  const snapped = inputSnap(s.id, rawX, rawY, c.resX, c.resY, ev.altKey);
+  inputGuides = snapped.guides;
+  const nx = snapped.x, ny = snapped.y;
+  if(nx === s.inX && ny === s.inY) { renderComposition(); return; }
   s.inX = nx; s.inY = ny;
   inputDrag.moved = true;
   renderComposition();
@@ -7290,6 +7338,7 @@ function inputPointerMove(ev){
 function inputPointerUp(){
   window.removeEventListener('pointermove', inputPointerMove);
   window.removeEventListener('pointerup', inputPointerUp);
+  inputGuides = null;
   const d = inputDrag;
   inputDrag = null;
   if(!d) return;
